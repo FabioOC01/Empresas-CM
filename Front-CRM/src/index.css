@@ -1,0 +1,28 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f0f2f5;
+    color: #2d3d52;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+}
+
+#root {
+    min-height: 100vh;
+}
+
+button, select, input, textarea {
+    font-family: inherit;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f0f2f5; }
+::-webkit-scrollbar-thumb { background: #c8ced9; border-radius: 3px; }
