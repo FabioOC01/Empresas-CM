@@ -1,0 +1,2 @@
+INSERT INTO roles (id) VALUES ('Corporativo') ON CONFLICT DO NOTHING;
+INSERT INTO roles (id) VALUES ('Soporte Técnico') ON CONFLICT DO NOTHING;

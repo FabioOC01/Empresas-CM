@@ -1,144 +1,163 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Sector, LabelList } from 'recharts';
+
+const renderActivePie = ({ cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill }) => (
+    <Sector cx={cx} cy={cy} innerRadius={innerRadius - 3} outerRadius={outerRadius + 8} startAngle={startAngle} endAngle={endAngle} fill={fill} opacity={0.95} />
+);
 import { getVendedores } from '../api/actividades';
 import useActividades from '../hooks/useActividades';
-import { filterActs, fmtUSD, MESES } from '../utils/crm';
+import { filterActs, fmtUSD, fmt, calcDuration, MESES } from '../utils/crm';
+import PeriodoPicker from '../components/PeriodoPicker';
+import Avatar from '../components/Avatar';
+import { useTheme } from '../context/ThemeContext';
 
-const PIPELINE = [
-    { label: 'PROSPECCIÓN', tipos: ['Visita'],                        bg: '#eaf4fb', accent: '#2980b9' },
-    { label: 'CALIFICACIÓN', tipos: ['Seguimiento','Oportunidad'],    bg: '#eafaf1', accent: '#27ae60' },
-    { label: 'PROPUESTA',    tipos: ['Propuesta','Cotización'],       bg: '#fef9e7', accent: '#d4ac0d' },
-    { label: 'NEGOCIACIÓN',  tipos: ['Homologación'],                 bg: '#fef5e4', accent: '#ca6f1e' },
-    { label: 'CIERRE',       tipos: ['Venta'],                        bg: '#eafaf1', accent: '#1e8449' },
+const ETAPA_STYLES = [
+    { bg: '#fdf0f8', accent: '#e91e8c' },
+    { bg: '#eaf4fb', accent: '#2980b9' },
+    { bg: '#fef9e7', accent: '#d4ac0d' },
+    { bg: '#e8f8f0', accent: '#1e8449' },
+    { bg: '#f5f0ff', accent: '#8e44ad' },
+    { bg: '#fff0f5', accent: '#e74c3c' },
+    { bg: '#f0fff4', accent: '#16a085' },
 ];
 
-const KPI_COLORS = ['#eaf4fb','#eafaf1','#fef5e4','#fef9e7','#f4ecf7','#eaf4fb'];
-const KPI_ACCENTS = ['#2980b9','#27ae60','#ca6f1e','#d4ac0d','#8e44ad','#2980b9'];
-const KPI_ICONS = ['📋','💰','✅','⏳','🏆','👥'];
-
-const CHART_COLORS = ['#2f6fd4','#27ae60','#8e44ad','#e67e22','#e74c3c','#1abc9c'];
-
-const ESTADO_COLOR = { 'Pendiente':'#e67e22','En Progreso':'#2f6fd4','Completado':'#27ae60','Cancelado':'#e74c3c' };
-
-function dateStr() {
-    return new Date().toLocaleDateString('es-PE', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-}
 
 export default function Dashboard() {
-    const { actividades } = useActividades();
+    const { actividades, config } = useActividades();
+    const tk     = useTheme();
+    const { sel, card, ct, td } = useDashStyles(tk);
+    const moneda = config?.moneda || 'USD';
     const [vendedores, setVendedores] = useState([]);
     const [trim, setTrim] = useState('');
+    const [mes, setMes]   = useState('');
     const [vend, setVend] = useState('');
-    const [vendMetric, setVendMetric] = useState('monto');
+    const [activePieIdx, setActivePieIdx] = useState(null);
+    const [fsvend, setFsvend] = useState(null);
+    const [isFs, setIsFs] = useState(false);
 
-    useEffect(() => { getVendedores().then(setVendedores); }, []);
+    useEffect(() => {
+        const h = () => setIsFs(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', h);
+        return () => document.removeEventListener('fullscreenchange', h);
+    }, []);
+
+    const toggleFs = () => {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+    };
+
+    useEffect(() => {
+        if (!fsvend) return;
+        const h = (e) => { if (e.key === 'Escape') setFsvend(null); };
+        window.addEventListener('keydown', h);
+        return () => window.removeEventListener('keydown', h);
+    }, [fsvend]);
+
+    useEffect(() => {
+        getVendedores().then(vs =>
+            setVendedores(vs.filter(v => !v.roles?.some(r => ['Admin','Gerencia'].includes(r))))
+        );
+    }, []);
 
     const data = filterActs(actividades, {
         trimestre:  trim || undefined,
+        mes:        mes  || undefined,
         vendedorId: vend || undefined,
     });
 
-    const completados  = data.filter(a => a.estado === 'Completado');
-    const enProgreso   = data.filter(a => a.estado === 'En Progreso');
-    const pendientes   = data.filter(a => a.estado === 'Pendiente');
-    const homologaciones = data.filter(a => a.tipo === 'Homologación');
-    const totalMonto   = data.reduce((s,a) => s + Number(a.monto), 0);
-    const cerradoMonto = completados.reduce((s,a) => s + Number(a.monto), 0);
-    const tasa         = data.length ? Math.round(completados.length / data.length * 100) : 0;
+    const ttStyle = {
+        contentStyle: { background: tk.card, border: `1px solid ${tk.bdr}`, borderRadius: 8, fontSize: 12, color: tk.txt },
+        itemStyle:    { color: tk.txt2 },
+        labelStyle:   { color: tk.txt, fontWeight: 600 },
+        cursor:       { fill: tk.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
+    };
+    const axisProps = { tick: { fill: tk.txt2, fontSize: 11 } };
+    const ESTADO_COLOR = { 'Completado':'#27ae60','Ganada':'#1e8449','En Progreso':'#10b981','Pendiente':'#e67e22','Cancelado':'#e74c3c','Perdida':'#e74c3c' };
 
-    const kpis = [
-        { label: 'TOTAL ACTIVIDADES', value: data.length,              sub: `${enProgreso.length} en progreso` },
-        { label: 'MONTO PIPELINE',    value: fmtUSD(totalMonto),       sub: `↑ ${fmtUSD(cerradoMonto)} cerrado` },
-        { label: 'COMPLETADAS',       value: completados.length,        sub: `Tasa: ${tasa}%` },
-        { label: 'PENDIENTES',        value: pendientes.length,         sub: `${enProgreso.length} en curso` },
-        { label: 'HOMOLOGACIONES',    value: homologaciones.length,     sub: `${homologaciones.filter(a=>a.estado==='Completado').length} completadas` },
-        { label: 'VENDEDORES',        value: vendedores.length,         sub: `de ${vendedores.length} totales` },
-    ];
 
-    const pipeline = PIPELINE.map(p => ({
-        ...p,
-        items: data.filter(a => p.tipos.includes(a.tipo)),
-        monto: data.filter(a => p.tipos.includes(a.tipo)).reduce((s,a) => s + Number(a.monto), 0),
+    const pipeline = (config?.pipeline_etapas || []).map((e, i) => ({
+        label: e.nombre.toUpperCase(),
+        tipos: e.tipos,
+        items: data.filter(a => e.tipos.includes(a.tipo)),
+        ...ETAPA_STYLES[i % ETAPA_STYLES.length],
     }));
 
     // Charts
-    const byVendedor = vendedores.map(v => ({
+    const byVendedorEstado = vendedores.map(v => ({
         name: v.nombre.split(' ')[0],
-        color: v.color,
-        Monto: data.filter(a => a.vendedor_id === v.id).reduce((s,a) => s + Number(a.monto), 0),
-        Cantidad: data.filter(a => a.vendedor_id === v.id).length,
+        Completado:    data.filter(a => a.vendedor_id === v.id && a.estado === 'Completado').length,
+        'En Progreso': data.filter(a => a.vendedor_id === v.id && a.estado === 'En Progreso').length,
+        Pendiente:     data.filter(a => a.vendedor_id === v.id && a.estado === 'Pendiente').length,
+        Cancelado:     data.filter(a => a.vendedor_id === v.id && a.estado === 'Cancelado').length,
     }));
-
-    const byEstado = ['Pendiente','En Progreso','Completado','Cancelado']
-        .map(e => ({ name: e, value: data.filter(a => a.estado === e).length }))
-        .filter(x => x.value > 0);
 
     const TIPOS_ALL = ['Venta','Homologación','Visita','Propuesta','Seguimiento','Administrativa','Oportunidad','Cotización','Publicidad','Piezas gráficas'];
     const byTipo = TIPOS_ALL.map(t => ({ name: t, value: data.filter(a => a.tipo === t).length })).filter(x => x.value > 0);
-    const TIPO_COLORS = ['#2f6fd4','#27ae60','#e67e22','#8e44ad','#e74c3c','#1abc9c','#e91e63','#4caf50','#ff9800','#9c27b0'];
+    const TIPO_COLORS = ['#10b981','#27ae60','#e67e22','#8e44ad','#e74c3c','#1abc9c','#e91e63','#4caf50','#ff9800','#9c27b0'];
 
     const byMes = MESES.map(m => ({
         name: m, count: data.filter(a => a.mes === m).length,
     })).filter(x => x.count > 0);
 
-    const byPrio = ['Alta','Media','Baja'].map(p => ({
-        name: p,
-        Completado:  data.filter(a => a.prioridad === p && a.estado === 'Completado').length,
-        'En Progreso': data.filter(a => a.prioridad === p && a.estado === 'En Progreso').length,
-        Pendiente:   data.filter(a => a.prioridad === p && a.estado === 'Pendiente').length,
-    }));
+    const actividadReciente = vendedores
+        .map(v => {
+            const ultima = [...actividades]
+                .filter(a => a.vendedor_id === v.id)
+                .sort((a, b) => b.id - a.id)[0];
+            return { ...v, ultima };
+        })
+        .filter(v => v.ultima)
+        .sort((a, b) => b.ultima.id - a.ultima.id)
+        .slice(0, 3);
+
+    const tiempoPorEtapa = pipeline.map(p => {
+        const acts = data.filter(a => p.tipos.includes(a.tipo) && (a.elapsed || 0) > 0);
+        const avg  = acts.length > 0 ? acts.reduce((s, a) => s + (a.elapsed || 0), 0) / acts.length : 0;
+        return { name: p.label, horas: parseFloat((avg / 3600).toFixed(1)), color: p.accent };
+    }).filter(x => x.horas > 0);
 
     const topOps = [...data].sort((a,b) => b.monto - a.monto).slice(0,8);
-    const recientes = [...data].sort((a,b) => b.id - a.id).slice(0,8);
+
+    const completadasN = data.filter(a => a.estado === 'Completado').length;
+    const enProgresoN  = data.filter(a => a.estado === 'En Progreso').length;
+    const pendientesN  = data.filter(a => a.estado === 'Pendiente').length;
+    const tasaCierre   = data.length ? Math.round(completadasN / data.length * 100) : 0;
+    const montoTotal   = data.filter(a => a.estado === 'Completado').reduce((s,a) => s + Number(a.monto), 0);
+    const pipelineMax  = Math.max(...pipeline.map(p => p.items.length), 1);
 
     return (
-        <div>
-            {/* Topbar */}
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:24 }}>
+        <div>           
+            <div className="card" style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:0, marginBottom:20, overflow:'hidden', padding:0 }}>
+                {pipeline.map((p, i) => (
+                    <div key={p.label} style={{ background: tk.isDark ? 'var(--bg-card)' : p.bg, padding:'16px 14px', borderRight: i < 4 ? `1px solid var(--border)` : 'none', textAlign:'center' }}>
+                        <div style={{ fontSize:10, fontWeight:800, color:p.accent, letterSpacing:1, marginBottom:6 }}>{p.label}</div>
+                        <div style={{ fontSize:26, fontWeight:800, color:tk.txt, lineHeight:1, marginBottom:8 }}>{p.items.length}</div>
+                        <div style={{ height:3, background: p.accent + '25', borderRadius:2 }}>
+                            <div style={{ height:'100%', borderRadius:2, width:`${(p.items.length/pipelineMax)*100}%`, background:p.accent, transition:'width 0.6s ease' }} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div style={{ display:'flex', justifyContent:'center', alignItems:'center', marginBottom:24 }}>
                 
                 <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                    <select style={sel} value={trim} onChange={e => setTrim(e.target.value)}>
-                        <option value="">Todos los períodos</option>
-                        {['1','2','3','4'].map(q => <option key={q} value={q}>Q{q}</option>)}
-                    </select>
+                    <PeriodoPicker trim={trim} mes={mes} onTrim={setTrim} onMes={setMes} />
                     <select style={sel} value={vend} onChange={e => setVend(e.target.value)}>
                         <option value="">Todos los vendedores</option>
                         {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
                     </select>
-                    <button onClick={() => { setTrim(''); setVend(''); }} style={btnRefresh}>↺ Actualizar</button>
+                    <button onClick={toggleFs} title={isFs ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                        style={{ padding:'7px 10px', borderRadius:7, border:`1px solid ${tk.bdr}`, background:tk.card, color:tk.txt2, cursor:'pointer', display:'flex', alignItems:'center' }}>
+                        {isFs
+                            ? <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="5,1 1,1 1,5"/><polyline points="10,1 14,1 14,5"/><polyline points="1,10 1,14 5,14"/><polyline points="14,10 14,14 10,14"/></svg>
+                            : <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="1,5 1,1 5,1"/><polyline points="10,1 14,1 14,5"/><polyline points="1,10 1,14 5,14"/><polyline points="10,14 14,14 14,10"/></svg>
+                        }
+                    </button>
                 </div>
             </div>
 
-            {/* KPI Cards */}
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:14, marginBottom:20 }}>
-                {kpis.map((k, i) => (
-                    <div key={k.label} style={{ background:'#fff', borderRadius:10, padding:'16px 14px', boxShadow:'0 1px 4px rgba(0,0,0,0.07)', display:'flex', flexDirection:'column', gap:6 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                            <div style={{ width:36, height:36, borderRadius:8, background:KPI_COLORS[i], display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
-                                {KPI_ICONS[i]}
-                            </div>
-                            <div style={{ fontSize:10, fontWeight:700, color:'#6b7a8d', textTransform:'uppercase', letterSpacing:0.5, lineHeight:1.3 }}>{k.label}</div>
-                        </div>
-                        <div style={{ fontSize:24, fontWeight:800, color:'#1e2a3b', lineHeight:1 }}>{k.value}</div>
-                        <div style={{ fontSize:11, color: i === 1 ? '#27ae60' : '#8899aa' }}>{k.sub}</div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Pipeline */}
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:0, marginBottom:20, borderRadius:10, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,0.07)' }}>
-                {pipeline.map((p, i) => (
-                    <div key={p.label} style={{ background:p.bg, padding:'18px 16px', borderRight: i < 4 ? '1px solid rgba(0,0,0,0.06)' : 'none', textAlign:'center' }}>
-                        <div style={{ fontSize:11, fontWeight:800, color:p.accent, letterSpacing:1, marginBottom:8 }}>{p.label}</div>
-                        <div style={{ fontSize:28, fontWeight:800, color:'#1e2a3b', lineHeight:1 }}>{p.items.length}</div>
-                        <div style={{ fontSize:13, color: p.monto > 0 ? p.accent : '#bbb', fontWeight:600, marginTop:6 }}>
-                            {p.monto > 0 ? fmtUSD(p.monto) : '—'}
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Vendor Cards */}
+           
             <div style={{ display:'grid', gridTemplateColumns:`repeat(${vendedores.length},1fr)`, gap:14, marginBottom:20 }}>
                 {vendedores.map(v => {
                     const vActs  = data.filter(a => a.vendedor_id === v.id);
@@ -147,98 +166,147 @@ export default function Dashboard() {
                     const montoC = cerr.reduce((s,a) => s + Number(a.monto), 0);
                     const barColor = pct >= 70 ? '#27ae60' : pct >= 40 ? '#e67e22' : '#e74c3c';
                     return (
-                        <div key={v.id} style={{ background:'#fff', borderRadius:10, padding:'16px 14px', boxShadow:'0 1px 4px rgba(0,0,0,0.07)' }}>
+                        <div key={v.id} className="card" style={{ padding:'16px 14px', position:'relative' }}>
+                            <button onClick={() => setFsvend(v)} title="Pantalla completa"
+                                style={{ position:'absolute', top:10, right:10, background:'transparent', border:'none', cursor:'pointer', color:tk.txt3, padding:3, borderRadius:5, display:'flex', opacity:0.7 }}>
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                                    <polyline points="9,1 13,1 13,5"/><polyline points="5,13 1,13 1,9"/>
+                                    <line x1="13" y1="1" x2="8" y2="6"/><line x1="1" y1="13" x2="6" y2="8"/>
+                                </svg>
+                            </button>
                             <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-                                <div style={{ width:38, height:38, borderRadius:'50%', background:v.color, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:13, flexShrink:0 }}>
-                                    {v.iniciales}
-                                </div>
+                                <Avatar vendedor={v} size="lg" />
                                 <div>
-                                    <div style={{ fontWeight:700, fontSize:13, color:'#1e2a3b', lineHeight:1.2 }}>{v.nombre}</div>
-                                    <div style={{ fontSize:11, color:'#8899aa', marginTop:2 }}>{vActs.length} actividades · {pct}% completado</div>
+                                    <div style={{ fontWeight:700, fontSize:13, color:tk.txt, lineHeight:1.2 }}>{v.nombre}</div>
+                                    <div style={{ fontSize:11, color:tk.txt3, marginTop:2 }}>{vActs.length} actividades · {pct}% completado</div>
                                 </div>
                             </div>
-                            <div style={{ height:5, background:'#eee', borderRadius:3, marginBottom:8 }}>
-                                <div style={{ height:'100%', borderRadius:3, width:`${pct}%`, background:barColor, transition:'width 0.4s' }} />
+                            <div style={{ height:6, background:tk.bdr, borderRadius:3, marginBottom:8 }}>
+                                <div style={{ height:'100%', borderRadius:3, width:`${pct}%`, background:`linear-gradient(to right, ${barColor}aa, ${barColor})`, transition:'width 0.5s ease', boxShadow:`0 0 6px ${barColor}66` }} />
                             </div>
-                            <div style={{ fontSize:15, fontWeight:800, color:'#2f6fd4' }}>{fmtUSD(montoC)}</div>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                <div style={{ fontSize:15, fontWeight:800, color:'#10b981' }}>{fmtUSD(montoC, moneda)}</div>
+                                <div style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20, background: barColor + '22', color: barColor }}>{pct}%</div>
+                            </div>
                         </div>
                     );
                 })}
             </div>
 
-            {/* Charts — fila 1: bar grande + donut estado */}
-            <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16, marginBottom:16 }}>
+            {/* Charts — fila 1: por tipo + estado por vendedor + donut estado */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr 1fr', gap:16, marginBottom:16 }}>
                 <div style={card}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                        <div style={ct}>Montos por Vendedor (USD)</div>
-                        <select style={sel} value={vendMetric} onChange={e => setVendMetric(e.target.value)}>
-                            <option value="monto">Monto USD</option>
-                            <option value="cantidad">Cantidad</option>
-                        </select>
+                    <div style={ct}>Por Tipo</div>
+                    <div style={{ position:'relative' }}>
+                        <ResponsiveContainer width="100%" height={260}>
+                            <PieChart>
+                                <Pie data={byTipo} cx="50%" cy="45%" outerRadius={85} innerRadius={48} dataKey="value"
+                                    activeIndex={activePieIdx ?? undefined}
+                                    activeShape={renderActivePie}
+                                    onMouseEnter={(_, i) => setActivePieIdx(i)}
+                                    onMouseLeave={() => setActivePieIdx(null)}
+                                    animationDuration={700} animationEasing="ease-out">
+                                    {byTipo.map((_, i) => <Cell key={i} fill={TIPO_COLORS[i % TIPO_COLORS.length]} />)}
+                                </Pie>
+                                <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} />
+                                <Legend iconSize={10} iconType="square" wrapperStyle={{ fontSize:11, color: tk.txt2 }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                        <div style={{ position:'absolute', top:'38%', left:'50%', transform:'translate(-50%,-50%)', textAlign:'center', pointerEvents:'none' }}>
+                            <div style={{ fontSize:22, fontWeight:800, color:tk.txt }}>{byTipo.reduce((s,x) => s+x.value, 0)}</div>
+                            <div style={{ fontSize:10, color:tk.txt3 }}>total</div>
+                        </div>
+                    </div>
+                </div>
+                <div style={card}>
+                    <div style={{ marginBottom:14 }}>
+                        <div style={ct}>Estado de Actividades por Vendedor</div>
                     </div>
                     <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={byVendedor} margin={{ top:16, right:10, left:10, bottom:0 }}>
-                            <XAxis dataKey="name" tick={{ fontSize:12 }} />
-                            <YAxis tick={{ fontSize:11 }} tickFormatter={v => vendMetric === 'monto' ? `${(v/1000).toFixed(0)}k` : v} />
-                            <Tooltip formatter={v => vendMetric === 'monto' ? fmtUSD(v) : v} />
-                            <Bar dataKey={vendMetric === 'monto' ? 'Monto' : 'Cantidad'} radius={[4,4,0,0]}>
-                                {byVendedor.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                        <BarChart data={byVendedorEstado} margin={{ top:8, right:10, left:-10, bottom:0 }}>
+                            <XAxis dataKey="name" {...axisProps} />
+                            <YAxis {...axisProps} allowDecimals={false} />
+                            <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} />
+                            <Legend iconSize={11} iconType="square" wrapperStyle={{ fontSize:11, color: tk.txt2 }} />
+                            <Bar dataKey="Completado"   stackId="a" fill="#27ae60" />
+                            <Bar dataKey="En Progreso"  stackId="a" fill="#10b981" />
+                            <Bar dataKey="Pendiente"    stackId="a" fill="#e67e22" />
+                            <Bar dataKey="Cancelado"    stackId="a" fill="#e74c3c" radius={[4,4,0,0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+                <div style={card}>
+                    <div style={{ ...ct, marginBottom:16 }}>Última Actividad</div>
+                    {actividadReciente.length === 0
+                        ? <div style={{ color:'#aab', fontSize:12, textAlign:'center', paddingTop:20 }}>Sin datos</div>
+                        : <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                            {actividadReciente.map((v, i) => {
+                                const estadoColor = {
+                                    'Completado':'#27ae60','Ganada':'#1e8449',
+                                    'En Progreso':'#10b981','Pendiente':'#e67e22',
+                                    'Cancelado':'#e74c3c','Perdida':'#795548',
+                                }[v.ultima.estado] || '#aab';
+                                return (
+                                    <div key={v.id} style={{ padding:'12px 0', borderBottom: i < actividadReciente.length - 1 ? `1px solid ${tk.bdr}` : 'none' }}>
+                                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                                            <Avatar vendedor={v} size="sm" />
+                                            <div style={{ flex:1, minWidth:0 }}>
+                                                <div style={{ fontSize:12, fontWeight:700, color:tk.txt, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{v.ultima.nombre}</div>
+                                                <div style={{ fontSize:11, color:tk.txt3 }}>{v.nombre.split(' ')[0]} · {v.ultima.cliente || '—'}</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background: estadoColor + '18', color: estadoColor }}>{v.ultima.estado}</span>
+                                            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                                                <span style={{ fontSize:10, color:tk.txt3, background:tk.card2, padding:'2px 7px', borderRadius:10 }}>{v.ultima.tipo}</span>
+                                                <span style={{ fontSize:12, fontWeight:700, color:tk.txt2, fontFamily:'monospace' }}>{fmt(calcDuration(v.ultima))}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    }
+                </div>
+            </div>
+
+            {/* Charts — fila 2: barras mes + barras apiladas prioridad */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
+                <div style={card}>
+                    <div style={ct}>Actividades por Mes</div>
+                    <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={byMes} margin={{ top:20, right:10, left:-10, bottom:0 }}>
+                            <defs>
+                                <linearGradient id="gradMes" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#5b8dee" />
+                                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.7} />
+                                </linearGradient>
+                            </defs>
+                            <XAxis dataKey="name" {...axisProps} />
+                            <YAxis {...axisProps} allowDecimals={false} />
+                            <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} />
+                            <Bar dataKey="count" name="Actividades" fill="url(#gradMes)" radius={[6,6,0,0]} animationDuration={800} animationEasing="ease-out">
+                                <LabelList dataKey="count" position="top" style={{ fill: tk.txt2, fontSize: 11, fontWeight: 600 }} />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
                 <div style={card}>
-                    <div style={{ ...ct, marginBottom:14 }}>Estado de Actividades</div>
-                    <ResponsiveContainer width="100%" height={260}>
-                        <PieChart>
-                            <Pie data={byEstado} cx="50%" cy="55%" outerRadius={95} innerRadius={55} dataKey="value">
-                                {byEstado.map((e, i) => <Cell key={i} fill={ESTADO_COLOR[e.name] || CHART_COLORS[i]} />)}
-                            </Pie>
-                            <Tooltip />
-                            <Legend iconSize={12} iconType="square" wrapperStyle={{ fontSize:12 }} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Charts — fila 2: donut tipo + barras mes + barras apiladas prioridad */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, marginBottom:20 }}>
-                <div style={card}>
-                    <div style={ct}>Por Tipo</div>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <PieChart>
-                            <Pie data={byTipo} cx="50%" cy="55%" outerRadius={85} innerRadius={45} dataKey="value">
-                                {byTipo.map((_, i) => <Cell key={i} fill={TIPO_COLORS[i % TIPO_COLORS.length]} />)}
-                            </Pie>
-                            <Tooltip />
-                            <Legend iconSize={10} iconType="square" wrapperStyle={{ fontSize:11 }} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-                <div style={card}>
-                    <div style={ct}>Actividades por Mes</div>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={byMes} margin={{ top:16, right:10, left:-10, bottom:0 }}>
-                            <XAxis dataKey="name" tick={{ fontSize:11 }} />
-                            <YAxis tick={{ fontSize:11 }} allowDecimals={false} />
-                            <Tooltip />
-                            <Bar dataKey="count" name="Actividades" fill="#5b8dee" radius={[4,4,0,0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-                <div style={card}>
-                    <div style={ct}>Prioridad vs Estado</div>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={byPrio} margin={{ top:16, right:10, left:-10, bottom:0 }}>
-                            <XAxis dataKey="name" tick={{ fontSize:12 }} />
-                            <YAxis tick={{ fontSize:11 }} allowDecimals={false} />
-                            <Tooltip />
-                            <Legend iconSize={10} iconType="square" wrapperStyle={{ fontSize:11 }} />
-                            <Bar dataKey="Completado"   stackId="a" fill="#27ae60" />
-                            <Bar dataKey="En Progreso"  stackId="a" fill="#2f6fd4" />
-                            <Bar dataKey="Pendiente"    stackId="a" fill="#e67e22" radius={[4,4,0,0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
+                    <div style={ct}>Tiempo Promedio por Etapa</div>
+                    {tiempoPorEtapa.length === 0
+                        ? <div style={{ color: tk.txt3, fontSize:12, textAlign:'center', paddingTop:20 }}>Sin datos de tiempo registrado</div>
+                        : <ResponsiveContainer width="100%" height={240}>
+                            <BarChart data={tiempoPorEtapa} layout="vertical" margin={{ top:4, right:40, left:10, bottom:0 }}>
+                                <XAxis type="number" tick={{ fill: tk.txt2, fontSize:10 }} tickFormatter={v => `${v}h`} />
+                                <YAxis type="category" dataKey="name" tick={{ fill: tk.txt2, fontSize:11 }} width={90} />
+                                <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} formatter={v => [`${v}h`, 'Promedio']} />
+                                <Bar dataKey="horas" radius={[0,4,4,0]} fill="#5b8dee" animationDuration={800} animationEasing="ease-out">
+                                    {tiempoPorEtapa.map((e, i) => <Cell key={i} fill={e.color} />)}
+                                    <LabelList dataKey="horas" position="right" formatter={v => `${v}h`} style={{ fill: tk.txt2, fontSize: 11, fontWeight: 600 }} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    }
                 </div>
             </div>
 
@@ -247,44 +315,146 @@ export default function Dashboard() {
                 <div style={ct}>Top oportunidades</div>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                     <thead>
-                        <tr style={{ borderBottom:'2px solid #eee' }}>
-                            {['Actividad','Tipo','Vendedor','Cliente','Estado','Monto'].map(h =>
-                                <th key={h} style={{ padding:'8px 10px', textAlign:'left', color:'#6b7a8d', fontWeight:600, fontSize:11 }}>{h}</th>
+                        <tr style={{ background: tk.card2, borderBottom:`2px solid ${tk.bdr}` }}>
+                            {['#','Actividad','Tipo','Vendedor','Cliente','Estado','Monto'].map(h =>
+                                <th key={h} style={{ padding:'9px 10px', textAlign:'left', color:tk.txt2, fontWeight:700, fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>{h}</th>
                             )}
                         </tr>
                     </thead>
                     <tbody>
-                        {topOps.map(a => {
+                        {topOps.map((a, idx) => {
                             const v = vendedores.find(x => x.id === a.vendedor_id);
+                            const ec = ESTADO_COLOR[a.estado] || '#8899aa';
+                            const rankColor = idx === 0 ? '#d4ac0d' : idx === 1 ? '#8899aa' : idx === 2 ? '#cd7f32' : tk.txt3;
                             return (
-                                <tr key={a.id} style={{ borderBottom:'1px solid #f5f5f5' }}>
-                                    <td style={td}>{a.nombre}</td>
-                                    <td style={td}><span style={{ fontSize:11, background:'#f0f2f5', padding:'2px 8px', borderRadius:10, fontWeight:600 }}>{a.tipo}</span></td>
+                                <tr key={a.id} style={{ borderBottom:`1px solid ${tk.bdr}`, background: idx % 2 === 1 ? tk.card2 : 'transparent' }}>
+                                    <td style={{ ...td, fontWeight:800, color:rankColor, fontSize:13, width:32 }}>#{idx+1}</td>
+                                    <td style={{ ...td, fontWeight:600 }}>{a.nombre}</td>
+                                    <td style={td}><span style={{ fontSize:11, background:tk.bg, color:tk.txt2, padding:'2px 8px', borderRadius:10, fontWeight:600 }}>{a.tipo}</span></td>
                                     <td style={td}>
                                         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                                            <div style={{ width:24, height:24, borderRadius:'50%', background:v?.color||'#ccc', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700 }}>{v?.iniciales}</div>
+                                            <Avatar vendedor={v} size="sm" />
                                             <span>{v?.nombre}</span>
                                         </div>
                                     </td>
                                     <td style={td}>{a.cliente}</td>
                                     <td style={td}>
-                                        <span style={{ padding:'2px 10px', borderRadius:10, fontSize:11, fontWeight:600, background: a.estado==='Completado'?'#d4edda':a.estado==='En Progreso'?'#cce5ff':a.estado==='Cancelado'?'#f8d7da':'#fff3cd', color: a.estado==='Completado'?'#155724':a.estado==='En Progreso'?'#004085':a.estado==='Cancelado'?'#721c24':'#856404' }}>
+                                        <span style={{ padding:'2px 10px', borderRadius:10, fontSize:11, fontWeight:600, background: ec + '22', color: ec }}>
                                             {a.estado}
                                         </span>
                                     </td>
-                                    <td style={{ ...td, fontWeight:800, color:'#2f6fd4' }}>{fmtUSD(a.monto)}</td>
+                                    <td style={{ ...td, fontWeight:800, color:'#10b981', fontFamily:'monospace' }}>{fmtUSD(a.monto, moneda)}</td>
                                 </tr>
                             );
                         })}
                     </tbody>
                 </table>
             </div>
+            {/* Fullscreen vendor overlay */}
+            {fsvend && (() => {
+                const fsActs   = data.filter(a => a.vendedor_id === fsvend.id);
+                const fsCerr   = fsActs.filter(a => a.estado === 'Completado');
+                const fsPct    = fsActs.length ? Math.round(fsCerr.length / fsActs.length * 100) : 0;
+                const fsMonto  = fsCerr.reduce((s,a) => s + Number(a.monto), 0);
+                const fsBar    = fsPct >= 70 ? '#27ae60' : fsPct >= 40 ? '#e67e22' : '#e74c3c';
+                const fsByTipo = TIPOS_ALL.map(t => ({ name:t, value:fsActs.filter(a => a.tipo===t).length })).filter(x => x.value>0);
+                const fsByEst  = [
+                    { name:'Completado', value:fsActs.filter(a=>a.estado==='Completado').length, fill:'#27ae60' },
+                    { name:'En Progreso',value:fsActs.filter(a=>a.estado==='En Progreso').length,fill:'#10b981' },
+                    { name:'Pendiente',  value:fsActs.filter(a=>a.estado==='Pendiente').length,  fill:'#e67e22' },
+                    { name:'Cancelado',  value:fsActs.filter(a=>a.estado==='Cancelado').length,  fill:'#e74c3c' },
+                ].filter(x => x.value > 0);
+                const fsRecent = [...fsActs].sort((a,b) => b.id - a.id).slice(0,8);
+                return (
+                    <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center' }}
+                        onClick={() => setFsvend(null)}>
+                        <div style={{ background:tk.card, borderRadius:16, padding:28, width:'min(760px,94vw)', maxHeight:'88vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.35)' }}
+                            onClick={e => e.stopPropagation()}>
+                            {/* Header */}
+                            <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:22 }}>
+                                <Avatar vendedor={fsvend} size="xl" />
+                                <div style={{ flex:1 }}>
+                                    <div style={{ fontSize:20, fontWeight:800, color:tk.txt }}>{fsvend.nombre}</div>
+                                    <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>{fsvend.roles?.join(' · ')}</div>
+                                </div>
+                                <button onClick={() => setFsvend(null)}
+                                    style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:20, color:tk.txt3, lineHeight:1, padding:'4px 8px' }}>✕</button>
+                            </div>
+                            {/* KPIs */}
+                            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:22 }}>
+                                {[
+                                    { label:'Total',      value:fsActs.length,       color:'#10b981' },
+                                    { label:'Completadas',value:fsCerr.length,        color:'#27ae60' },
+                                    { label:'Avance',     value:`${fsPct}%`,          color:fsBar },
+                                    { label:'Monto',      value:fmtUSD(fsMonto,moneda),color:'#10b981' },
+                                ].map(k => (
+                                    <div key={k.label} style={{ background:tk.card2, borderRadius:10, padding:'12px 14px', borderTop:`3px solid ${k.color}` }}>
+                                        <div style={{ fontSize:10, color:tk.txt3, textTransform:'uppercase', letterSpacing:0.6, marginBottom:4 }}>{k.label}</div>
+                                        <div style={{ fontSize:20, fontWeight:800, color:k.color }}>{k.value}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Charts */}
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:22 }}>
+                                <div>
+                                    <div style={{ fontSize:12, fontWeight:700, color:tk.txt2, marginBottom:8 }}>Por tipo</div>
+                                    <ResponsiveContainer width="100%" height={180}>
+                                        <PieChart>
+                                            <Pie data={fsByTipo} cx="50%" cy="50%" outerRadius={70} innerRadius={38} dataKey="value" animationDuration={600}>
+                                                {fsByTipo.map((_,i) => <Cell key={i} fill={TIPO_COLORS[i%TIPO_COLORS.length]} />)}
+                                            </Pie>
+                                            <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} />
+                                            <Legend iconSize={9} iconType="square" wrapperStyle={{ fontSize:10, color:tk.txt2 }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize:12, fontWeight:700, color:tk.txt2, marginBottom:8 }}>Por estado</div>
+                                    <ResponsiveContainer width="100%" height={180}>
+                                        <BarChart data={fsByEst} margin={{ top:16, right:8, left:-20, bottom:0 }}>
+                                            <XAxis dataKey="name" tick={{ fill:tk.txt2, fontSize:10 }} />
+                                            <YAxis tick={{ fill:tk.txt2, fontSize:10 }} allowDecimals={false} />
+                                            <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} />
+                                            <Bar dataKey="value" radius={[5,5,0,0]} animationDuration={600}>
+                                                {fsByEst.map((e,i) => <Cell key={i} fill={e.fill} />)}
+                                                <LabelList dataKey="value" position="top" style={{ fill:tk.txt2, fontSize:11, fontWeight:600 }} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                            {/* Actividades recientes */}
+                            <div style={{ fontSize:12, fontWeight:700, color:tk.txt2, marginBottom:8 }}>Actividades recientes</div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                                {fsRecent.map((a,i) => {
+                                    const ec = ESTADO_COLOR[a.estado] || '#8899aa';
+                                    return (
+                                        <div key={a.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 0', borderBottom: i < fsRecent.length-1 ? `1px solid ${tk.bdr}` : 'none' }}>
+                                            <div style={{ flex:1, minWidth:0 }}>
+                                                <div style={{ fontWeight:600, fontSize:13, color:tk.txt, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.nombre}</div>
+                                                <div style={{ fontSize:11, color:tk.txt3 }}>{a.cliente || '—'} · {a.mes}</div>
+                                            </div>
+                                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 9px', borderRadius:20, background:ec+'22', color:ec, flexShrink:0 }}>{a.estado}</span>
+                                            <span style={{ fontSize:12, fontWeight:700, color:'#10b981', flexShrink:0, fontFamily:'monospace' }}>{fmtUSD(a.monto, moneda)}</span>
+                                        </div>
+                                    );
+                                })}
+                                {!fsRecent.length && <div style={{ color:tk.txt3, fontSize:12, textAlign:'center', padding:16 }}>Sin actividades en el período</div>}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }
 
-const sel = { padding:'7px 12px', borderRadius:7, border:'1px solid #dde1e8', fontSize:13, background:'#fff', color:'#2d3d52' };
-const btnRefresh = { padding:'7px 14px', borderRadius:7, border:'1px solid #dde1e8', background:'#fff', fontSize:13, cursor:'pointer', color:'#2d3d52', fontWeight:600 };
-const card = { background:'#fff', borderRadius:10, padding:'18px 20px', boxShadow:'0 1px 4px rgba(0,0,0,0.07)' };
-const ct   = { fontSize:13, fontWeight:700, color:'#1e2a3b', marginBottom:14 };
-const td   = { padding:'10px 10px', color:'#2d3d52' };
+// eslint-disable-next-line react-refresh/only-export-components
+export function useDashStyles(tk) {
+    return {
+        sel:  { padding:'8px 12px', borderRadius:8, border:`1px solid var(--input-bdr)`, fontSize:13, background:'var(--input-bg)', color:'var(--text-main)', outline:'none', fontFamily:'inherit' },
+        card: { background:'var(--bg-card)', border:`1px solid var(--border)`, borderRadius:14, padding:'18px 20px', boxShadow:'var(--shadow-sm)' },
+        ct:   { fontSize:13, fontWeight:700, color:'var(--text-heavy)', marginBottom:14, letterSpacing:-0.2 },
+        td:   { padding:'10px 10px', color:'var(--text-main)' },
+    };
+}

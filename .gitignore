@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+*.log
+dev.out.log
+dev.err.log
+.DS_Store
+dist/
+build/
+.vite/
+.claude/
+.vscode/

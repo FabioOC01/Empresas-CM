@@ -1,17 +1,28 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useActividadesContext } from '../context/ActividadesContext';
+import { getEmpresas } from '../api/actividades';
+import ProfileModal from './ProfileModal';
 
-const LOGO_FULL = 'https://comutelperu.com/correo-cm/Logo/LOGO-BLANCO.png';
-const LOGO_ISO  = 'https://comutelperu.com/correo-cm/Logo/ISO%20BLANCO.png';
+const DEFAULT_LOGO_FULL = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO.png';
+const DEFAULT_LOGO_ISO  = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO-SHORT.png';
 
-const RETAIL_URL = `http://${window.location.hostname}:5173`;
-// hostname se resuelve dinámicamente → funciona tanto en 172.17.0.1 como en cualquier otra IP
+const RETAIL_URL = `http://192.168.1.51:5175`;
 const GLPI_URL   = 'http://192.168.1.50';
 
-const links = [
+function canAccessAttendance(user) {
+    return user?.is_superadmin || user?.roles?.some(r => ['Admin', 'Gerencia'].includes(r));
+}
+
+const BASE_LINKS = [
     { to: '/',             label: 'Dashboard',    icon: '📊' },
     { to: '/equipo',       label: 'Equipo',       icon: '👥' },
     { to: '/planificador', label: 'Planificador', icon: '📋' },
+    { to: '/clientes',     label: 'Clientes',     icon: '🏢' },
+    { to: '/rentabilidad', label: 'Comisiones',   icon: '💹' },
 ];
+const ADMIN_LINK = { to: '/admin', label: 'Administración', icon: '⚙️' };
 
 const external = [
     { href: RETAIL_URL, label: 'Dashboard Retail', icon: '🏪' },
@@ -20,21 +31,59 @@ const external = [
 
 export default function Sidebar({ collapsed, onToggle }) {
     const W = collapsed ? 62 : 210;
+    const { user, logout, switchEmpresa } = useAuth();
+    const { config } = useActividadesContext();
+    const branding   = config?.branding || {};
+    const logoFull   = branding.logo_sidebar || DEFAULT_LOGO_FULL;
+    const logoIso    = branding.logo_iso     || DEFAULT_LOGO_ISO;
+    const appName    = branding.app_name || 'Vantio';
+    const subtitulo  = config?.nombre    || branding.subtitulo || 'CRM Empresas';
+    const navigate = useNavigate();
+    const [empresas,    setEmpresas]    = useState([]);
+    const [switching,   setSwitching]   = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
+
+    useEffect(() => {
+        if (user?.is_superadmin) getEmpresas().then(setEmpresas).catch(() => {});
+    }, [user]);
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login', { replace: true });
+    };
+
+    const handleSwitch = async (e) => {
+        const id = e.target.value;
+        if (!id) return;
+        setSwitching(true);
+        try { await switchEmpresa(id); } finally { setSwitching(false); }
+    };
+
+    const attendanceLink = {
+        to: '/asistencia',
+        label: canAccessAttendance(user) ? 'Asistencia' : 'Próximamente',
+        icon: '🕒',
+    };
+    const links = user?.is_superadmin || user?.roles?.includes('Admin')
+        ? [...BASE_LINKS.slice(0, 3), attendanceLink, ...BASE_LINKS.slice(3), ADMIN_LINK]
+        : [...BASE_LINKS.slice(0, 3), attendanceLink, ...BASE_LINKS.slice(3)];
 
     return (
-        <aside style={{
-            width: W, minHeight: '100vh', background: '#1e2a3b',
+        <>
+        <aside className="sidebar-dark" style={{
+            width: W, minHeight: '100vh', background: 'var(--sidebar)',
             display: 'flex', flexDirection: 'column', flexShrink: 0,
             position: 'fixed', top: 0, left: 0, zIndex: 100,
             transition: 'width 0.25s ease', overflow: 'hidden',
+            borderRight: '1px solid rgba(255,255,255,0.04)',
         }}>
             {/* Logo */}
-            <div style={{ padding: collapsed ? '16px 0' : '16px', borderBottom: '1px solid #2d3d52', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 64 }}>
+            <div style={{ padding: collapsed ? '16px 0' : '16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 64 }}>
                 {collapsed
-                    ? <img src={LOGO_ISO} alt="Comutel" style={{ width: 36, display: 'block' }} />
+                    ? <img src={logoIso} alt={appName} style={{ width: 36, display: 'block' }} />
                     : <div style={{ width: '100%' }}>
-                        <img src={LOGO_FULL} alt="Comutel" style={{ width: '100%', maxWidth: 160, display: 'block' }} />
-                        <div style={{ color: '#8899aa', fontSize: 11, marginTop: 6 }}>Leads Empresas</div>
+                        <img src={logoFull} alt={appName} style={{ width: '100%', maxWidth: 160, display: 'block' }} />
+                        <div style={{ color: '#8b9cbf', fontSize: 11, marginTop: 6 }}>{subtitulo}</div>
                       </div>
                 }
             </div>
@@ -47,6 +96,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                         to={l.to}
                         end={l.to === '/'}
                         title={collapsed ? l.label : undefined}
+                        className="nav-item"
                         style={({ isActive }) => ({
                             display: 'flex', alignItems: 'center',
                             gap: collapsed ? 0 : 10,
@@ -54,9 +104,10 @@ export default function Sidebar({ collapsed, onToggle }) {
                             padding: collapsed ? '10px 0' : '9px 12px',
                             borderRadius: collapsed ? 0 : 8,
                             marginBottom: 4,
-                            color: isActive ? '#fff' : '#8899aa',
-                            background: isActive ? '#2f6fd4' : 'transparent',
-                            textDecoration: 'none', fontSize: 13, fontWeight: 500,
+                            color: isActive ? '#10b981' : '#8b9cbf',
+                            background: isActive ? 'rgba(16,185,129,0.13)' : 'transparent',
+                            border: isActive ? '1px solid rgba(16,185,129,0.30)' : '1px solid transparent',
+                            textDecoration: 'none', fontSize: 13, fontWeight: 600,
                             transition: 'all 0.15s',
                         })}
                     >
@@ -66,7 +117,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                 ))}
 
                 {/* Separador */}
-                <div style={{ borderTop: '1px solid #2d3d52', margin: '12px 8px' }} />
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', margin: '12px 8px' }} />
 
                 {/* Links externos */}
                 {external.map(e => (
@@ -83,18 +134,101 @@ export default function Sidebar({ collapsed, onToggle }) {
                             padding: collapsed ? '10px 0' : '9px 12px',
                             borderRadius: collapsed ? 0 : 8,
                             marginBottom: 4,
-                            color: '#8899aa',
+                            color: '#8b9cbf',
                             textDecoration: 'none', fontSize: 13, fontWeight: 500,
                             transition: 'all 0.15s',
                         }}
                         onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                        onMouseLeave={e => e.currentTarget.style.color = '#8899aa'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
                     >
                         <span style={{ fontSize: 16, flexShrink: 0 }}>{e.icon}</span>
                         {!collapsed && <span>{e.label}</span>}
                     </a>
                 ))}
             </nav>
+
+            {/* Selector de empresa — solo superadmin */}
+            {user?.is_superadmin && !collapsed && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, color: '#8b9cbf', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
+                        Empresa activa
+                    </div>
+                    <select
+                        value={user.empresa_id || ''}
+                        onChange={handleSwitch}
+                        disabled={switching}
+                        style={{
+                            width: '100%', padding: '7px 8px', borderRadius: 7,
+                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)',
+                            color: '#fff', fontSize: 12, cursor: 'pointer', outline: 'none',
+                        }}
+                    >
+                        <option value="" disabled>— Seleccionar empresa —</option>
+                        {empresas.map(e => (
+                            <option key={e.id} value={e.id}>{e.nombre}</option>
+                        ))}
+                    </select>
+                    {switching && <div style={{ fontSize: 10, color: '#8b9cbf', marginTop: 4 }}>Cambiando...</div>}
+                </div>
+            )}
+
+            {/* Usuario + logout */}
+            {user && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: collapsed ? '12px 0' : '12px 14px' }}>
+                    {!collapsed && (
+                        <button
+                            onClick={() => setProfileOpen(true)}
+                            title="Ver perfil"
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', borderRadius: 7, textAlign: 'left', transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                        >
+                            {user.foto_url
+                                ? <img src={user.foto_url} alt={user.nombre} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                                : <span style={{ width: 28, height: 28, borderRadius: '50%', background: user.color || '#10b981', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    {user.iniciales || user.nombre?.[0] || '?'}
+                                  </span>
+                            }
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.3 }}>{user.nombre}</div>
+                                <div style={{ fontSize: 10, color: '#8b9cbf' }}>
+                                    {user.is_superadmin ? 'Superadmin' : user.roles?.join(', ')}
+                                </div>
+                            </div>
+                        </button>
+                    )}
+                    {collapsed && (
+                        <button
+                            onClick={() => setProfileOpen(true)}
+                            title={user.nombre}
+                            style={{ display: 'flex', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginBottom: 8 }}
+                        >
+                            {user.foto_url
+                                ? <img src={user.foto_url} alt={user.nombre} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+                                : <span style={{ width: 28, height: 28, borderRadius: '50%', background: user.color || '#10b981', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {user.iniciales || user.nombre?.[0] || '?'}
+                                  </span>
+                            }
+                        </button>
+                    )}
+                    <button
+                        onClick={handleLogout}
+                        title="Cerrar sesión"
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start',
+                            gap: 8, padding: collapsed ? '8px 0' : '7px 10px', width: '100%',
+                            background: 'none', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 7,
+                            color: '#8b9cbf', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                            transition: 'color 0.15s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
+                    >
+                        <span style={{ fontSize: 14 }}>⏻</span>
+                        {!collapsed && <span>Cerrar sesión</span>}
+                    </button>
+                </div>
+            )}
 
             {/* Botón contraer */}
             <button
@@ -103,16 +237,19 @@ export default function Sidebar({ collapsed, onToggle }) {
                 style={{
                     display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start',
                     gap: 8, padding: collapsed ? '14px 0' : '14px 20px',
-                    borderTop: '1px solid #2d3d52', background: 'none', border: 'none',
-                    color: '#8899aa', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    borderTop: '1px solid rgba(255,255,255,0.06)', background: 'none', border: 'none',
+                    color: '#8b9cbf', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                     width: '100%', transition: 'color 0.15s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = '#8899aa'}
+                onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
             >
                 <span style={{ fontSize: 16 }}>{collapsed ? '»' : '«'}</span>
                 {!collapsed && <span>Contraer menú</span>}
             </button>
         </aside>
+
+        {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
+        </>
     );
 }

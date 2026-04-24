@@ -7,7 +7,9 @@ export default function useSocket() {
     const ref = useRef(null);
 
     if (!socket) {
-        socket = io(import.meta.env.VITE_API_URL);
+        socket = io(import.meta.env.VITE_API_URL, {
+            auth: { token: localStorage.getItem('crm_token') },
+        });
     }
     ref.current = socket;
 

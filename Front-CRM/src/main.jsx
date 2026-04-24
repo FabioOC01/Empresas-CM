@@ -1,39 +1,94 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ActividadesProvider, useActividadesContext } from './context/ActividadesContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Equipo from './pages/Equipo';
 import Planificador from './pages/Planificador';
+import Asistencia from './pages/Asistencia';
+import Rentabilidad from './pages/Rentabilidad';
+import Admin from './pages/Admin';
+import Clientes from './pages/Clientes';
+import Login from './pages/Login';
 import './index.css';
 
-const SIDEBAR_W  = 210;
+const SIDEBAR_W   = 210;
 const COLLAPSED_W = 62;
 
-function PageTitle({ children }) {
-    return <h1 style={{ margin: '0 0 24px', fontSize: 20, fontWeight: 700, color: '#1e2a3b' }}>{children}</h1>;
+function RequireAuth({ children }) {
+    const { isAuth } = useAuth();
+    const location   = useLocation();
+    if (!isAuth) return <Navigate to="/login" state={{ from: location }} replace />;
+    return children;
 }
 
-function App() {
+function RequireRole({ roles, children }) {
+    const { user } = useAuth();
+    const allowed = user?.is_superadmin || roles.some(r => user?.roles?.includes(r));
+    if (!allowed) return <Navigate to="/planificador?view=kanban" replace />;
+    return children;
+}
+
+function AppLayout() {
     const [collapsed, setCollapsed] = useState(false);
+    const { config } = useActividadesContext();
+    const tk        = useTheme();
+    const copyright = config?.branding?.copyright || 'VANTIO Copyright (C) 2026 Comutel and contributors';
     const ml = collapsed ? COLLAPSED_W : SIDEBAR_W;
 
     return (
-        <BrowserRouter>
-            <div style={{ display: 'flex' }}>
-                <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
-                <main style={{
-                    marginLeft: ml, flex: 1, padding: '28px',
-                    minHeight: '100vh', background: '#f0f2f5',
-                    transition: 'margin-left 0.25s ease',
-                }}>
+        <div style={{ display: 'flex', background: tk.bg, minHeight: '100vh' }}>
+            <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
+            <main style={{
+                marginLeft: ml, flex: 1, padding: '28px 28px 16px',
+                minHeight: '100vh', background: tk.bg,
+                transition: 'margin-left 0.25s ease',
+                display: 'flex', flexDirection: 'column',
+            }}>
+                <div style={{ flex: 1 }}>
                     <Routes>
-                        <Route path="/"             element={<><PageTitle>Dashboard</PageTitle><Dashboard /></>} />
-                        <Route path="/equipo"       element={<><PageTitle>Equipo</PageTitle><Equipo /></>} />
-                        <Route path="/planificador" element={<><PageTitle>Planificador</PageTitle><Planificador /></>} />
+                        <Route path="/" element={
+                            <RequireRole roles={['Admin','Gerencia']}>
+                                <Dashboard />
+                            </RequireRole>
+                        } />
+                        <Route path="/equipo"       element={<Equipo />} />
+                        <Route path="/planificador" element={<Planificador />} />
+                        <Route path="/asistencia"   element={<Asistencia />} />
+                        <Route path="/rentabilidad" element={<Rentabilidad />} />
+                        <Route path="/clientes"     element={<Clientes />} />
+                        <Route path="/admin"        element={<Admin />} />
+                        <Route path="*"             element={<Navigate to="/" replace />} />
                     </Routes>
-                </main>
-            </div>
+                </div>
+                <footer style={{ marginTop: 32, paddingTop: 12, borderTop: `1px solid ${tk.bdr}`, textAlign: 'center', fontSize: 11, color: tk.txt3 }}>
+                    {copyright}
+                </footer>
+            </main>
+        </div>
+    );
+}
+
+function App() {
+    return (
+        <BrowserRouter>
+            <AuthProvider>
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/*" element={
+                        <RequireAuth>
+                            <ActividadesProvider>
+                                <ThemeProvider>
+                                <AppLayout />
+                                    </ThemeProvider>
+                        </ActividadesProvider>
+                        </RequireAuth>
+                    } />
+                </Routes>
+            </AuthProvider>
         </BrowserRouter>
     );
 }

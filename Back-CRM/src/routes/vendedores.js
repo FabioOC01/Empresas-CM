@@ -1,64 +1,314 @@
 const router = require('express').Router();
+const bcrypt = require('bcryptjs');
 const pool = require('../db/pool');
+const { uploadAvatar } = require('../lib/cloudinary');
 
-// GET /api/vendedores  →  [{ id, nombre, iniciales, color, roles: ['Ventas','Marketing'] }]
+const VALID_ROLES = ['Admin', 'Gerencia', 'Marketing', 'Ventas', 'Corporativo', 'Soporte Técnico', 'Logística'];
+
+function normalizeUsername(value = '') {
+    return String(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '.')
+        .replace(/[^a-z0-9.]/g, '')
+        .replace(/\.{2,}/g, '.')
+        .replace(/^\.+|\.+$/g, '');
+}
+
+async function getVendedoresColumns(client = pool) {
+    const { rows } = await client.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'vendedores'
+    `);
+    return new Set(rows.map((row) => row.column_name));
+}
+
+function usernameExpr(columns) {
+    if (columns.has('username')) return 'v.username';
+    return "lower(replace(trim(v.nombre), ' ', '.'))";
+}
+
+function pctBaseExpr(columns) {
+    if (columns.has('pct_comision_base')) return 'v.pct_comision_base';
+    return '0.02::numeric AS pct_comision_base';
+}
+
+// GET /api/vendedores
 router.get('/', async (req, res) => {
     try {
+        const empresa_id = req.user.empresa_id;
+        const columns = await getVendedoresColumns();
         const { rows } = await pool.query(`
-            SELECT v.id, v.nombre, v.iniciales, v.color,
+            SELECT v.id, v.nombre, v.iniciales, v.color, ${usernameExpr(columns)} AS username, v.email, v.cargo,
+                   v.meta_mensual, v.umbral_comision, ${pctBaseExpr(columns)},
+                   v.pct_comision_bajo, v.pct_comision_alto, v.foto_url,
+                   v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa,
                    COALESCE(array_agg(vr.rol ORDER BY vr.rol) FILTER (WHERE vr.rol IS NOT NULL), '{}') AS roles
             FROM vendedores v
             LEFT JOIN vendedor_roles vr ON vr.vendedor_id = v.id
+            WHERE v.empresa_id = $1
             GROUP BY v.id
             ORDER BY v.id
-        `);
+        `, [empresa_id]);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error(err);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
 
-// PUT /api/vendedores/:id/roles  →  body: { roles: ['Ventas','Marketing'] }
-router.put('/:id/roles', async (req, res) => {
-    const { id } = req.params;
-    const { roles } = req.body;
+// POST /api/vendedores -> crear nuevo vendedor (solo Admin)
+router.post('/', async (req, res) => {
+    if (!req.user?.roles?.includes('Admin') && !req.user?.is_superadmin) {
+        return res.status(403).json({ error: 'Se requiere rol Admin' });
+    }
 
-    if (!Array.isArray(roles) || roles.length === 0)
-        return res.status(400).json({ error: 'Se requiere un array roles no vacío' });
+    const {
+        nombre, iniciales, color, username, email, password, cargo, roles,
+        zkbio_employee_code, zkbio_device_name, asistencia_activa,
+    } = req.body;
+    const empresa_id = req.user.empresa_id;
 
-    const VALID = ['Gerencia', 'Marketing', 'Ventas', 'Retail'];
-    const invalid = roles.filter(r => !VALID.includes(r));
-    if (invalid.length)
-        return res.status(400).json({ error: `Roles inválidos: ${invalid.join(', ')}` });
+    if (!nombre || !iniciales || !username || !email || !password) {
+        return res.status(400).json({ error: 'nombre, iniciales, username, email y password son obligatorios' });
+    }
+    if (!Array.isArray(roles) || roles.length === 0) {
+        return res.status(400).json({ error: 'Se requiere al menos un rol' });
+    }
+
+    const invalid = roles.filter((rol) => !VALID_ROLES.includes(rol));
+    if (invalid.length) {
+        return res.status(400).json({ error: `Roles invalidos: ${invalid.join(', ')}` });
+    }
+
+    const usernameClean = normalizeUsername(username);
+    if (!usernameClean) {
+        return res.status(400).json({ error: 'El username no es valido' });
+    }
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await client.query('DELETE FROM vendedor_roles WHERE vendedor_id = $1', [id]);
+        const columns = await getVendedoresColumns(client);
+
+        if (!columns.has('username')) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Falta la columna username en vendedores. Ejecuta la migracion 021_vendedor_username_comision_base.sql.' });
+        }
+
+        const hash = await bcrypt.hash(password, 12);
+        const id = usernameClean.replace(/\./g, '_');
+
+        const { rows } = await client.query(`
+            INSERT INTO vendedores (
+                id, nombre, iniciales, color, username, email, password_hash, cargo, empresa_id,
+                zkbio_employee_code, zkbio_device_name, asistencia_activa
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING id, nombre, iniciales, color, username, email, cargo,
+                      zkbio_employee_code, zkbio_device_name, asistencia_activa
+        `, [
+            id,
+            nombre,
+            iniciales.toUpperCase().slice(0, 3),
+            color || '#2f6fd4',
+            usernameClean,
+            email.toLowerCase().trim(),
+            hash,
+            cargo || '',
+            empresa_id,
+            zkbio_employee_code || null,
+            zkbio_device_name || null,
+            asistencia_activa ?? true,
+        ]);
+
         for (const rol of roles) {
             await client.query(
                 'INSERT INTO vendedor_roles (vendedor_id, rol) VALUES ($1, $2)',
                 [id, rol]
             );
         }
+
+        await client.query('COMMIT');
+        res.status(201).json({ ...rows[0], roles });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        if (err.code === '23505') {
+            return res.status(409).json({ error: 'Ya existe un vendedor con ese username, email o ID' });
+        }
+        console.error(err);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    } finally {
+        client.release();
+    }
+});
+
+// PUT /api/vendedores/:id
+router.put('/:id', async (req, res) => {
+    const { id } = req.params;
+    const {
+        nombre, iniciales, color, username, email, cargo, password, roles,
+        zkbio_employee_code, zkbio_device_name, asistencia_activa,
+    } = req.body;
+    const empresa_id = req.user.empresa_id;
+
+    if (!req.user?.roles?.includes('Admin') && !req.user?.is_superadmin) {
+        return res.status(403).json({ error: 'Se requiere rol Admin' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const columns = await getVendedoresColumns(client);
+
+        const { rowCount: exists } = await client.query(
+            'SELECT 1 FROM vendedores WHERE id = $1 AND empresa_id = $2',
+            [id, empresa_id]
+        );
+        if (!exists) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Vendedor no encontrado' });
+        }
+
+        const sets = [];
+        const vals = [];
+        let i = 1;
+
+        if (nombre !== undefined) { sets.push(`nombre = $${i++}`); vals.push(nombre); }
+        if (iniciales !== undefined) { sets.push(`iniciales = $${i++}`); vals.push(iniciales.toUpperCase().slice(0, 3)); }
+        if (color !== undefined) { sets.push(`color = $${i++}`); vals.push(color); }
+        if (username !== undefined) {
+            if (!columns.has('username')) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'Falta la columna username en vendedores. Ejecuta la migracion 021_vendedor_username_comision_base.sql.' });
+            }
+            sets.push(`username = $${i++}`);
+            vals.push(normalizeUsername(username));
+        }
+        if (email !== undefined) { sets.push(`email = $${i++}`); vals.push(email.toLowerCase().trim()); }
+        if (cargo !== undefined) { sets.push(`cargo = $${i++}`); vals.push(cargo); }
+        if (zkbio_employee_code !== undefined) { sets.push(`zkbio_employee_code = $${i++}`); vals.push(zkbio_employee_code || null); }
+        if (zkbio_device_name !== undefined) { sets.push(`zkbio_device_name = $${i++}`); vals.push(zkbio_device_name || null); }
+        if (asistencia_activa !== undefined) { sets.push(`asistencia_activa = $${i++}`); vals.push(!!asistencia_activa); }
+
+        if (password) {
+            const hash = await bcrypt.hash(password, 12);
+            sets.push(`password_hash = $${i++}`);
+            vals.push(hash);
+        }
+
+        if (sets.length) {
+            vals.push(id);
+            await client.query(
+                `UPDATE vendedores SET ${sets.join(', ')} WHERE id = $${i}`,
+                vals
+            );
+        }
+
+        if (Array.isArray(roles) && roles.length > 0) {
+            const invalid = roles.filter((rol) => !VALID_ROLES.includes(rol));
+            if (invalid.length) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: `Roles invalidos: ${invalid.join(', ')}` });
+            }
+            await client.query('DELETE FROM vendedor_roles WHERE vendedor_id = $1', [id]);
+            for (const rol of roles) {
+                await client.query(
+                    'INSERT INTO vendedor_roles (vendedor_id, rol) VALUES ($1, $2)',
+                    [id, rol]
+                );
+            }
+        }
+
         await client.query('COMMIT');
 
         const { rows } = await client.query(`
-            SELECT v.id, v.nombre, v.iniciales, v.color,
-                   array_agg(vr.rol ORDER BY vr.rol) AS roles
+            SELECT v.id, v.nombre, v.iniciales, v.color, ${usernameExpr(columns)} AS username, v.email, v.cargo,
+                   v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa,
+                   COALESCE(array_agg(vr.rol ORDER BY vr.rol) FILTER (WHERE vr.rol IS NOT NULL), '{}') AS roles
             FROM vendedores v
-            JOIN vendedor_roles vr ON vr.vendedor_id = v.id
+            LEFT JOIN vendedor_roles vr ON vr.vendedor_id = v.id
             WHERE v.id = $1
             GROUP BY v.id
         `, [id]);
 
-        if (!rows.length) return res.status(404).json({ error: 'Vendedor no encontrado' });
         res.json(rows[0]);
     } catch (err) {
         await client.query('ROLLBACK');
-        res.status(500).json({ error: err.message });
+        console.error(err);
+        res.status(500).json({ error: 'Error interno del servidor' });
     } finally {
         client.release();
+    }
+});
+
+// POST /api/vendedores/:id/foto
+router.post('/:id/foto', uploadAvatar.single('foto'), async (req, res) => {
+    if (!req.user?.roles?.includes('Admin') && !req.user?.is_superadmin) {
+        return res.status(403).json({ error: 'Se requiere rol Admin' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No se recibio ningun archivo' });
+
+    try {
+        const foto_url = req.file.path;
+        await pool.query(
+            'UPDATE vendedores SET foto_url = $1 WHERE id = $2 AND empresa_id = $3',
+            [foto_url, req.params.id, req.user.empresa_id]
+        );
+        res.json({ foto_url });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// PUT /api/vendedores/:id/metas
+router.put('/:id/metas', async (req, res) => {
+    const canEdit = req.user?.roles?.some((rol) => ['Admin', 'Gerencia'].includes(rol)) || req.user?.is_superadmin;
+    if (!canEdit) return res.status(403).json({ error: 'Se requiere rol Admin o Gerencia' });
+
+    const {
+        meta_mensual,
+        umbral_comision,
+        pct_comision_base,
+        pct_comision_bajo,
+        pct_comision_alto,
+    } = req.body;
+    const empresa_id = req.user.empresa_id;
+
+    try {
+        const columns = await getVendedoresColumns();
+        if (!columns.has('pct_comision_base')) {
+            return res.status(400).json({ error: 'Falta la columna pct_comision_base en vendedores. Ejecuta la migracion 021_vendedor_username_comision_base.sql.' });
+        }
+
+        const { rows } = await pool.query(`
+            UPDATE vendedores
+            SET meta_mensual = $1,
+                umbral_comision = $2,
+                pct_comision_base = $3,
+                pct_comision_bajo = $4,
+                pct_comision_alto = $5
+            WHERE id = $6 AND empresa_id = $7
+            RETURNING id, meta_mensual, umbral_comision, pct_comision_base, pct_comision_bajo, pct_comision_alto
+        `, [
+            meta_mensual,
+            umbral_comision,
+            pct_comision_base ?? 0.02,
+            pct_comision_bajo ?? 0.07,
+            pct_comision_alto ?? 0.08,
+            req.params.id,
+            empresa_id,
+        ]);
+
+        if (!rows.length) return res.status(404).json({ error: 'Vendedor no encontrado' });
+        res.json(rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
 

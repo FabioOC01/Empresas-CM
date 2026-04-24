@@ -1,250 +1,290 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { getVendedores, updateRoles, createActividad } from '../api/actividades';
-import useActividades from '../hooks/useActividades';
-import { filterActs, fmtUSD, fmt, TIPOS, MESES, ROLES, TYPE_COLOR, TYPE_ICON } from '../utils/crm';
-import ActividadModal from '../components/ActividadModal';
-import { RolBadge } from '../components/Badge';
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Sector, LabelList } from 'recharts';
 
-const ESTADO_COLOR = { 'Pendiente':'#e67e22','En Progreso':'#2f6fd4','Completado':'#27ae60','Cancelado':'#e74c3c' };
-const TIPO_COLORS  = ['#2f6fd4','#27ae60','#e67e22','#8e44ad','#e74c3c','#1abc9c','#e91e63','#4caf50','#ff9800','#9c27b0'];
+const renderActivePie = ({ cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill }) => (
+    <Sector cx={cx} cy={cy} innerRadius={innerRadius - 3} outerRadius={outerRadius + 8} startAngle={startAngle} endAngle={endAngle} fill={fill} opacity={0.95} />
+);
+import { getVendedores, createActividad } from '../api/actividades';
+import { useAuth } from '../context/AuthContext';
+import useActividades from '../hooks/useActividades';
+import { filterActs, fmtUSD, fmt, calcDuration, TIPOS, MESES, TYPE_COLOR, TYPE_ICON, ROL_TIPOS } from '../utils/crm';
+import ActividadModal from '../components/ActividadModal';
+import Avatar from '../components/Avatar';
+import { RolBadge } from '../components/Badge';
+import PeriodoPicker from '../components/PeriodoPicker';
+import { useTheme } from '../context/ThemeContext';
+
+const ESTADO_COLOR = { 'Pendiente': '#e67e22', 'En Progreso': '#10b981', 'Completado': '#27ae60', 'Cancelado': '#e74c3c' };
+const TIPO_COLORS = ['#10b981', '#27ae60', '#e67e22', '#8e44ad', '#e74c3c', '#1abc9c', '#e91e63', '#4caf50', '#ff9800', '#9c27b0'];
 const GRUPOS_MATRIZ = [
-    { label: 'VENTAS',    color: '#2f6fd4', tipos: ['Venta','Propuesta','Cotización','Oportunidad','Homologación','Visita','Seguimiento'] },
-    { label: 'MARKETING', color: '#8e44ad', tipos: ['Publicidad','Piezas gráficas'] },
-    { label: 'ADMIN',     color: '#6b7a8d', tipos: ['Administrativa'] },
+    { label: 'VENTAS', color: '#10b981', tipos: ['Venta', 'Propuesta', 'Oportunidad'] },
+    { label: 'CORPORATIVO', color: '#8e44ad', tipos: ['Cotización', 'Homologación', 'Visita'] },
+    { label: 'SOPORTE', color: '#16a085', tipos: ['Seguimiento', 'Soporte'] },
+    { label: 'LOGISTICA', color: '#1565c0', tipos: ['Despacho', 'Inventario', 'Facturación'] },
+    { label: 'MARKETING', color: '#e67e22', tipos: ['Publicidad', 'Piezas gráficas', 'Redes'] },
+    { label: 'ADMIN', color: '#6b7a8d', tipos: ['Administrativa'] },
 ];
 
-const isMarketing = (v) => v?.roles?.includes('Marketing') && !v?.roles?.some(r => ['Ventas','Gerencia','Retail'].includes(r));
+function tiposPermitidos(vendedor) {
+    const roles = vendedor?.roles || [];
+    if (roles.includes('Admin')) return null; // null = todos
+    const set = new Set();
+    roles.forEach(r => (ROL_TIPOS[r] || []).forEach(t => set.add(t)));
+    return set;
+}
+
+const isMarketing = (v) => v?.roles?.includes('Marketing') && !v?.roles?.some((r) => ['Ventas', 'Gerencia', 'Retail'].includes(r));
 
 export default function Equipo() {
-    const { actividades, setActividades } = useActividades();
-    const [vendedores, setVendedores] = useState([]);
-    const [trim, setTrim]     = useState('');
-    const [mes, setMes]       = useState('');
-    const [fEstado, setFEstado] = useState('');
-    const [fTipo, setFTipo]   = useState('');
-    const [editRolId, setEditRolId] = useState(null);
-    const [rolDraft, setRolDraft]   = useState([]);
-    const [modal, setModal] = useState({ open: false, actividad: null });
+    const { actividades, config } = useActividades();
+    const tk = useTheme();
+    const fmt$ = (n) => fmtUSD(n, config?.moneda || 'USD');
+    const { user } = useAuth();
 
-    useEffect(() => { getVendedores().then(setVendedores); }, []);
+    const sel = { padding: '7px 12px', borderRadius: 7, border: `1px solid ${tk.bdr}`, fontSize: 13, background: tk.card, color: tk.txt };
+    const card = { background: tk.card, borderRadius: 10, padding: '18px 20px', boxShadow: tk.shadow };
+    const ct = { fontSize: 13, fontWeight: 700, color: tk.txt, marginBottom: 0 };
+    const th = { padding: '8px 10px', textAlign: 'left', color: tk.txt2, fontWeight: 700, fontSize: 11 };
+    const td = { padding: '10px 10px', color: tk.txt };
+    const [vendedores, setVendedores] = useState([]);
+    const [now, setNow] = useState(Date.now());
+    useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
+    const [trim, setTrim] = useState('');
+    const [mes, setMes] = useState('');
+    const [fEstado, setFEstado] = useState('');
+    const [fTipo, setFTipo] = useState('');
+    const [modal, setModal] = useState({ open: false, actividad: null });
+    const [activePieIdx, setActivePieIdx] = useState(null);
+
+    const ttStyle = {
+        contentStyle: { background: tk.card, border: `1px solid ${tk.bdr}`, borderRadius: 8, fontSize: 12, color: tk.txt },
+        itemStyle: { color: tk.txt2 },
+        labelStyle: { color: tk.txt, fontWeight: 600 },
+        cursor: { fill: tk.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
+    };
+    const axisProps = { tick: { fill: tk.txt2, fontSize: 11 } };
+
+    const esAdminGerencia = user?.is_superadmin || user?.roles?.some((r) => ['Admin', 'Gerencia'].includes(r));
+
+    useEffect(() => {
+        getVendedores().then((vs) => {
+            const sinAdminGerencia = vs.filter((v) => !v.roles?.some((r) => ['Admin', 'Gerencia'].includes(r)));
+            if (esAdminGerencia) {
+                setVendedores(sinAdminGerencia);
+            } else {
+                setVendedores(sinAdminGerencia.filter((v) => v.id === user?.id));
+            }
+        });
+    }, [esAdminGerencia, user?.id]);
 
     const filtered = filterActs(actividades, {
         trimestre: trim || undefined,
-        mes:       mes  || undefined,
-        estado:    fEstado || undefined,
-        tipo:      fTipo   || undefined,
-    });
+        mes: mes || undefined,
+        estado: fEstado || undefined,
+        tipo: fTipo || undefined,
+    }).filter((a) => esAdminGerencia || a.vendedor_id === user?.id);
 
-    // Vendors rankeados por monto cerrado (ignorando Marketing-only)
+    // Grupos visibles: solo los que aplican a al menos uno de los vendedores mostrados
+    const gruposVisibles = GRUPOS_MATRIZ.filter(g => vendedores.some(v => {
+        const p = tiposPermitidos(v);
+        return p === null || g.tipos.some(t => p.has(t));
+    }));
+
     const vendRanked = [...vendedores].sort((a, b) => {
-        const mA = actividades.filter(x => x.vendedor_id === a.id && x.estado === 'Completado').reduce((s,x) => s + Number(x.monto), 0);
-        const mB = actividades.filter(x => x.vendedor_id === b.id && x.estado === 'Completado').reduce((s,x) => s + Number(x.monto), 0);
+        const mA = filtered.filter((x) => x.vendedor_id === a.id && x.estado === 'Completado').reduce((s, x) => s + Number(x.monto), 0);
+        const mB = filtered.filter((x) => x.vendedor_id === b.id && x.estado === 'Completado').reduce((s, x) => s + Number(x.monto), 0);
         return mB - mA;
     });
 
-    // Avance general
     const totalActs = filtered.length;
-    const pctGlobal = totalActs ? Math.round(filtered.filter(a => a.estado === 'Completado').length / totalActs * 100) : 0;
-    const avanceData = ['Completado','En Progreso','Pendiente','Cancelado'].map(e => ({
-        name: e, value: filtered.filter(a => a.estado === e).length,
+    const pctGlobal = totalActs ? Math.round(filtered.filter((a) => a.estado === 'Completado').length / totalActs * 100) : 0;
+    const avanceData = ['Completado', 'En Progreso', 'Pendiente', 'Cancelado'].map((e) => ({
+        name: e, value: filtered.filter((a) => a.estado === e).length,
     }));
 
-    // Alta prioridad pendiente (top 5)
     const altasPendientes = [...filtered]
-        .filter(a => a.prioridad === 'Alta' && ['Pendiente','En Progreso'].includes(a.estado))
-        .sort((a,b) => b.monto - a.monto)
+        .filter((a) => a.prioridad === 'Alta' && ['Pendiente', 'En Progreso'].includes(a.estado))
+        .sort((a, b) => b.monto - a.monto)
         .slice(0, 5);
 
-    // Charts
     const byVendCerrado = vendedores
-        .filter(v => !isMarketing(v))
-        .map(v => ({
+        .filter((v) => !isMarketing(v))
+        .map((v) => ({
             name: v.nombre.split(' ')[0],
             color: v.color,
-            Monto: filtered.filter(a => a.vendedor_id === v.id && a.estado === 'Completado').reduce((s,a) => s + Number(a.monto), 0),
-        })).filter(x => x.Monto > 0);
+            Monto: filtered.filter((a) => a.vendedor_id === v.id && a.estado === 'Completado').reduce((s, a) => s + Number(a.monto), 0),
+        })).filter((x) => x.Monto > 0);
 
-    const byTipo = TIPOS.map(t => ({ name: t, value: filtered.filter(a => a.tipo === t).length })).filter(x => x.value > 0);
+    const byTipo = TIPOS.map((t) => ({ name: t, value: filtered.filter((a) => a.tipo === t).length })).filter((x) => x.value > 0);
 
-    const trend = MESES.map(m => {
+    const trend = MESES.map((m) => {
         const entry = { name: m };
-        vendedores.forEach(v => { entry[v.nombre.split(' ')[0]] = actividades.filter(a => a.vendedor_id === v.id && a.mes === m).length; });
+        vendedores.forEach((v) => { entry[v.nombre.split(' ')[0]] = filtered.filter((a) => a.vendedor_id === v.id && a.mes === m).length; });
         return entry;
-    }).filter(row => vendedores.some(v => row[v.nombre.split(' ')[0]] > 0));
+    }).filter((row) => vendedores.some((v) => row[v.nombre.split(' ')[0]] > 0));
 
-
-    // Edición de roles
-    const openRolEdit = (v) => { setEditRolId(v.id); setRolDraft([...v.roles]); };
-    const saveRoles = async (id) => {
-        if (!rolDraft.length) return;
-        const updated = await updateRoles(id, rolDraft);
-        setVendedores(prev => prev.map(v => v.id === id ? { ...v, roles: updated.roles } : v));
-        setEditRolId(null);
-    };
-    const toggleRol = (r) => setRolDraft(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
-
-    // Nueva actividad
     const handleSave = async (data) => {
         await createActividad(data);
     };
 
     return (
         <div>
-            {/* Topbar */}
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:24 }}>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                    <select style={sel} value={trim} onChange={e => setTrim(e.target.value)}>
-                        <option value="">Todos los períodos</option>
-                        {['1','2','3','4'].map(q => <option key={q} value={q}>Q{q}</option>)}
-                    </select>
-                    <select style={sel} value={mes} onChange={e => setMes(e.target.value)}>
-                        <option value="">Todos los meses</option>
-                        {MESES.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <button onClick={() => setModal({ open:true, actividad:null })} style={btnPri}>+ Nueva Actividad</button>
-                </div>
-            </div>
-
-            {/* Hero cards */}
-            <div style={{ display:'grid', gridTemplateColumns:`repeat(${vendRanked.length},1fr)`, gap:14, marginBottom:20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(vendRanked.length, 1)},1fr)`, gap: 14, marginBottom: 20 }}>
                 {vendRanked.map((v, i) => {
-                    const vActs  = filtered.filter(a => a.vendedor_id === v.id);
-                    const cerr   = vActs.filter(a => a.estado === 'Completado');
-                    const pct    = vActs.length ? Math.round(cerr.length / vActs.length * 100) : 0;
-                    const montoC = cerr.reduce((s,a) => s + Number(a.monto), 0);
-                    const montoT = vActs.reduce((s,a) => s + Number(a.monto), 0);
-                    const mkt    = isMarketing(v);
+                    const vActs = filtered.filter((a) => a.vendedor_id === v.id);
+                    const cerr = vActs.filter((a) => a.estado === 'Completado');
+                    const pct = vActs.length ? Math.round(cerr.length / vActs.length * 100) : 0;
                     return (
-                        <div key={v.id} style={{ background:'#fff', borderRadius:10, padding:'16px 14px', boxShadow:'0 1px 4px rgba(0,0,0,0.07)', textAlign:'center', position:'relative' }}>
+                        <div key={v.id} style={{ background: tk.card, borderRadius: 10, padding: '16px 14px', boxShadow: tk.shadow, textAlign: 'center', position: 'relative' }}>
                             {i < 2 && (
-                                <div style={{ position:'absolute', top:10, right:10, fontSize:18 }}>
-                                    {i === 0 ? '🥇' : '🥈'}<span style={{ fontSize:11, fontWeight:700, color:'#6b7a8d' }}>#{i+1}</span>
+                                <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 18 }}>
+                                    {i === 0 ? '🥇' : '🥈'}<span style={{ fontSize: 11, fontWeight: 700, color: tk.txt2 }}>#{i + 1}</span>
                                 </div>
                             )}
-                            {i >= 2 && <div style={{ position:'absolute', top:10, right:10, fontSize:11, color:'#8899aa', fontWeight:600 }}>#{i+1}</div>}
+                            {i >= 2 && <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, color: tk.txt3, fontWeight: 600 }}>#{i + 1}</div>}
 
-                            <div style={{ width:56, height:56, borderRadius:'50%', background:v.color, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:18, margin:'0 auto 8px' }}>
-                                {v.iniciales}
+                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+                                <Avatar vendedor={v} size="xl" />
                             </div>
-                            <div style={{ fontWeight:700, fontSize:14, color:'#1e2a3b' }}>{v.nombre}</div>
-                            <div style={{ fontSize:11, color:'#8899aa', marginBottom:8 }}>Ejecutivo de Ventas</div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: tk.txt }}>{v.nombre}</div>
+                            <div style={{ fontSize: 11, color: tk.txt3, marginBottom: 8 }}>{esAdminGerencia ? 'Vista de equipo' : 'Tu vista personal'}</div>
 
-                            <div style={{ display:'flex', gap:4, justifyContent:'center', flexWrap:'wrap', marginBottom:10 }}>
-                                {v.roles?.map(r => <RolBadge key={r} rol={r} />)}
-                                <button onClick={() => openRolEdit(v)} style={{ padding:'1px 6px', borderRadius:10, border:'1px dashed #ccc', background:'none', cursor:'pointer', fontSize:10, color:'#6b7a8d' }}>✏️</button>
-                            </div>
-
-                            <div style={{ height:4, background:'#eee', borderRadius:2, marginBottom:12 }}>
-                                <div style={{ height:'100%', borderRadius:2, width:`${pct}%`, background:v.color, transition:'width 0.4s' }} />
+                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                                {v.roles?.map((r) => <RolBadge key={r} rol={r} />)}
                             </div>
 
-                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:4, marginBottom:10 }}>
-                                {[['TOTAL', vActs.length], ['CERRADO', cerr.length], ['AVANCE', `${pct}%`]].map(([l,val]) => (
+                            <div style={{ height: 4, background: tk.bdr, borderRadius: 2, marginBottom: 12 }}>
+                                <div style={{ height: '100%', borderRadius: 2, width: `${pct}%`, background: v.color, transition: 'width 0.4s' }} />
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+                                {[['TOTAL', vActs.length], ['CERRADO', cerr.length], ['AVANCE', `${pct}%`]].map(([l, val]) => (
                                     <div key={l}>
-                                        <div style={{ fontSize:18, fontWeight:800, color:'#1e2a3b' }}>{val}</div>
-                                        <div style={{ fontSize:9, color:'#8899aa', textTransform:'uppercase', letterSpacing:0.5 }}>{l}</div>
+                                        <div style={{ fontSize: 18, fontWeight: 800, color: tk.txt }}>{val}</div>
+                                        <div style={{ fontSize: 9, color: tk.txt3, textTransform: 'uppercase', letterSpacing: 0.5 }}>{l}</div>
                                     </div>
                                 ))}
                             </div>
-
-                            {mkt ? (
-                                <div style={{ fontSize:11, color:'#8899aa' }}>Sin manejo de montos</div>
-                            ) : (
-                                <>
-                                    <div style={{ fontSize:16, fontWeight:800, color:'#2f6fd4' }}>{fmtUSD(montoC)}</div>
-                                    <div style={{ fontSize:11, color:'#8899aa' }}>de {fmtUSD(montoT)}</div>
-                                </>
-                            )}
                         </div>
                     );
                 })}
             </div>
 
-            {/* Matriz + Avance general */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:16, marginBottom:20 }}>
-                {/* Matriz */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, marginBottom: 20 }}>
                 <div style={card}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                        <div style={ct}>Matriz de Actividades por Vendedor</div>
-                        <span style={{ fontSize:11, color:'#8899aa' }}>Cantidad · Monto USD</span>
+                    <div style={{ marginBottom: 14 }}>
+                        <div style={ct}>{esAdminGerencia ? 'Matriz de Actividades por Vendedor' : 'Tu matriz de actividades'}</div>
                     </div>
-                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                    {esAdminGerencia ? (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                             <thead>
-                                <tr style={{ borderBottom:'2px solid #eee' }}>
-                                    <th style={{ ...th, width:'30%' }}>VENDEDOR</th>
-                                    {GRUPOS_MATRIZ.map(g => (
-                                        <th key={g.label} style={{ ...th, textAlign:'center', color: g.color }}>
+                                <tr style={{ borderBottom: `2px solid ${tk.bdr}` }}>
+                                    <th style={{ ...th, width: '22%' }}>VENDEDOR</th>
+                                    {gruposVisibles.map((g) => (
+                                        <th key={g.label} style={{ ...th, textAlign: 'center', color: g.color }}>
                                             {g.label}
-                                            <div style={{ fontSize:9, color:'#aaa', fontWeight:400, marginTop:1 }}>
-                                                {g.tipos.filter(t => filtered.some(a => a.tipo === t)).join(' · ') || g.tipos.slice(0,2).join(' · ')}
+                                            <div style={{ fontSize: 9, color: tk.txt3, fontWeight: 400, marginTop: 1 }}>
+                                                {g.tipos.join(' · ')}
                                             </div>
                                         </th>
                                     ))}
-                                    <th style={{ ...th, textAlign:'center' }}>TOTAL</th>
-                                    <th style={{ ...th, textAlign:'center' }}>MONTO TOTAL</th>
+                                    <th style={{ ...th, textAlign: 'center' }}>TOTAL</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {vendedores.map(v => {
-                                    const vActs = filtered.filter(a => a.vendedor_id === v.id);
-                                    const mkt   = isMarketing(v);
+                                {vendedores.map((v) => {
+                                    const vActs = filtered.filter((a) => a.vendedor_id === v.id);
+                                    const permitidos = tiposPermitidos(v);
                                     return (
-                                        <tr key={v.id} style={{ borderBottom:'1px solid #f5f5f5' }}>
-                                            <td style={{ padding:'10px' }}>
-                                                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                                                    <div style={{ width:28, height:28, borderRadius:'50%', background:v.color, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>{v.iniciales}</div>
-                                                    <span style={{ fontWeight:600, color:'#1e2a3b' }}>{v.nombre}</span>
+                                        <tr key={v.id} style={{ borderBottom: `1px solid ${tk.bdr}` }}>
+                                            <td style={{ padding: '10px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <Avatar vendedor={v} size="sm" />
+                                                    <span style={{ fontWeight: 600, color: tk.txt }}>{v.nombre}</span>
                                                 </div>
                                             </td>
-                                            {GRUPOS_MATRIZ.map(g => {
-                                                const n = vActs.filter(a => g.tipos.includes(a.tipo)).length;
-                                                const breakdown = g.tipos
-                                                    .map(t => ({ t, n: vActs.filter(a => a.tipo === t).length }))
-                                                    .filter(x => x.n > 0);
+                                            {gruposVisibles.map((g) => {
+                                                const tiposVisibles = permitidos === null ? g.tipos : g.tipos.filter(t => permitidos.has(t));
+                                                if (tiposVisibles.length === 0) {
+                                                    return <td key={g.label} style={{ padding: '10px', textAlign: 'center', color: tk.txt3 }}>—</td>;
+                                                }
+                                                const n = vActs.filter((a) => tiposVisibles.includes(a.tipo)).length;
+                                                const breakdown = tiposVisibles
+                                                    .map((t) => ({ t, n: vActs.filter((a) => a.tipo === t).length }))
+                                                    .filter((x) => x.n > 0);
                                                 return (
-                                                    <td key={g.label} style={{ padding:'10px', textAlign:'center' }}>
+                                                    <td key={g.label} style={{ padding: '10px', textAlign: 'center' }}>
                                                         {n > 0 ? (
                                                             <div>
-                                                                <div style={{ fontWeight:800, fontSize:15, color: g.color }}>{n}</div>
-                                                                <div style={{ fontSize:10, color:'#8899aa', marginTop:2 }}>
-                                                                    {breakdown.map(x => `${x.t.split(' ')[0]} ${x.n}`).join(' · ')}
+                                                                <div style={{ fontWeight: 800, fontSize: 15, color: g.color }}>{n}</div>
+                                                                <div style={{ fontSize: 10, color: tk.txt3, marginTop: 2 }}>
+                                                                    {breakdown.map((x) => `${x.t.split(' ')[0]} ${x.n}`).join(' · ')}
                                                                 </div>
                                                             </div>
-                                                        ) : <span style={{ color:'#ccc' }}>—</span>}
+                                                        ) : <span style={{ color: tk.txt3 }}>—</span>}
                                                     </td>
                                                 );
                                             })}
-                                            <td style={{ padding:'10px', textAlign:'center', fontWeight:800, color:'#1e2a3b' }}>{vActs.length}</td>
-                                            <td style={{ padding:'10px', textAlign:'center', fontWeight:700, color: mkt ? '#8899aa' : '#2f6fd4' }}>
-                                                {mkt ? '—' : fmtUSD(vActs.reduce((s,a) => s + Number(a.monto), 0))}
-                                            </td>
+                                            <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: tk.txt }}>{vActs.length}</td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
-                            <tfoot>
-                                <tr style={{ borderTop:'2px solid #eee', background:'#f8f9fb' }}>
-                                    <td style={{ padding:'10px', fontWeight:700, color:'#1e2a3b' }}>TOTAL</td>
-                                    {GRUPOS_MATRIZ.map(g => (
-                                        <td key={g.label} style={{ padding:'10px', textAlign:'center', fontWeight:800, color: g.color }}>
-                                            {filtered.filter(a => g.tipos.includes(a.tipo)).length || '—'}
-                                        </td>
-                                    ))}
-                                    <td style={{ padding:'10px', textAlign:'center', fontWeight:800, color:'#1e2a3b' }}>{filtered.length}</td>
-                                    <td style={{ padding:'10px', textAlign:'center', fontWeight:800, color:'#2f6fd4' }}>
-                                        {fmtUSD(filtered.filter(a => !isMarketing(vendedores.find(x => x.id === a.vendedor_id))).reduce((s,a) => s + Number(a.monto), 0))}
-                                    </td>
-                                </tr>
-                            </tfoot>
                         </table>
+                    ) : (() => {
+                        const yo = vendedores[0];
+                        const permit = yo ? tiposPermitidos(yo) : null;
+                        const tiposCol = permit === null ? TIPOS : TIPOS.filter(t => permit.has(t));
+                        const vActs = yo ? filtered.filter((a) => a.vendedor_id === yo.id) : [];
+                        return (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                <thead>
+                                    <tr style={{ borderBottom: `2px solid ${tk.bdr}` }}>
+                                        <th style={{ ...th, width: '22%' }}>VENDEDOR</th>
+                                        {tiposCol.map((t) => {
+                                            const c = TYPE_COLOR[t] || { color: tk.txt2 };
+                                            return (
+                                                <th key={t} style={{ ...th, textAlign: 'center', color: c.color }}>
+                                                    {TYPE_ICON[t] || ''} {t}
+                                                </th>
+                                            );
+                                        })}
+                                        <th style={{ ...th, textAlign: 'center' }}>TOTAL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {yo && (
+                                        <tr style={{ borderBottom: `1px solid ${tk.bdr}` }}>
+                                            <td style={{ padding: '10px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <Avatar vendedor={yo} size="sm" />
+                                                    <span style={{ fontWeight: 600, color: tk.txt }}>{yo.nombre}</span>
+                                                </div>
+                                            </td>
+                                            {tiposCol.map((t) => {
+                                                const n = vActs.filter((a) => a.tipo === t).length;
+                                                const c = TYPE_COLOR[t] || { color: tk.txt2 };
+                                                return (
+                                                    <td key={t} style={{ padding: '10px', textAlign: 'center' }}>
+                                                        {n > 0
+                                                            ? <span style={{ fontWeight: 800, fontSize: 15, color: c.color }}>{n}</span>
+                                                            : <span style={{ color: tk.txt3 }}>—</span>}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: tk.txt }}>{vActs.length}</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        );
+                    })()}
                 </div>
 
-                {/* Avance general + Alertas */}
-                <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={card}>
-                        <div style={ct}>Avance General del Equipo</div>
-                        <div style={{ position:'relative', height:160 }}>
+                        <div style={ct}>{esAdminGerencia ? 'Avance General del Equipo' : 'Tu avance general'}</div>
+                        <div style={{ position: 'relative', height: 160 }}>
                             <ResponsiveContainer width="100%" height={160}>
                                 <PieChart>
                                     <Pie data={avanceData} cx="40%" cy="50%" outerRadius={70} innerRadius={45} dataKey="value" startAngle={90} endAngle={-270}>
@@ -252,36 +292,27 @@ export default function Equipo() {
                                     </Pie>
                                 </PieChart>
                             </ResponsiveContainer>
-                            <div style={{ position:'absolute', top:'50%', left:'40%', transform:'translate(-50%,-50%)', textAlign:'center', pointerEvents:'none' }}>
-                                <div style={{ fontSize:20, fontWeight:800, color:'#1e2a3b' }}>{pctGlobal}%</div>
-                                <div style={{ fontSize:10, color:'#8899aa' }}>Completado</div>
-                            </div>
-                            <div style={{ position:'absolute', top:'50%', right:0, transform:'translateY(-50%)', display:'flex', flexDirection:'column', gap:6 }}>
-                                {avanceData.map(e => (
-                                    <div key={e.name} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11 }}>
-                                        <div style={{ width:10, height:10, borderRadius:'50%', background:ESTADO_COLOR[e.name]||'#eee', flexShrink:0 }} />
-                                        <span style={{ color:'#6b7a8d' }}>{e.name}</span>
-                                        <span style={{ fontWeight:700, color:'#1e2a3b', marginLeft:'auto', paddingLeft:8 }}>{e.value}</span>
-                                    </div>
-                                ))}
+                            <div style={{ position: 'absolute', top: '50%', left: '40%', transform: 'translate(-50%,-50%)', textAlign: 'center', pointerEvents: 'none' }}>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: tk.txt }}>{pctGlobal}%</div>
+                                <div style={{ fontSize: 10, color: tk.txt3 }}>Completado</div>
                             </div>
                         </div>
                     </div>
 
                     <div style={card}>
                         <div style={ct}>Prioridades Alta Pendientes</div>
-                        {altasPendientes.length === 0 && <div style={{ fontSize:12, color:'#aaa', textAlign:'center', padding:'12px 0' }}>Sin alertas urgentes ✅</div>}
-                        {altasPendientes.map(a => {
-                            const v = vendedores.find(x => x.id === a.vendedor_id);
+                        {altasPendientes.length === 0 && <div style={{ fontSize: 12, color: tk.txt3, textAlign: 'center', padding: '12px 0' }}>Sin alertas urgentes</div>}
+                        {altasPendientes.map((a) => {
+                            const v = vendedores.find((x) => x.id === a.vendedor_id);
                             const mkt = isMarketing(v);
                             return (
-                                <div key={a.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 0', borderBottom:'1px solid #f5f5f5' }}>
-                                    <span style={{ fontSize:16 }}>⚠️</span>
-                                    <div style={{ flex:1, minWidth:0 }}>
-                                        <div style={{ fontSize:12, fontWeight:600, color:'#1e2a3b', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.nombre}</div>
-                                        <div style={{ fontSize:10, color:'#8899aa' }}>{v?.nombre.split(' ')[0]} · {a.mes}</div>
+                                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${tk.bdr}` }}>
+                                    <span style={{ fontSize: 16 }}>⚠️</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: tk.txt, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre}</div>
+                                        <div style={{ fontSize: 10, color: tk.txt3 }}>{v?.nombre.split(' ')[0]} · {a.mes}</div>
                                     </div>
-                                    {!mkt && <div style={{ fontSize:12, fontWeight:700, color:'#2f6fd4', flexShrink:0 }}>{fmtUSD(a.monto)}</div>}
+                                    {!mkt && <div style={{ fontSize: 12, fontWeight: 700, color: '#10b981', flexShrink: 0 }}>{fmt$(a.monto)}</div>}
                                 </div>
                             );
                         })}
@@ -289,17 +320,17 @@ export default function Equipo() {
                 </div>
             </div>
 
-            {/* Charts */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, marginBottom:20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div style={card}>
                     <div style={ct}>Montos Cerrados por Vendedor</div>
                     <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={byVendCerrado} margin={{ top:8, right:8, left:-10, bottom:0 }}>
-                            <XAxis dataKey="name" tick={{ fontSize:11 }} />
-                            <YAxis tick={{ fontSize:11 }} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
-                            <Tooltip formatter={v => fmtUSD(v)} />
-                            <Bar dataKey="Monto" radius={[4,4,0,0]}>
+                        <BarChart data={byVendCerrado} margin={{ top: 24, right: 8, left: -10, bottom: 0 }}>
+                            <XAxis dataKey="name" {...axisProps} />
+                            <YAxis {...axisProps} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} formatter={(v) => fmt$(v)} />
+                            <Bar dataKey="Monto" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
                                 {byVendCerrado.map((e, i) => <Cell key={i} fill={e.color} />)}
+                                <LabelList dataKey="Monto" position="top" formatter={(v) => `${(v / 1000).toFixed(0)}k`} style={{ fill: tk.txt2, fontSize: 11, fontWeight: 600 }} />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
@@ -308,139 +339,135 @@ export default function Equipo() {
                     <div style={ct}>Tipos de Actividad</div>
                     <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
-                            <Pie data={byTipo} cx="50%" cy="55%" outerRadius={75} innerRadius={40} dataKey="value">
+                            <Pie
+                                data={byTipo}
+                                cx="50%"
+                                cy="55%"
+                                outerRadius={75}
+                                innerRadius={40}
+                                dataKey="value"
+                                activeIndex={activePieIdx ?? undefined}
+                                activeShape={renderActivePie}
+                                onMouseEnter={(_, i) => setActivePieIdx(i)}
+                                onMouseLeave={() => setActivePieIdx(null)}
+                                animationDuration={700}
+                                animationEasing="ease-out"
+                            >
                                 {byTipo.map((_, i) => <Cell key={i} fill={TIPO_COLORS[i % TIPO_COLORS.length]} />)}
                             </Pie>
-                            <Tooltip />
-                            <Legend iconSize={10} iconType="square" wrapperStyle={{ fontSize:10 }} />
+                            <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} />
+                            <Legend iconSize={10} iconType="square" wrapperStyle={{ fontSize: 10, color: tk.txt2 }} />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
                 <div style={card}>
                     <div style={ct}>Tendencia Mensual</div>
                     <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={trend} margin={{ top:8, right:8, left:-10, bottom:0 }}>
-                            <XAxis dataKey="name" tick={{ fontSize:11 }} />
-                            <YAxis tick={{ fontSize:11 }} allowDecimals={false} />
-                            <Tooltip />
-                            <Legend iconSize={10} iconType="square" wrapperStyle={{ fontSize:10 }} />
-                            {vendedores.map(v => (
-                                <Line key={v.id} type="monotone" dataKey={v.nombre.split(' ')[0]} stroke={v.color} strokeWidth={2} dot={{ r:3 }} />
+                        <AreaChart data={trend} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                            <defs>
+                                {vendedores.map((v) => (
+                                    <linearGradient key={v.id} id={`grad_${v.id}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={v.color} stopOpacity={0.35} />
+                                        <stop offset="100%" stopColor={v.color} stopOpacity={0.03} />
+                                    </linearGradient>
+                                ))}
+                            </defs>
+                            <XAxis dataKey="name" {...axisProps} />
+                            <YAxis {...axisProps} allowDecimals={false} />
+                            <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} />
+                            <Legend iconSize={10} iconType="square" wrapperStyle={{ fontSize: 10, color: tk.txt2 }} />
+                            {vendedores.map((v) => (
+                                <Area key={v.id} type="monotone" dataKey={v.nombre.split(' ')[0]} stroke={v.color} strokeWidth={2} fill={`url(#grad_${v.id})`} dot={{ r: 3, fill: v.color }} animationDuration={800} animationEasing="ease-out" />
                             ))}
-                        </LineChart>
+                        </AreaChart>
                     </ResponsiveContainer>
                 </div>
             </div>
 
-            {/* Tabla detalle */}
             <div style={card}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                    <div style={ct}>Actividades del Equipo</div>
-                    <div style={{ display:'flex', gap:8 }}>
-                        <select style={sel} value={fEstado} onChange={e => setFEstado(e.target.value)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div style={ct}>{esAdminGerencia ? 'Actividades del Equipo' : 'Tus actividades'}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <PeriodoPicker trim={trim} mes={mes} onTrim={setTrim} onMes={setMes} />
+                        <select style={sel} value={fEstado} onChange={(e) => setFEstado(e.target.value)}>
                             <option value="">Todos los estados</option>
-                            {['Pendiente','En Progreso','Completado','Cancelado'].map(e => <option key={e}>{e}</option>)}
+                            {['Pendiente', 'En Progreso', 'Completado', 'Cancelado'].map((e) => <option key={e}>{e}</option>)}
                         </select>
-                        <select style={sel} value={fTipo} onChange={e => setFTipo(e.target.value)}>
+                        <select style={sel} value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
                             <option value="">Todos los tipos</option>
-                            {TIPOS.map(t => <option key={t}>{t}</option>)}
+                            {TIPOS.map((t) => <option key={t}>{t}</option>)}
                         </select>
                     </div>
                 </div>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
-                        <tr style={{ borderBottom:'2px solid #eee' }}>
-                            {['VENDEDOR','ACTIVIDAD','TIPO','CLIENTE','PRIORIDAD','ESTADO','MES','MONTO','TIEMPO'].map(h =>
+                        <tr style={{ borderBottom: `2px solid ${tk.bdr}` }}>
+                            {['VENDEDOR', 'ACTIVIDAD', 'TIPO', 'CLIENTE', 'PRIORIDAD', 'ESTADO', 'MES', 'MONTO', 'TIEMPO'].map((h) => (
                                 <th key={h} style={th}>{h}</th>
-                            )}
+                            ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {filtered.map(a => {
-                            const v   = vendedores.find(x => x.id === a.vendedor_id);
+                        {filtered.map((a) => {
+                            const v = vendedores.find((x) => x.id === a.vendedor_id);
                             const mkt = isMarketing(v);
-                            const tc  = TYPE_COLOR[a.tipo] || { bg:'#eee', color:'#333' };
+                            const tc = TYPE_COLOR[a.tipo] || { bg: '#eee', color: '#333' };
                             return (
-                                <tr key={a.id} style={{ borderBottom:'1px solid #f5f5f5' }}>
+                                <tr key={a.id} style={{ borderBottom: `1px solid ${tk.bdr}` }}>
                                     <td style={td}>
-                                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                                            <div style={{ width:28, height:28, borderRadius:'50%', background:v?.color||'#ccc', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>{v?.iniciales}</div>
-                                            <span style={{ fontSize:12 }}>{v?.nombre}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <Avatar vendedor={v} size="sm" />
+                                            <span style={{ fontSize: 12 }}>{v?.nombre}</span>
                                         </div>
                                     </td>
                                     <td style={td}>
-                                        <div style={{ fontWeight:600 }}>{a.nombre}</div>
-                                        {a.notas && <div style={{ fontSize:11, color:'#8899aa' }}>{a.notas}</div>}
+                                        <div style={{ fontWeight: 600 }}>{a.nombre}</div>
+                                        {a.notas && <div style={{ fontSize: 11, color: tk.txt3 }}>{a.notas}</div>}
                                     </td>
                                     <td style={td}>
-                                        <span style={{ padding:'3px 9px', borderRadius:12, fontSize:11, fontWeight:600, background:tc.bg, color:tc.color, whiteSpace:'nowrap' }}>
+                                        <span style={{ padding: '3px 9px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: tc.color + (tk.isDark ? '28' : '1a'), color: tk.isDark ? '#cbd5e1' : tc.color, whiteSpace: 'nowrap' }}>
                                             {TYPE_ICON[a.tipo]} {a.tipo}
                                         </span>
                                     </td>
                                     <td style={td}>{a.cliente}</td>
                                     <td style={td}>
-                                        <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:12 }}>
-                                            <span style={{ width:8, height:8, borderRadius:'50%', background: a.prioridad==='Alta'?'#e74c3c':a.prioridad==='Media'?'#e67e22':'#27ae60', flexShrink:0 }} />
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+                                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: a.prioridad === 'Alta' ? '#e74c3c' : a.prioridad === 'Media' ? '#e67e22' : '#27ae60', flexShrink: 0 }} />
                                             {a.prioridad}
                                         </span>
                                     </td>
                                     <td style={td}>
-                                        <span style={{ padding:'3px 10px', borderRadius:12, fontSize:11, fontWeight:600, background: a.estado==='Completado'?'#d4edda':a.estado==='En Progreso'?'#cce5ff':a.estado==='Cancelado'?'#f8d7da':'#fff3cd', color: a.estado==='Completado'?'#155724':a.estado==='En Progreso'?'#004085':a.estado==='Cancelado'?'#721c24':'#856404' }}>
-                                            {a.estado}
-                                        </span>
+                                        {(() => {
+                                            const ec = ESTADO_COLOR[a.estado] || '#8899aa';
+                                            return (
+                                                <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: ec + (tk.isDark ? '38' : '1e'), color: ec }}>
+                                                    {a.estado}
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     <td style={td}>{a.mes}</td>
-                                    <td style={{ ...td, fontWeight:700, color: mkt ? '#8899aa' : '#2f6fd4' }}>
-                                        {mkt ? '—' : fmtUSD(a.monto)}
+                                    <td style={{ ...td, fontWeight: 700, color: mkt ? '#8899aa' : '#10b981' }}>
+                                        {mkt ? '—' : fmt$(a.monto)}
                                     </td>
                                     <td style={td}>
-                                        <span style={{ fontFamily:'monospace', fontSize:12, color:'#6b7a8d' }}>{fmt(a.elapsed||0)}</span>
+                                        <span style={{ fontFamily: 'monospace', fontSize: 12, color: tk.txt2 }}>{fmt(calcDuration(a, now))}</span>
                                     </td>
                                 </tr>
                             );
                         })}
-                        {!filtered.length && <tr><td colSpan={9} style={{ padding:32, textAlign:'center', color:'#aaa' }}>Sin actividades</td></tr>}
+                        {!filtered.length && <tr><td colSpan={9} style={{ padding: 32, textAlign: 'center', color: tk.txt3 }}>Sin actividades</td></tr>}
                     </tbody>
                 </table>
             </div>
 
-            {/* Modal edición roles */}
-            {editRolId && (
-                <div onClick={() => setEditRolId(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.35)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-                    <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:12, padding:24, minWidth:280, boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
-                        <div style={{ fontWeight:700, marginBottom:14, fontSize:14 }}>Editar roles</div>
-                        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:18 }}>
-                            {ROLES.map(r => (
-                                <label key={r} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-                                    <input type="checkbox" checked={rolDraft.includes(r)} onChange={() => toggleRol(r)} />
-                                    <RolBadge rol={r} />
-                                </label>
-                            ))}
-                        </div>
-                        <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-                            <button onClick={() => setEditRolId(null)} style={btnSec}>Cancelar</button>
-                            <button onClick={() => saveRoles(editRolId)} style={btnPri} disabled={!rolDraft.length}>Guardar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal nueva actividad */}
             <ActividadModal
                 open={modal.open}
                 actividad={null}
                 vendedores={vendedores}
-                onClose={() => setModal({ open:false, actividad:null })}
+                onClose={() => setModal({ open: false, actividad: null })}
                 onSave={handleSave}
             />
         </div>
     );
 }
-
-const sel     = { padding:'7px 12px', borderRadius:7, border:'1px solid #dde1e8', fontSize:13, background:'#fff', color:'#2d3d52' };
-const card    = { background:'#fff', borderRadius:10, padding:'18px 20px', boxShadow:'0 1px 4px rgba(0,0,0,0.07)' };
-const ct      = { fontSize:13, fontWeight:700, color:'#1e2a3b', marginBottom:0 };
-const th      = { padding:'8px 10px', textAlign:'left', color:'#6b7a8d', fontWeight:700, fontSize:11 };
-const td      = { padding:'10px 10px', color:'#2d3d52' };
-const btnPri  = { padding:'9px 18px', background:'#2f6fd4', color:'#fff', border:'none', borderRadius:8, fontWeight:600, cursor:'pointer', fontSize:13 };
-const btnSec  = { padding:'9px 18px', background:'#f0f2f5', color:'#1e2a3b', border:'none', borderRadius:8, fontWeight:600, cursor:'pointer', fontSize:13 };

@@ -1,0 +1,3 @@
+ALTER TABLE vendedores
+  ADD COLUMN IF NOT EXISTS pct_comision_bajo NUMERIC(5,4) DEFAULT 0.07,
+  ADD COLUMN IF NOT EXISTS pct_comision_alto NUMERIC(5,4) DEFAULT 0.08;

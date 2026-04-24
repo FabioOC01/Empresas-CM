@@ -1,0 +1,4 @@
+ALTER TABLE actividades
+    ADD COLUMN IF NOT EXISTS cliente_ruc      TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS cliente_email    TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS cliente_telefono TEXT NOT NULL DEFAULT '';

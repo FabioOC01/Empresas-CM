@@ -1,10 +1,11 @@
 import { TYPE_COLOR, TYPE_ICON } from '../utils/crm';
+import { useTheme } from '../context/ThemeContext';
 
-const ESTADO_STYLE = {
-    'Pendiente':   { bg: '#fff3cd', color: '#856404' },
-    'En Progreso': { bg: '#cce5ff', color: '#004085' },
-    'Completado':  { bg: '#d4edda', color: '#155724' },
-    'Cancelado':   { bg: '#f8d7da', color: '#721c24' },
+const ESTADO_COLOR = {
+    'Pendiente':   '#e67e22',
+    'En Progreso': '#10b981',
+    'Completado':  '#27ae60',
+    'Cancelado':   '#e74c3c',
 };
 
 const PRIO_COLOR = {
@@ -13,19 +14,29 @@ const PRIO_COLOR = {
     'Baja':  '#27ae60',
 };
 
-const ROL_STYLE = {
-    'Gerencia':  { bg: '#e8eaf6', color: '#283593' },
-    'Marketing': { bg: '#fce4ec', color: '#880e4f' },
-    'Ventas':    { bg: '#e8f5e9', color: '#1b5e20' },
-    'Retail':    { bg: '#fff8e1', color: '#f57f17' },
+const ROL_COLOR = {
+    'Gerencia':         '#3f51b5',
+    'Marketing':        '#e91e63',
+    'Ventas':           '#27ae60',
+    'Retail':           '#f57f17',
+    'Corporativo':      '#8e44ad',
+    'Soporte Técnico':  '#16a085',
+    'Logística':        '#1565c0',
+    'Admin':            '#6b7a8d',
 };
 
+// En modo claro: alpha 18% (pastel suave). En modo oscuro: alpha 35% (tinte más visible).
+function badgeBg(color, isDark) {
+    return color + (isDark ? '38' : '1e');
+}
+
 export function TipoBadge({ tipo }) {
-    const s = TYPE_COLOR[tipo] || { bg: '#eee', color: '#333' };
+    const { isDark } = useTheme();
+    const fg = TYPE_COLOR[tipo]?.color || '#8899aa';
     return (
         <span style={{
             padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-            background: s.bg, color: s.color, whiteSpace: 'nowrap',
+            background: badgeBg(fg, isDark), color: isDark ? '#cbd5e1' : fg, whiteSpace: 'nowrap',
         }}>
             {TYPE_ICON[tipo] || ''} {tipo}
         </span>
@@ -33,11 +44,12 @@ export function TipoBadge({ tipo }) {
 }
 
 export function EstadoBadge({ estado }) {
-    const s = ESTADO_STYLE[estado] || { bg: '#eee', color: '#333' };
+    const { isDark } = useTheme();
+    const fg = ESTADO_COLOR[estado] || '#8899aa';
     return (
         <span style={{
             padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-            background: s.bg, color: s.color,
+            background: badgeBg(fg, isDark), color: fg,
         }}>
             {estado}
         </span>
@@ -57,11 +69,12 @@ export function PrioBadge({ prioridad }) {
 }
 
 export function RolBadge({ rol }) {
-    const s = ROL_STYLE[rol] || { bg: '#eee', color: '#333' };
+    const { isDark } = useTheme();
+    const fg = ROL_COLOR[rol] || '#8899aa';
     return (
         <span style={{
             padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-            background: s.bg, color: s.color,
+            background: badgeBg(fg, isDark), color: fg,
         }}>
             {rol}
         </span>
