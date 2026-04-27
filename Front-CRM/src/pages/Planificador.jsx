@@ -44,6 +44,8 @@ export default function Planificador() {
     const [calcModal,  setCalcModal]  = useState({ open:false, actividad:null });
     const [filters, setFilters] = useState({ vendedorId:'', trimestre:'', mes:'', tipo:'', estado:'', prioridad:'', buscar:'' });
     const [now, setNow] = useState(Date.now());
+    const [dragId, setDragId] = useState(null);
+    const [dragOverCol, setDragOverCol] = useState(null);
     useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
     useEffect(() => { getVendedores().then(setVendedores); }, []);
 
@@ -85,6 +87,16 @@ export default function Planificador() {
 
     const changeEstado = async (id, estado) => {
         await updateActividad(id, { estado });
+    };
+
+    const handleDrop = async (col) => {
+        const id = dragId;
+        setDragId(null);
+        setDragOverCol(null);
+        if (!id) return;
+        const act = actividades.find(a => a.id === id);
+        if (!act || act.estado === col) return;
+        await updateActividad(id, { estado: col });
     };
 
     const totalMonto = filtered.reduce((s,a) => s + Number(a.monto), 0);
@@ -233,12 +245,19 @@ export default function Planificador() {
                                 <div style={{ padding:'8px 12px', borderRadius:'8px 8px 0 0', background: COL_COLOR[col], color:'#fff', fontWeight:700, fontSize:13, display:'flex', justifyContent:'space-between' }}>
                                     <span>{col}</span><span>{colActs.length}</span>
                                 </div>
-                                <div style={{ background:tk.bg, borderRadius:'0 0 8px 8px', padding:8, minHeight:200, display:'flex', flexDirection:'column', gap:8 }}>
+                                <div
+                                    onDragOver={e => { e.preventDefault(); if (dragOverCol !== col) setDragOverCol(col); }}
+                                    onDragLeave={e => { if (e.currentTarget === e.target) setDragOverCol(null); }}
+                                    onDrop={e => { e.preventDefault(); handleDrop(col); }}
+                                    style={{ background: dragOverCol === col ? `${COL_COLOR[col]}22` : tk.bg, borderRadius:'0 0 8px 8px', padding:8, minHeight:200, display:'flex', flexDirection:'column', gap:8, transition:'background 0.15s', outline: dragOverCol === col ? `2px dashed ${COL_COLOR[col]}` : 'none' }}>
                                     {colActs.map(a => {
                                         const v = vendedores.find(x => x.id === a.vendedor_id);
                                         return (
                                             <div key={a.id} onClick={() => setModal({ open:true, actividad:a })}
-                                                style={{ background:tk.card, borderRadius:8, padding:'12px 14px', cursor:'pointer', boxShadow:tk.shadow, borderLeft:`3px solid ${COL_COLOR[col]}` }}>
+                                                draggable
+                                                onDragStart={e => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
+                                                onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
+                                                style={{ background:tk.card, borderRadius:8, padding:'12px 14px', cursor: dragId === a.id ? 'grabbing' : 'grab', boxShadow:tk.shadow, borderLeft:`3px solid ${COL_COLOR[col]}`, opacity: dragId === a.id ? 0.4 : 1 }}>
                                                 <div style={{ fontWeight:600, fontSize:13, marginBottom:6, color:tk.txt }}>{a.nombre}</div>
                                                 <div style={{ display:'flex', gap:6, marginBottom:8, flexWrap:'wrap' }}>
                                                     <TipoBadge tipo={a.tipo} />

@@ -8,8 +8,13 @@ import ProfileModal from './ProfileModal';
 const DEFAULT_LOGO_FULL = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO.png';
 const DEFAULT_LOGO_ISO  = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO-SHORT.png';
 
-const RETAIL_URL = `http://192.168.1.51:5175`;
+const RETAIL_URL = `http://192.168.1.51:5173/`;
 const GLPI_URL   = 'http://192.168.1.50';
+const ODOO_URL   = 'https://store.comutelperu.com/web#cids=1&action=menu';
+
+const VANTIO_LEADS_ICON = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO-SHORT.png';
+const GLPI_ICON         = 'https://comutelperu.com/correo-cm/Iconos/10156352.png';
+const ODOO_ICON         = 'https://comutelperu.com/correo-cm/Iconos/odoo.png';
 
 function canAccessAttendance(user) {
     return user?.is_superadmin || user?.roles?.some(r => ['Admin', 'Gerencia'].includes(r));
@@ -25,8 +30,9 @@ const BASE_LINKS = [
 const ADMIN_LINK = { to: '/admin', label: 'Administración', icon: '⚙️' };
 
 const external = [
-    { href: RETAIL_URL, label: 'Dashboard Retail', icon: '🏪' },
-    { href: GLPI_URL,   label: 'GLPI',             icon: '🛠' },
+    { href: RETAIL_URL, label: 'Vantio Leads', img: VANTIO_LEADS_ICON },
+    { href: GLPI_URL,   label: 'GLPI',         img: GLPI_ICON },
+    { href: ODOO_URL,   label: 'Odoo',         img: ODOO_ICON },
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {
@@ -141,7 +147,9 @@ export default function Sidebar({ collapsed, onToggle }) {
                         onMouseEnter={e => e.currentTarget.style.color = '#fff'}
                         onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
                     >
-                        <span style={{ fontSize: 16, flexShrink: 0 }}>{e.icon}</span>
+                        {e.img
+                            ? <img src={e.img} alt={e.label} style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} />
+                            : <span style={{ fontSize: 16, flexShrink: 0 }}>{e.icon}</span>}
                         {!collapsed && <span>{e.label}</span>}
                     </a>
                 ))}
