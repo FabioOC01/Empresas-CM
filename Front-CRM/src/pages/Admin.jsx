@@ -3,7 +3,7 @@ import { getVendedores, createVendedor, updateVendedor, updateVendedorMetas, upd
 import Avatar from '../components/Avatar';
 import { useActividadesContext, CONFIG_DEFAULT } from '../context/ActividadesContext';
 import { useAuth } from '../context/AuthContext';
-import { ROLES } from '../utils/crm';
+import { ROLES, TYPE_ICON } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
 
 const MONEDAS = [
@@ -644,7 +644,7 @@ export default function Admin() {
                             <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
                                 {cfgForm.tipos_actividad.map(t => (
                                     <span key={t} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', background:tk.bg, border:`1px solid ${tk.bdr}`, borderRadius:20, fontSize:12, color:tk.txt, fontWeight:600 }}>
-                                        {t}
+                                        {TYPE_ICON[t] || '📌'} {t}
                                         <button type="button" onClick={() => removeTipo(t)} style={{ background:'none', border:'none', cursor:'pointer', color:'#e74c3c', fontSize:15, lineHeight:1, padding:0 }}>×</button>
                                     </span>
                                 ))}
@@ -684,7 +684,7 @@ export default function Admin() {
                                 <div style={{ display:'grid', gap:8 }}>
                                     {cfgForm.tipos_actividad.map(tipo => (
                                         <div key={tipo} style={{ display:'flex', alignItems:'center', gap:10 }}>
-                                            <span style={{ fontSize:13, color:tk.txt, width:160, flexShrink:0 }}>{tipo}</span>
+                                            <span style={{ fontSize:13, color:tk.txt, width:160, flexShrink:0 }}>{TYPE_ICON[tipo] || '📌'} {tipo}</span>
                                             <select style={{ ...inp, width:180 }} value={getTipoEtapa(tipo)}
                                                 onChange={e => setTipoEtapa(tipo, parseInt(e.target.value))}>
                                                 <option value={-1}>— Sin etapa —</option>
@@ -724,7 +724,7 @@ export default function Admin() {
                                                     return (
                                                         <button key={tipo} type="button" onClick={() => toggleRolTipo(rol, tipo)}
                                                             style={{ padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer', border:'1px solid', background: on?'#10b981':'#10b981'+(tk.isDark?'28':'18'), color: on?'#fff':tk.txt, borderColor: on?'#10b981':'#10b981'+(tk.isDark?'44':'33') }}>
-                                                            {tipo}
+                                                            {TYPE_ICON[tipo] || '📌'} {tipo}
                                                         </button>
                                                     );
                                                 })}

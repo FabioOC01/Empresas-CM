@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS actividades (
   precio_venta      NUMERIC(12,2) DEFAULT 0,
   costo_base        NUMERIC(12,2) DEFAULT 0,
   gastos_operativos JSONB         DEFAULT '[]',
-  ajuste_interno    NUMERIC(12,2) DEFAULT 0
+  ajuste_interno    NUMERIC(12,2) DEFAULT 0,
+  fecha_fin         DATE
 );
 
 ALTER TABLE vendedores

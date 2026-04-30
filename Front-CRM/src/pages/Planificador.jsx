@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { getVendedores, createActividad, updateActividad, deleteActividad } from '../api/actividades';
 import useActividades from '../hooks/useActividades';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import useRolFilter from '../hooks/useRolFilter';
 import { filterActs, fmtUSD, fmt, calcDuration, parseGastos, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO } from '../utils/crm';
 import Avatar from '../components/Avatar';
@@ -14,8 +15,18 @@ import PeriodoPicker from '../components/PeriodoPicker';
 const KANBAN_COLS = ['Pendiente','En Progreso','Completado','Cancelado'];
 const COL_COLOR = { 'Pendiente':'#e67e22','En Progreso':'#10b981','Completado':'#27ae60','Cancelado':'#e74c3c' };
 
+function parseArr(val) {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+        try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
+    }
+    return [];
+}
+
 export default function Planificador() {
     const { actividades, config } = useActividades();
+    const { user } = useAuth();
+    const puedeEliminar = user?.is_superadmin || user?.roles?.some(r => ['Admin','Gerencia'].includes(r));
     const tk = useTheme();
     const sel    = { padding:'7px 10px', borderRadius:7, border:`1px solid ${tk.bdr}`, fontSize:13, background:tk.card, color:tk.txt };
     const td     = { padding:'10px 10px', color:tk.txt };
@@ -213,7 +224,9 @@ export default function Planificador() {
                                         <td style={td}>
                                             <div style={{ display:'flex', gap:4 }}>
                                                 <button onClick={() => setModal({ open:true, actividad:a })} style={iconBtn} title="Editar">✏️</button>
-                                                <button onClick={() => setConfirmId(a.id)} style={iconBtn} title="Eliminar">🗑</button>
+                                                {puedeEliminar && (
+                                                    <button onClick={() => setConfirmId(a.id)} style={iconBtn} title="Eliminar">🗑</button>
+                                                )}
                                                 {a.estado === 'Ganada' && (
                                                     <button onClick={() => setCalcModal({ open:true, actividad:a })} style={{ ...iconBtn, color:'#27ae60', borderColor:'#27ae6044' }} title="Ver comisión">🧮</button>
                                                 )}
@@ -252,6 +265,11 @@ export default function Planificador() {
                                     style={{ background: dragOverCol === col ? `${COL_COLOR[col]}22` : tk.bg, borderRadius:'0 0 8px 8px', padding:8, minHeight:200, display:'flex', flexDirection:'column', gap:8, transition:'background 0.15s', outline: dragOverCol === col ? `2px dashed ${COL_COLOR[col]}` : 'none' }}>
                                     {colActs.map(a => {
                                         const v = vendedores.find(x => x.id === a.vendedor_id);
+                                        const _chk = parseArr(a.checklist);
+                                        const _cols = parseArr(a.colaboradores);
+                                        const _chkIds = _chk.map(it => it && it.vendedor_id).filter(Boolean);
+                                        const _colabIds = [...new Set([..._cols, ..._chkIds])].filter(id => id !== a.vendedor_id);
+                                        const colabs = _colabIds.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
                                         return (
                                             <div key={a.id} onClick={() => setModal({ open:true, actividad:a })}
                                                 draggable
@@ -275,7 +293,19 @@ export default function Planificador() {
                                                     </div>
                                                 ); })()}
                                                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                                    <div style={{ display:'flex', alignItems:'center', gap:6 }}><Avatar vendedor={v} /><span style={{ fontSize:11, color:tk.txt3 }}>{v?.nombre}</span></div>
+                                                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                                                        <div style={{ display:'flex' }}>
+                                                            <div style={{ position:'relative', zIndex: colabs.length + 1 }}><Avatar vendedor={v} /></div>
+                                                            {colabs.map((c, idx) => (
+                                                                <div key={c.id} title={c.nombre} style={{ marginLeft:-8, position:'relative', zIndex: colabs.length - idx, border:`2px solid ${tk.card}`, borderRadius:'50%' }}>
+                                                                    <Avatar vendedor={c} />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <span style={{ fontSize:11, color:tk.txt3 }}>
+                                                            {v?.nombre}{colabs.length ? ` +${colabs.length}` : ''}
+                                                        </span>
+                                                    </div>
                                                     <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                                                         <span style={{ fontFamily:'monospace', fontSize:11, color:tk.txt3 }}>{fmt(calcDuration(a, now))}</span>
                                                         {a.estado === 'Ganada' && (

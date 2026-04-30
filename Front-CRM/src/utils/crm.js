@@ -109,7 +109,11 @@ export function filterActs(acts, filters = {}) {
     return acts.filter(a => {
         if (filters.vendedorId) {
             const cols = Array.isArray(a.colaboradores) ? a.colaboradores : [];
-            if (a.vendedor_id !== filters.vendedorId && !cols.includes(filters.vendedorId)) return false;
+            const chk = Array.isArray(a.checklist)
+                ? a.checklist
+                : (typeof a.checklist === 'string' ? (() => { try { const p = JSON.parse(a.checklist); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
+            const enChecklist = chk.some(it => it && it.vendedor_id === filters.vendedorId);
+            if (a.vendedor_id !== filters.vendedorId && !cols.includes(filters.vendedorId) && !enChecklist) return false;
         }
         if (filters.mes       && a.mes        !== filters.mes)       return false;
         if (filters.tipo      && a.tipo        !== filters.tipo)      return false;

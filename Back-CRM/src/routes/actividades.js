@@ -61,7 +61,7 @@ function canManageAll(user) {
 // POST /api/actividades
 router.post('/', async (req, res) => {
     try {
-        const { id, nombre, tipo, vendedor_id, cliente, monto, prioridad, estado, mes, fecha, elapsed, notas,
+        const { id, nombre, tipo, vendedor_id, cliente, monto, prioridad, estado, mes, fecha, fecha_fin, elapsed, notas,
                 precio_venta, costo_base, gastos_operativos, ajuste_interno,
                 cliente_ruc, cliente_email, cliente_telefono,
                 colaboradores, checklist } = req.body;
@@ -74,15 +74,15 @@ router.post('/', async (req, res) => {
 
         const { rows } = await pool.query(
             `INSERT INTO actividades
-               (id, nombre, tipo, vendedor_id, cliente, monto, prioridad, estado, mes, fecha, elapsed, notas,
+               (id, nombre, tipo, vendedor_id, cliente, monto, prioridad, estado, mes, fecha, fecha_fin, elapsed, notas,
                 ts_pendiente, ts_en_progreso, ts_completado,
                 precio_venta, costo_base, gastos_operativos, ajuste_interno,
                 cliente_ruc, cliente_email, cliente_telefono,
                 colaboradores, checklist, empresa_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
              RETURNING *`,
             [id || Date.now(), nombre, tipo, vendedor_id, cliente, monto || 0,
-             prioridad, estado, mes, fecha, elapsed || 0, notas || '',
+             prioridad, estado, mes, fecha, fecha_fin || null, elapsed || 0, notas || '',
              ts.ts_pendiente, ts.ts_en_progreso, ts.ts_completado,
              precio_venta || 0, costo_base || 0,
              JSON.stringify(gastos_operativos || []), ajuste_interno || 0,
@@ -122,10 +122,12 @@ router.put('/:id', async (req, res) => {
             if (!esOwner) soloChecklist = true;
         }
 
-        const allowedFull = ['nombre','tipo','vendedor_id','cliente','monto','prioridad','estado','mes','fecha','notas',
+        const allowedFull = ['nombre','tipo','vendedor_id','cliente','monto','prioridad','estado','mes','notas','fecha_fin',
                          'precio_venta','costo_base','gastos_operativos','ajuste_interno',
                          'cliente_ruc','cliente_email','cliente_telefono',
                          'colaboradores','checklist'];
+        // Solo Admin/Gerencia pueden editar la fecha de creación de la actividad
+        if (canManageAll(req.user)) allowedFull.push('fecha');
         const allowed = soloChecklist ? ['checklist'] : allowedFull;
         const fields = Object.keys(req.body).filter(k => allowed.includes(k));
 
@@ -191,16 +193,9 @@ router.delete('/:id', async (req, res) => {
     try {
         const empresa_id = req.user.empresa_id;
 
-        // Solo Admin/Gerencia pueden eliminar actividades de otros vendedores
-        if (!canManageAll(req.user)) {
-            const { rows } = await pool.query(
-                'SELECT vendedor_id FROM actividades WHERE id=$1 AND empresa_id=$2',
-                [req.params.id, empresa_id]
-            );
-            if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
-            if (rows[0].vendedor_id !== req.user.id)
-                return res.status(403).json({ error: 'No puedes eliminar actividades de otro vendedor' });
-        }
+        // Solo Admin/Gerencia pueden eliminar actividades
+        if (!canManageAll(req.user))
+            return res.status(403).json({ error: 'No tienes permiso para eliminar actividades' });
 
         const { rowCount } = await pool.query(
             'DELETE FROM actividades WHERE id = $1 AND empresa_id = $2',

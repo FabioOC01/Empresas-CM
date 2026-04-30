@@ -25,11 +25,11 @@ const GRUPOS_MATRIZ = [
     { label: 'ADMIN', color: '#6b7a8d', tipos: ['Administrativa'] },
 ];
 
-function tiposPermitidos(vendedor) {
+function tiposPermitidos(vendedor, rolTipos = ROL_TIPOS) {
     const roles = vendedor?.roles || [];
     if (roles.includes('Admin')) return null; // null = todos
     const set = new Set();
-    roles.forEach(r => (ROL_TIPOS[r] || []).forEach(t => set.add(t)));
+    roles.forEach(r => ((rolTipos && rolTipos[r]) || ROL_TIPOS[r] || []).forEach(t => set.add(t)));
     return set;
 }
 
@@ -84,9 +84,19 @@ export default function Equipo() {
         tipo: fTipo || undefined,
     }).filter((a) => esAdminGerencia || a.vendedor_id === user?.id);
 
+    const rolTiposCfg = config?.rol_tipos || ROL_TIPOS;
+    const tiposCfg    = config?.tipos_actividad || TIPOS;
+
+    // Tipos extra no contemplados en los grupos base (ej. nuevos tipos agregados por config)
+    const tiposEnGrupos = new Set(GRUPOS_MATRIZ.flatMap(g => g.tipos));
+    const tiposExtra    = tiposCfg.filter(t => !tiposEnGrupos.has(t));
+    const gruposBase = tiposExtra.length
+        ? [...GRUPOS_MATRIZ, { label: 'OTROS', color: '#6b7a8d', tipos: tiposExtra }]
+        : GRUPOS_MATRIZ;
+
     // Grupos visibles: solo los que aplican a al menos uno de los vendedores mostrados
-    const gruposVisibles = GRUPOS_MATRIZ.filter(g => vendedores.some(v => {
-        const p = tiposPermitidos(v);
+    const gruposVisibles = gruposBase.filter(g => vendedores.some(v => {
+        const p = tiposPermitidos(v, rolTiposCfg);
         return p === null || g.tipos.some(t => p.has(t));
     }));
 
@@ -194,7 +204,7 @@ export default function Equipo() {
                             <tbody>
                                 {vendedores.map((v) => {
                                     const vActs = filtered.filter((a) => a.vendedor_id === v.id);
-                                    const permitidos = tiposPermitidos(v);
+                                    const permitidos = tiposPermitidos(v, rolTiposCfg);
                                     return (
                                         <tr key={v.id} style={{ borderBottom: `1px solid ${tk.bdr}` }}>
                                             <td style={{ padding: '10px' }}>
@@ -233,50 +243,76 @@ export default function Equipo() {
                         </table>
                     ) : (() => {
                         const yo = vendedores[0];
-                        const permit = yo ? tiposPermitidos(yo) : null;
-                        const tiposCol = permit === null ? TIPOS : TIPOS.filter(t => permit.has(t));
                         const vActs = yo ? filtered.filter((a) => a.vendedor_id === yo.id) : [];
+                        const rolesYo = (yo?.roles || []).filter(r => r !== 'Admin' && r !== 'Gerencia');
+                        const esAdminYo = (yo?.roles || []).includes('Admin');
+
+                        const bloques = (esAdminYo || rolesYo.length <= 1)
+                            ? [{
+                                rol: rolesYo[0] || 'General',
+                                tipos: esAdminYo
+                                    ? tiposCfg
+                                    : tiposCfg.filter(t => (rolTiposCfg[rolesYo[0]] || []).includes(t)),
+                              }]
+                            : rolesYo.map(r => ({
+                                rol: r,
+                                tipos: tiposCfg.filter(t => (rolTiposCfg[r] || []).includes(t)),
+                              })).filter(b => b.tipos.length > 0);
+
                         return (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                                <thead>
-                                    <tr style={{ borderBottom: `2px solid ${tk.bdr}` }}>
-                                        <th style={{ ...th, width: '22%' }}>VENDEDOR</th>
-                                        {tiposCol.map((t) => {
-                                            const c = TYPE_COLOR[t] || { color: tk.txt2 };
-                                            return (
-                                                <th key={t} style={{ ...th, textAlign: 'center', color: c.color }}>
-                                                    {TYPE_ICON[t] || ''} {t}
-                                                </th>
-                                            );
-                                        })}
-                                        <th style={{ ...th, textAlign: 'center' }}>TOTAL</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {yo && (
-                                        <tr style={{ borderBottom: `1px solid ${tk.bdr}` }}>
-                                            <td style={{ padding: '10px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <Avatar vendedor={yo} size="sm" />
-                                                    <span style={{ fontWeight: 600, color: tk.txt }}>{yo.nombre}</span>
-                                                </div>
-                                            </td>
-                                            {tiposCol.map((t) => {
-                                                const n = vActs.filter((a) => a.tipo === t).length;
-                                                const c = TYPE_COLOR[t] || { color: tk.txt2 };
-                                                return (
-                                                    <td key={t} style={{ padding: '10px', textAlign: 'center' }}>
-                                                        {n > 0
-                                                            ? <span style={{ fontWeight: 800, fontSize: 15, color: c.color }}>{n}</span>
-                                                            : <span style={{ color: tk.txt3 }}>—</span>}
-                                                    </td>
-                                                );
-                                            })}
-                                            <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: tk.txt }}>{vActs.length}</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                            <div style={{ display: 'grid', gap: 18 }}>
+                                {bloques.map(({ rol, tipos: tiposCol }) => (
+                                    <div key={rol}>
+                                        {bloques.length > 1 && (
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: tk.txt2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                                                {rol}
+                                            </div>
+                                        )}
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: `2px solid ${tk.bdr}` }}>
+                                                    <th style={{ ...th, width: '22%' }}>VENDEDOR</th>
+                                                    {tiposCol.map((t) => {
+                                                        const c = TYPE_COLOR[t] || { color: tk.txt2 };
+                                                        return (
+                                                            <th key={t} style={{ ...th, textAlign: 'center', color: c.color }}>
+                                                                {TYPE_ICON[t] || ''} {t}
+                                                            </th>
+                                                        );
+                                                    })}
+                                                    <th style={{ ...th, textAlign: 'center' }}>TOTAL</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {yo && (
+                                                    <tr style={{ borderBottom: `1px solid ${tk.bdr}` }}>
+                                                        <td style={{ padding: '10px' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <Avatar vendedor={yo} size="sm" />
+                                                                <span style={{ fontWeight: 600, color: tk.txt }}>{yo.nombre}</span>
+                                                            </div>
+                                                        </td>
+                                                        {tiposCol.map((t) => {
+                                                            const n = vActs.filter((a) => a.tipo === t).length;
+                                                            const c = TYPE_COLOR[t] || { color: tk.txt2 };
+                                                            return (
+                                                                <td key={t} style={{ padding: '10px', textAlign: 'center' }}>
+                                                                    {n > 0
+                                                                        ? <span style={{ fontWeight: 800, fontSize: 15, color: c.color }}>{n}</span>
+                                                                        : <span style={{ color: tk.txt3 }}>—</span>}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: tk.txt }}>
+                                                            {vActs.filter(a => tiposCol.includes(a.tipo)).length}
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ))}
+                            </div>
                         );
                     })()}
                 </div>

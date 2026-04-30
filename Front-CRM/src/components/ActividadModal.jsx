@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
 import { getClientes, createCliente, uploadArchivoActividad, deleteArchivoActividad } from '../api/actividades';
-import { TIPOS, ESTADOS, PRIORIDADES, MESES, ROL_TIPOS, ROLES, TYPE_COLOR, TYPE_ICON, TIPOS_CON_RESULTADO } from '../utils/crm';
+import { TIPOS, ESTADOS, PRIORIDADES, MESES, ROL_TIPOS, ROLES, TYPE_COLOR, TYPE_ICON, TIPOS_CON_RESULTADO, fmt as fmtDur } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
 
 
@@ -17,7 +17,7 @@ function fmtTS(ts) {
 const EMPTY = {
     nombre: '', tipo: 'Venta', vendedor_id: '', cliente: '',
     monto: '', prioridad: 'Media', estado: 'Pendiente',
-    mes: MESES[new Date().getMonth()], fecha: new Date().toISOString().slice(0, 10), notas: '',
+    mes: MESES[new Date().getMonth()], fecha: new Date().toISOString().slice(0, 10), fecha_fin: '', notas: '',
     precio_venta: '', costo_base: '', gastos_operativos: [], ajuste_interno: '',
     cliente_ruc: '', cliente_email: '', cliente_telefono: '',
     colaboradores: [], checklist: [],
@@ -42,6 +42,12 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const rolTipos      = config?.rol_tipos       || ROL_TIPOS;
     const [form,      setForm]      = useState(EMPTY);
     const [expanded,  setExpanded]  = useState(false);
+    const [now,       setNow]       = useState(Date.now());
+    useEffect(() => {
+        if (!open) return;
+        const t = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(t);
+    }, [open]);
     const [clientes,  setClientes]  = useState([]);
     const [nuevoC,    setNuevoC]    = useState(false);
     const [formC,     setFormC]     = useState({ nombre:'', ruc:'', email:'', telefono:'' });
@@ -70,6 +76,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         if (actividad) {
             setForm({
                 ...EMPTY, ...actividad,
+                fecha_fin:         actividad.fecha_fin         ? String(actividad.fecha_fin).slice(0,10) : '',
                 monto:             actividad.monto             ?? '',
                 precio_venta:      actividad.precio_venta      ?? '',
                 costo_base:        actividad.costo_base        ?? '',
@@ -116,8 +123,13 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         const cur = form.colaboradores || [];
         set('colaboradores', cur.includes(vid) ? cur.filter(x => x !== vid) : [...cur, vid]);
     };
-    const addChkItem    = () => set('checklist', [...(form.checklist || []), { id: Date.now() + Math.random(), texto: '', vendedor_id: '', hecho: false }]);
-    const updChkItem    = (id, patch) => set('checklist', (form.checklist || []).map(it => it.id === id ? { ...it, ...patch } : it));
+    const addChkItem    = () => set('checklist', [...(form.checklist || []), { id: Date.now() + Math.random(), texto: '', vendedor_id: '', hecho: false, created_at: null, completed_at: null }]);
+    const updChkItem    = (id, patch) => set('checklist', (form.checklist || []).map(it => {
+        if (it.id !== id) return it;
+        const next = { ...it, ...patch };
+        if ('hecho' in patch && it.created_at) next.completed_at = patch.hecho ? Date.now() : null;
+        return next;
+    }));
     const removeChkItem = (id) => set('checklist', (form.checklist || []).filter(it => it.id !== id));
 
     const addGasto    = () => set('gastos_operativos', [...(form.gastos_operativos || []), { nombre: '', monto: '' }]);
@@ -126,13 +138,19 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        const nowTs = Date.now();
+        const checklistConTs = (form.checklist || []).map(it => ({
+            ...it,
+            created_at: it.created_at || (it.texto?.trim() ? nowTs : null),
+        }));
         if (soloChecklist) {
-            onSave({ id: actividad.id, checklist: form.checklist || [] });
+            onSave({ id: actividad.id, checklist: checklistConTs });
             onClose();
             return;
         }
         onSave({
             ...form,
+            fecha_fin:        form.fecha_fin || null,
             nombre:           form.nombre || `${form.tipo} — ${form.cliente}`,
             monto:            parseFloat(form.monto)         || 0,
             precio_venta:     parseFloat(form.precio_venta)  || 0,
@@ -142,7 +160,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 nombre: g.nombre, monto: parseFloat(g.monto) || 0,
             })),
             colaboradores: form.colaboradores || [],
-            checklist:     (form.checklist || []).filter(it => it.texto?.trim()),
+            checklist:     checklistConTs.filter(it => it.texto?.trim()),
             id:      actividad?.id || Date.now(),
             elapsed: actividad?.elapsed || 0,
         });
@@ -394,13 +412,18 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     )}
                                 </div>
 
-                                {/* Fecha */}
+                                {/* Fechas */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                                    <label style={lbl}>Fecha
-                                        <input style={inp} type="date" value={form.fecha} onChange={e => handleFechaChange(e.target.value)} />
+                                    <label style={lbl}>Fecha de creación
+                                        <input style={puedeElegirVendedor ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
+                                            type="date" value={form.fecha}
+                                            readOnly={!puedeElegirVendedor}
+                                            onChange={e => puedeElegirVendedor && handleFechaChange(e.target.value)} />
                                     </label>
-                                    <label style={lbl}>Mes (automático)
-                                        <input style={{ ...inp, background: tk.card2, color: tk.txt2 }} readOnly value={form.mes} />
+                                    <label style={lbl}>Posible fecha de término
+                                        <input style={inp} type="date" value={form.fecha_fin || ''}
+                                            min={form.fecha}
+                                            onChange={e => set('fecha_fin', e.target.value)} />
                                     </label>
                                 </div>
 
@@ -436,8 +459,11 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                         )}
                                         {(form.checklist || []).map(it => {
                                             const puedeMarcar = soloChecklist ? it.vendedor_id === user?.id : true;
+                                            const created = it.created_at ? new Date(it.created_at).getTime() : null;
+                                            const ended   = it.completed_at ? new Date(it.completed_at).getTime() : null;
+                                            const elapsed = created ? Math.floor(((ended || now) - created) / 1000) : 0;
                                             return (
-                                                <div key={it.id} style={{ display:'grid', gridTemplateColumns:'24px 1fr 120px 24px', gap:6, alignItems:'center', background: it.hecho ? (tk.isDark ? '#0f2a1a' : '#e8f5e9') : tk.card2, padding:'5px 8px', borderRadius:7 }}>
+                                                <div key={it.id} style={{ display:'grid', gridTemplateColumns:'24px 1fr 110px 70px 24px', gap:6, alignItems:'center', background: it.hecho ? (tk.isDark ? '#0f2a1a' : '#e8f5e9') : tk.card2, padding:'5px 8px', borderRadius:7 }}>
                                                     <input type="checkbox" checked={!!it.hecho} disabled={!puedeMarcar}
                                                         onChange={e => updChkItem(it.id, { hecho: e.target.checked })} />
                                                     <input style={{ ...inp, padding:'5px 8px', textDecoration: it.hecho ? 'line-through' : 'none' }}
@@ -448,6 +474,10 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                         <option value="">— Sin asignar —</option>
                                                         {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
                                                     </select>
+                                                    <span title={created ? `Creado ${new Date(created).toLocaleString('es-PE')}` : 'Sin iniciar'}
+                                                        style={{ fontFamily:'monospace', fontSize:11, textAlign:'center', color: it.hecho ? '#27ae60' : tk.txt2 }}>
+                                                        {created ? fmtDur(elapsed) : '—'}
+                                                    </span>
                                                     {!soloChecklist ? (
                                                         <button type="button" onClick={() => removeChkItem(it.id)} style={{ background:'#e74c3c22', border:'none', borderRadius:6, cursor:'pointer', color:'#e74c3c', fontWeight:700 }}>×</button>
                                                     ) : <span />}
