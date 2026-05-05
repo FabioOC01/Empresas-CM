@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
             SELECT v.id, v.nombre, v.iniciales, v.color, ${usernameExpr(columns)} AS username, v.email, v.cargo,
                    v.meta_mensual, v.umbral_comision, ${pctBaseExpr(columns)},
                    v.pct_comision_bajo, v.pct_comision_alto, v.foto_url,
-                   v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa,
+                   v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa, v.horario_dias,
                    COALESCE(array_agg(vr.rol ORDER BY vr.rol) FILTER (WHERE vr.rol IS NOT NULL), '{}') AS roles
             FROM vendedores v
             LEFT JOIN vendedor_roles vr ON vr.vendedor_id = v.id
@@ -68,7 +68,7 @@ router.post('/', async (req, res) => {
 
     const {
         nombre, iniciales, color, username, email, password, cargo, roles,
-        zkbio_employee_code, zkbio_device_name, asistencia_activa,
+        zkbio_employee_code, zkbio_device_name, asistencia_activa, horario_dias,
     } = req.body;
     const empresa_id = req.user.empresa_id;
 
@@ -102,15 +102,11 @@ router.post('/', async (req, res) => {
         const hash = await bcrypt.hash(password, 12);
         const id = usernameClean.replace(/\./g, '_');
 
-        const { rows } = await client.query(`
-            INSERT INTO vendedores (
-                id, nombre, iniciales, color, username, email, password_hash, cargo, empresa_id,
-                zkbio_employee_code, zkbio_device_name, asistencia_activa
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            RETURNING id, nombre, iniciales, color, username, email, cargo,
-                      zkbio_employee_code, zkbio_device_name, asistencia_activa
-        `, [
+        const insertColumns = [
+            'id', 'nombre', 'iniciales', 'color', 'username', 'email', 'password_hash', 'cargo', 'empresa_id',
+            'zkbio_employee_code', 'zkbio_device_name', 'asistencia_activa',
+        ];
+        const insertValues = [
             id,
             nombre,
             iniciales.toUpperCase().slice(0, 3),
@@ -123,7 +119,24 @@ router.post('/', async (req, res) => {
             zkbio_employee_code || null,
             zkbio_device_name || null,
             asistencia_activa ?? true,
-        ]);
+        ];
+        if (horario_dias !== undefined && columns.has('horario_dias')) {
+            insertColumns.push('horario_dias');
+            insertValues.push(horario_dias === null ? null : JSON.stringify(horario_dias));
+        }
+
+        const placeholders = insertValues.map((_, idx) => {
+            const suffix = insertColumns[idx] === 'horario_dias' ? '::jsonb' : '';
+            return `$${idx + 1}${suffix}`;
+        });
+
+        const returningHorario = columns.has('horario_dias') ? ', horario_dias' : '';
+        const { rows } = await client.query(`
+            INSERT INTO vendedores (${insertColumns.join(', ')})
+            VALUES (${placeholders.join(', ')})
+            RETURNING id, nombre, iniciales, color, username, email, cargo,
+                      zkbio_employee_code, zkbio_device_name, asistencia_activa${returningHorario}
+        `, insertValues);
 
         for (const rol of roles) {
             await client.query(
@@ -151,7 +164,7 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const {
         nombre, iniciales, color, username, email, cargo, password, roles,
-        zkbio_employee_code, zkbio_device_name, asistencia_activa,
+        zkbio_employee_code, zkbio_device_name, asistencia_activa, horario_dias,
     } = req.body;
     const empresa_id = req.user.empresa_id;
 
@@ -193,6 +206,10 @@ router.put('/:id', async (req, res) => {
         if (zkbio_employee_code !== undefined) { sets.push(`zkbio_employee_code = $${i++}`); vals.push(zkbio_employee_code || null); }
         if (zkbio_device_name !== undefined) { sets.push(`zkbio_device_name = $${i++}`); vals.push(zkbio_device_name || null); }
         if (asistencia_activa !== undefined) { sets.push(`asistencia_activa = $${i++}`); vals.push(!!asistencia_activa); }
+        if (horario_dias !== undefined && columns.has('horario_dias')) {
+            sets.push(`horario_dias = $${i++}::jsonb`);
+            vals.push(horario_dias === null ? null : JSON.stringify(horario_dias));
+        }
 
         if (password) {
             const hash = await bcrypt.hash(password, 12);
@@ -227,7 +244,7 @@ router.put('/:id', async (req, res) => {
 
         const { rows } = await client.query(`
             SELECT v.id, v.nombre, v.iniciales, v.color, ${usernameExpr(columns)} AS username, v.email, v.cargo,
-                   v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa,
+                   v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa, v.horario_dias,
                    COALESCE(array_agg(vr.rol ORDER BY vr.rol) FILTER (WHERE vr.rol IS NOT NULL), '{}') AS roles
             FROM vendedores v
             LEFT JOIN vendedor_roles vr ON vr.vendedor_id = v.id

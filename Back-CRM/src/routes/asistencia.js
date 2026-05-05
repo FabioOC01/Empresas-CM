@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
 const {
+    computeLunchBreak,
     computeAttendanceStatus,
     fetchZKBioEvents,
     formatTimeInTimezone,
@@ -14,16 +15,19 @@ function canManageAttendance(user) {
 
 async function getEmpresaAttendanceConfig(empresaId) {
     const { rows } = await pool.query(
-        'SELECT attendance_config FROM empresas WHERE id = $1',
+        'SELECT attendance_config, horario_dias FROM empresas WHERE id = $1',
         [empresaId]
     );
-    return getAttendanceConfig(rows[0]?.attendance_config);
+    return {
+        config: getAttendanceConfig(rows[0]?.attendance_config),
+        horario_dias: Array.isArray(rows[0]?.horario_dias) ? rows[0].horario_dias : [],
+    };
 }
 
 router.get('/resumen', async (req, res) => {
     try {
         const empresaId = req.user.empresa_id;
-        const attendanceConfig = await getEmpresaAttendanceConfig(empresaId);
+        const { config: attendanceConfig, horario_dias: empresaHorario } = await getEmpresaAttendanceConfig(empresaId);
         const fecha = req.query.fecha || getTodayInTimezone(attendanceConfig.timezone);
         const requestedVendorId = req.query.vendedorId;
         const forceVendorId = canManageAttendance(req.user) ? null : req.user.id;
@@ -46,23 +50,34 @@ router.get('/resumen', async (req, res) => {
                 v.cargo,
                 v.zkbio_employee_code,
                 v.zkbio_device_name,
+                v.horario_dias,
                 r.fecha,
                 r.primera_entrada,
                 r.ultima_salida,
                 r.ultima_marcacion,
                 r.total_marcaciones,
-                r.sede
+                r.sede,
+                COALESCE(m.marcaciones, '{}') AS marcaciones
             FROM vendedores v
             LEFT JOIN asistencia_resumen_diario r
               ON r.empresa_id = v.empresa_id
              AND r.zkbio_employee_code = v.zkbio_employee_code
              AND r.fecha = $2
+            LEFT JOIN LATERAL (
+                SELECT array_agg(am.event_at ORDER BY am.event_at) AS marcaciones
+                FROM asistencia_marcaciones am
+                WHERE am.empresa_id = v.empresa_id
+                  AND am.zkbio_employee_code = v.zkbio_employee_code
+                  AND am.attendance_date = $2
+            ) m ON TRUE
             ${where}
             ORDER BY v.nombre
         `, params);
 
         let summary = rows.map(row => {
-            const status = computeAttendanceStatus(row, attendanceConfig);
+            const rowWithFecha = { ...row, fecha };
+            const status = computeAttendanceStatus(rowWithFecha, attendanceConfig, { empresaHorario });
+            const lunch = computeLunchBreak(rowWithFecha, attendanceConfig);
             return {
                 vendedor_id: row.vendedor_id,
                 nombre: row.nombre,
@@ -81,6 +96,12 @@ router.get('/resumen', async (req, res) => {
                 ultima_marcacion: row.ultima_marcacion,
                 ultima_marcacion_hora: row.ultima_marcacion ? formatTimeInTimezone(new Date(row.ultima_marcacion), attendanceConfig.timezone) : null,
                 total_marcaciones: Number(row.total_marcaciones || 0),
+                salida_almuerzo: lunch.salida_almuerzo,
+                salida_almuerzo_hora: lunch.salida_almuerzo_hora,
+                retorno_almuerzo: lunch.retorno_almuerzo,
+                retorno_almuerzo_hora: lunch.retorno_almuerzo_hora,
+                minutos_almuerzo: lunch.minutos_almuerzo,
+                minutos_almuerzo_exceso: lunch.minutos_almuerzo_exceso,
                 estado: status.estado,
                 minutos_tardanza: status.minutos_tardanza,
             };
@@ -103,7 +124,7 @@ router.get('/resumen', async (req, res) => {
 router.get('/vendedor/:id', async (req, res) => {
     try {
         const empresaId = req.user.empresa_id;
-        const attendanceConfig = await getEmpresaAttendanceConfig(empresaId);
+        const { config: attendanceConfig } = await getEmpresaAttendanceConfig(empresaId);
         const forceVendorId = canManageAttendance(req.user) ? null : req.user.id;
         const vendedorId = forceVendorId || req.params.id;
         const desde = req.query.desde || getTodayInTimezone(attendanceConfig.timezone);
@@ -111,7 +132,7 @@ router.get('/vendedor/:id', async (req, res) => {
 
         const { rows: vendorRows } = await pool.query(`
             SELECT id, nombre, iniciales, color, foto_url, cargo,
-                   zkbio_employee_code, zkbio_device_name, asistencia_activa
+                   zkbio_employee_code, zkbio_device_name, asistencia_activa, horario_dias
             FROM vendedores
             WHERE id = $1 AND empresa_id = $2
         `, [vendedorId, empresaId]);
@@ -209,7 +230,7 @@ router.post('/sync', async (req, res) => {
     let logId = null;
 
     try {
-        const attendanceConfig = await getEmpresaAttendanceConfig(empresaId);
+        const { config: attendanceConfig } = await getEmpresaAttendanceConfig(empresaId);
         const hoy = getTodayInTimezone(attendanceConfig.timezone);
         // Default: últimos 7 días si no se especifica nada
         const haceUnaSemana = (() => {
