@@ -5,7 +5,7 @@ import useActividades from '../hooks/useActividades';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import useRolFilter from '../hooks/useRolFilter';
-import { filterActs, fmtUSD, fmt, calcDuration, parseGastos, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO } from '../utils/crm';
+import { filterActs, fmtUSD, fmt, calcDuration, parseGastos, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO, MESES } from '../utils/crm';
 import Avatar from '../components/Avatar';
 import { TipoBadge, PrioBadge } from '../components/Badge';
 import ActividadModal from '../components/ActividadModal';
@@ -27,6 +27,7 @@ export default function Planificador() {
     const { actividades, config } = useActividades();
     const { user } = useAuth();
     const puedeEliminar = user?.is_superadmin || user?.roles?.some(r => ['Admin','Gerencia'].includes(r));
+    const puedeFiltrar  = puedeEliminar;
     const tk = useTheme();
     const sel    = { padding:'7px 10px', borderRadius:7, border:`1px solid ${tk.bdr}`, fontSize:13, background:tk.card, color:tk.txt };
     const td     = { padding:'10px 10px', color:tk.txt };
@@ -50,10 +51,18 @@ export default function Planificador() {
     const [searchParams] = useSearchParams();
     const [vendedores, setVendedores] = useState([]);
     const [view, setView] = useState(searchParams.get('view') === 'kanban' ? 'kanban' : 'tabla');
+    const [collapsedCols, setCollapsedCols] = useState(new Set(['Ganada','Perdida']));
+    const toggleCol = (col) => setCollapsedCols(s => {
+        const n = new Set(s);
+        if (n.has(col)) n.delete(col); else n.add(col);
+        return n;
+    });
     const [modal, setModal] = useState({ open: false, actividad: null });
     const [confirmId,  setConfirmId]  = useState(null);
     const [calcModal,  setCalcModal]  = useState({ open:false, actividad:null });
-    const [filters, setFilters] = useState({ vendedorId:'', trimestre:'', mes:'', tipo:'', estado:'', prioridad:'', buscar:'' });
+    const MES_ACTUAL = MESES[new Date().getMonth()];
+    const Q_ACTUAL = String(Math.floor(new Date().getMonth() / 3) + 1);
+    const [filters, setFilters] = useState({ vendedorId:'', trimestre:'', mes: MES_ACTUAL, tipo:'', estado:'', prioridad:'', buscar:'' });
     const [now, setNow] = useState(Date.now());
     const [dragId, setDragId] = useState(null);
     const [dragOverCol, setDragOverCol] = useState(null);
@@ -70,7 +79,7 @@ export default function Planificador() {
         return () => window.removeEventListener('keydown', handler);
     }, []);
 
-    const filtered = filterActs(actividades, {
+    const baseFiltered = filterActs(actividades, {
         vendedorId: vendedorForzado || filters.vendedorId || undefined,
         trimestre:  filters.trimestre  || undefined,
         mes:        filters.mes        || undefined,
@@ -79,6 +88,20 @@ export default function Planificador() {
         prioridad:  filters.prioridad  || undefined,
         cliente:    filters.buscar     || undefined,
     });
+
+    // Si el filtro de mes es el mes actual, también arrastrar actividades En Progreso de meses anteriores
+    let filtered = baseFiltered;
+    if (filters.mes === MES_ACTUAL) {
+        const idxActual = MESES.indexOf(MES_ACTUAL);
+        const arrastradas = filterActs(actividades, {
+            vendedorId: vendedorForzado || filters.vendedorId || undefined,
+            tipo:       filters.tipo       || undefined,
+            prioridad:  filters.prioridad  || undefined,
+            cliente:    filters.buscar     || undefined,
+        }).filter(a => a.estado === 'En Progreso' && MESES.indexOf(a.mes) < idxActual && MESES.indexOf(a.mes) >= 0);
+        const ids = new Set(baseFiltered.map(a => a.id));
+        filtered = [...baseFiltered, ...arrastradas.filter(a => !ids.has(a.id))];
+    }
 
     const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
@@ -147,29 +170,49 @@ export default function Planificador() {
             </div>
 
             {/* Filtros */}
+            <style>{`@keyframes qPulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0.55);} 70% { transform: scale(1.08); box-shadow: 0 0 0 12px rgba(16,185,129,0);} 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0);} }`}</style>
             <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap', alignItems:'center' }}>
-                <input placeholder="Buscar cliente o actividad..." style={{ ...sel, minWidth:220 }}
-                    value={filters.buscar} onChange={e => setF('buscar', e.target.value)} />
                 <PeriodoPicker
                     trim={filters.trimestre} mes={filters.mes}
                     onTrim={t => setF('trimestre', t)} onMes={m => setF('mes', m)}
                 />
-                {[
-                    ...(!vendedorForzado ? [['vendedorId', [['','Vendedor'],...vendedores.map(v=>[v.id,v.nombre])]]] : []),
-                    ['tipo',       [['','Tipo'],...tipos.map(t=>[t,t])]],
-                    ['estado',     [['','Estado'],...TODOS_ESTADOS.map(e=>[e,e])]],
-                    ['prioridad',  [['','Prioridad'],...PRIORIDADES.map(p=>[p,p])]],
-                ].map(([key, opts]) => (
-                    <select key={key} style={sel} value={filters[key]} onChange={e => setF(key, e.target.value)}>
-                        {opts.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
-                ))}
-                {Object.values(filters).some(Boolean) &&
-                    <button onClick={() => setFilters({ vendedorId:'',trimestre:'',mes:'',tipo:'',estado:'',prioridad:'',buscar:'' })}
-                        style={{ padding:'7px 12px', borderRadius:7, border:`1px solid ${tk.bdr}`, background:tk.card, cursor:'pointer', fontSize:12, color:'#e74c3c' }}>
-                        Limpiar
-                    </button>
-                }
+                <div style={{ flex:1, display:'flex', justifyContent:'center', gap:5, transform:'translateX(-50px)' }}>
+                    {['1','2','3','4'].map(q => {
+                        const activo = q === Q_ACTUAL;
+                        return (
+                            <span key={q} style={{
+                                background: activo ? '#10b981' : tk.card2,
+                                color: activo ? '#fff' : tk.txt2,
+                                padding:'6px 14px', borderRadius:20,
+                                fontWeight:800, fontSize: activo ? 14 : 12, letterSpacing:1,
+                                opacity: activo ? 1 : 0.6,
+                                animation: activo ? 'qPulse 1.8s ease-in-out infinite' : 'none',
+                            }}>Q{q}</span>
+                        );
+                    })}
+                </div>
+                {puedeFiltrar && (
+                    <>
+                        <input placeholder="Buscar cliente o actividad..." style={{ ...sel, minWidth:220 }}
+                            value={filters.buscar} onChange={e => setF('buscar', e.target.value)} />
+                        {[
+                            ...(!vendedorForzado ? [['vendedorId', [['','Vendedor'],...vendedores.map(v=>[v.id,v.nombre])]]] : []),
+                            ['tipo',       [['','Tipo'],...tipos.map(t=>[t,t])]],
+                            ['estado',     [['','Estado'],...TODOS_ESTADOS.map(e=>[e,e])]],
+                            ['prioridad',  [['','Prioridad'],...PRIORIDADES.map(p=>[p,p])]],
+                        ].map(([key, opts]) => (
+                            <select key={key} style={sel} value={filters[key]} onChange={e => setF(key, e.target.value)}>
+                                {opts.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                            </select>
+                        ))}
+                        {(filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre || filters.mes !== MES_ACTUAL) &&
+                            <button onClick={() => setFilters({ vendedorId:'',trimestre:'',mes:MES_ACTUAL,tipo:'',estado:'',prioridad:'',buscar:'' })}
+                                style={{ padding:'7px 12px', borderRadius:7, border:`1px solid ${tk.bdr}`, background:tk.card, cursor:'pointer', fontSize:12, color:'#e74c3c' }}>
+                                Limpiar
+                            </button>
+                        }
+                    </>
+                )}
             </div>
 
             {/* Vista Tabla */}
@@ -186,11 +229,8 @@ export default function Planificador() {
                         <tbody>
                             {filtered.map(a => {
                                 const v = vendedores.find(x => x.id === a.vendedor_id);
-                                const _chk = parseArr(a.checklist);
-                                const _cols = parseArr(a.colaboradores);
-                                const _chkIds = _chk.map(it => it && it.vendedor_id).filter(Boolean);
-                                const _colabIds = [...new Set([..._cols, ..._chkIds])].filter(id => id !== a.vendedor_id);
-                                const colabsT = _colabIds.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
+                                const _cols = parseArr(a.colaboradores).filter(id => id !== a.vendedor_id);
+                                const colabsT = _cols.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
                                 const finEst = a.fecha_fin ? new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00') : null;
                                 return (
                                     <tr key={a.id} style={{ borderBottom:`1px solid ${tk.bdr}` }}>
@@ -275,12 +315,29 @@ export default function Planificador() {
 
             {/* Vista Kanban */}
             {view === 'kanban' && (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:14 }}>
+                <div style={{ display:'grid', gridTemplateColumns: KANBAN_COLS.map(c => collapsedCols.has(c) ? '40px' : '1fr').join(' '), gap:14 }}>
                     {KANBAN_COLS.map(col => {
                         const colActs = filtered.filter(a => a.estado === col);
+                        const isCollapsed = collapsedCols.has(col);
+                        if (isCollapsed) {
+                            return (
+                                <div key={col}
+                                    onClick={() => toggleCol(col)}
+                                    onDragOver={e => { e.preventDefault(); if (dragOverCol !== col) setDragOverCol(col); }}
+                                    onDragLeave={e => { if (e.currentTarget === e.target) setDragOverCol(null); }}
+                                    onDrop={e => { e.preventDefault(); handleDrop(col); }}
+                                    title={`Expandir ${col}`}
+                                    style={{ background: dragOverCol === col ? `${COL_COLOR[col]}44` : COL_COLOR[col], borderRadius:8, color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', padding:'10px 0', gap:8, minHeight:200, outline: dragOverCol === col ? `2px dashed ${COL_COLOR[col]}` : 'none' }}>
+                                    <span style={{ writingMode:'vertical-rl', transform:'rotate(180deg)', letterSpacing:1 }}>{col}</span>
+                                    <span style={{ background:'rgba(255,255,255,0.25)', borderRadius:12, padding:'2px 8px', fontSize:11 }}>{colActs.length}</span>
+                                </div>
+                            );
+                        }
                         return (
                             <div key={col}>
-                                <div style={{ padding:'8px 12px', borderRadius:'8px 8px 0 0', background: COL_COLOR[col], color:'#fff', fontWeight:700, fontSize:13, display:'flex', justifyContent:'space-between' }}>
+                                <div onClick={() => toggleCol(col)}
+                                    title="Colapsar"
+                                    style={{ padding:'8px 12px', borderRadius:'8px 8px 0 0', background: COL_COLOR[col], color:'#fff', fontWeight:700, fontSize:13, display:'flex', justifyContent:'space-between', cursor:'pointer' }}>
                                     <span>{col}</span><span>{colActs.length}</span>
                                 </div>
                                 <div
@@ -290,11 +347,8 @@ export default function Planificador() {
                                     style={{ background: dragOverCol === col ? `${COL_COLOR[col]}22` : tk.bg, borderRadius:'0 0 8px 8px', padding:8, minHeight:200, display:'flex', flexDirection:'column', gap:8, transition:'background 0.15s', outline: dragOverCol === col ? `2px dashed ${COL_COLOR[col]}` : 'none' }}>
                                     {colActs.map(a => {
                                         const v = vendedores.find(x => x.id === a.vendedor_id);
-                                        const _chk = parseArr(a.checklist);
-                                        const _cols = parseArr(a.colaboradores);
-                                        const _chkIds = _chk.map(it => it && it.vendedor_id).filter(Boolean);
-                                        const _colabIds = [...new Set([..._cols, ..._chkIds])].filter(id => id !== a.vendedor_id);
-                                        const colabs = _colabIds.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
+                                        const _cols = parseArr(a.colaboradores).filter(id => id !== a.vendedor_id);
+                                        const colabs = _cols.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
                                         return (
                                             <div key={a.id} onClick={() => setModal({ open:true, actividad:a })}
                                                 draggable

@@ -1,6 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { MESES } from '../utils/crm';
+import { MESES, Q_MAP } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
+
+const PULSE_KEYFRAMES = `
+@keyframes ppPulse {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(16,185,129,0.55); }
+  70%  { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(16,185,129,0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}`;
 
 export default function PeriodoPicker({ trim = '', mes = '', onTrim, onMes }) {
     const tk  = useTheme();
@@ -15,6 +22,10 @@ export default function PeriodoPicker({ trim = '', mes = '', onTrim, onMes }) {
 
     const label    = trim ? `Q${trim}` : mes ? mes.slice(0, 3) : 'Período';
     const hasFilter = !!(trim || mes);
+
+    // Q actual
+    const mesActualIdx = new Date().getMonth();
+    const qActual = Object.entries(Q_MAP).find(([, idxs]) => idxs.includes(mesActualIdx))?.[0];
 
     return (
         <div ref={ref} style={{ position: 'relative' }}>
@@ -55,19 +66,35 @@ export default function PeriodoPicker({ trim = '', mes = '', onTrim, onMes }) {
                     </div>
 
                     {/* Mes */}
-                    <div style={{ fontSize: 10, fontWeight: 700, color: tk.txt2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Mes</div>
+                    <style>{PULSE_KEYFRAMES}</style>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: tk.txt2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mes</div>
+                        {qActual && (
+                            <div style={{
+                                fontSize: 10, fontWeight: 800, color: '#fff',
+                                background: '#10b981', padding: '3px 9px', borderRadius: 12,
+                                letterSpacing: 0.5,
+                                animation: 'ppPulse 1.8s ease-in-out infinite',
+                            }}>
+                                Q{qActual}
+                            </div>
+                        )}
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
-                        {MESES.map(m => (
-                            <button key={m} onClick={() => { onMes(mes === m ? '' : m); onTrim(''); }}
-                                style={{
-                                    padding: '5px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
-                                    fontSize: 11, fontWeight: 600,
-                                    background: mes === m ? '#10b981' : tk.card2,
-                                    color: mes === m ? '#fff' : tk.txt,
-                                }}>
-                                {m.slice(0, 3)}
-                            </button>
-                        ))}
+                        {MESES.map((m, i) => {
+                            const enQActual = qActual && Q_MAP[qActual].includes(i);
+                            return (
+                                <button key={m} onClick={() => { onMes(mes === m ? '' : m); onTrim(''); }}
+                                    style={{
+                                        padding: '5px 0', borderRadius: 6, border: enQActual ? '1px solid #10b981' : 'none', cursor: 'pointer',
+                                        fontSize: 11, fontWeight: 600,
+                                        background: mes === m ? '#10b981' : (enQActual ? '#10b98118' : tk.card2),
+                                        color: mes === m ? '#fff' : tk.txt,
+                                    }}>
+                                    {m.slice(0, 3)}
+                                </button>
+                            );
+                        })}
                     </div>
 
                     {hasFilter && (
