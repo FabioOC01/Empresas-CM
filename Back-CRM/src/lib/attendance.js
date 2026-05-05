@@ -132,24 +132,31 @@ async function fetchZKBioEvents({ desde, hasta, timezone }) {
         throw error;
     }
 
-    if (mode !== 'postgres') {
-        const error = new Error(`Modo de integracion ZKBio no soportado: ${mode}`);
-        error.status = 400;
-        throw error;
+    if (mode === 'biotime_api') {
+        const { fetchTransactions } = require('./biotimeClient');
+        const rows = await fetchTransactions({ desde, hasta });
+        return rows
+            .map(row => normalizeSourceRow(row, timezone))
+            .filter(Boolean);
     }
 
-    const sql = process.env.ZKBIO_SYNC_QUERY;
-    if (!sql) {
-        const error = new Error('Falta ZKBIO_SYNC_QUERY para leer marcaciones desde la fuente ZKBio.');
-        error.status = 503;
-        throw error;
+    if (mode === 'postgres') {
+        const sql = process.env.ZKBIO_SYNC_QUERY;
+        if (!sql) {
+            const error = new Error('Falta ZKBIO_SYNC_QUERY para leer marcaciones desde la fuente ZKBio.');
+            error.status = 503;
+            throw error;
+        }
+        const pool = getSourcePool();
+        const { rows } = await pool.query(sql, [desde, hasta]);
+        return rows
+            .map(row => normalizeSourceRow(row, timezone))
+            .filter(Boolean);
     }
 
-    const pool = getSourcePool();
-    const { rows } = await pool.query(sql, [desde, hasta]);
-    return rows
-        .map(row => normalizeSourceRow(row, timezone))
-        .filter(Boolean);
+    const error = new Error(`Modo de integracion ZKBio no soportado: ${mode}`);
+    error.status = 400;
+    throw error;
 }
 
 function computeAttendanceStatus(row, attendanceConfig) {

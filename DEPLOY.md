@@ -89,7 +89,54 @@ CRM_WEBHOOK_TOKEN=Comutel.2026.Comutel.2025
 
 Luego `pm2 restart retail-back --update-env`.
 
-## 6. Verificación
+## 6. BioTime 7 — sync de asistencia
+
+El backend lee marcaciones de BioTime vía API REST con JWT. Agregar a `Back-CRM/.env`:
+
+```
+ZKBIO_SOURCE=biotime_api
+ZKBIO_API_URL=https://192.168.1.30
+ZKBIO_API_USER=API
+ZKBIO_API_PASS=Comutel.2026
+ZKBIO_API_INSECURE=true            # cert autofirmado
+ZKBIO_API_PAGE_SIZE=200             # opcional
+```
+
+Reiniciar back-crm: `pm2 restart back-crm --update-env`.
+
+### Mapear vendedores a BioTime
+
+En el CRM: **Admin → Vendedores → editar** → setear `zkbio_employee_code` con el `emp_code` del empleado en BioTime. Sin esto, las marcaciones se guardan pero no se asocian a ningún vendedor (aparecen en `GET /api/asistencia/unmapped`).
+
+### Disparar un sync manual
+
+Desde el frontend: **Asistencia → botón Sincronizar** (solo Admin/Gerencia).
+
+Por curl:
+```bash
+curl -X POST http://localhost:3001/api/asistencia/sync \
+  -H "Authorization: Bearer <jwt-del-crm>" \
+  -H "Content-Type: application/json" \
+  -d '{"desde":"2026-04-28","hasta":"2026-05-05"}'
+```
+
+Sin body, trae los **últimos 7 días** por defecto.
+
+### Diagnóstico
+
+```sql
+-- Últimos syncs
+SELECT * FROM asistencia_sync_log ORDER BY started_at DESC LIMIT 10;
+
+-- Códigos sin mapear
+SELECT * FROM asistencia_marcaciones m
+LEFT JOIN vendedores v ON v.empresa_id = m.empresa_id AND v.zkbio_employee_code = m.zkbio_employee_code
+WHERE v.id IS NULL ORDER BY event_at DESC LIMIT 20;
+```
+
+O endpoint: `GET /api/asistencia/health`.
+
+## 7. Verificación
 
 ```bash
 curl http://localhost:3001/health

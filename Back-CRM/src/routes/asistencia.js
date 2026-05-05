@@ -210,8 +210,15 @@ router.post('/sync', async (req, res) => {
 
     try {
         const attendanceConfig = await getEmpresaAttendanceConfig(empresaId);
-        const desde = req.body?.desde || getTodayInTimezone(attendanceConfig.timezone);
-        const hasta = req.body?.hasta || desde;
+        const hoy = getTodayInTimezone(attendanceConfig.timezone);
+        // Default: últimos 7 días si no se especifica nada
+        const haceUnaSemana = (() => {
+            const d = new Date(`${hoy}T00:00:00Z`);
+            d.setUTCDate(d.getUTCDate() - 6);
+            return d.toISOString().slice(0, 10);
+        })();
+        const desde = req.body?.desde || haceUnaSemana;
+        const hasta = req.body?.hasta || hoy;
 
         const { rows: logRows } = await pool.query(`
             INSERT INTO asistencia_sync_log (empresa_id, desde, hasta, status)
