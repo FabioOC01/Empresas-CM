@@ -41,11 +41,8 @@ export default function Login() {
 
             <div className="card" style={{ padding: '36px 36px 28px', width: 380 }}>
                 <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: 'var(--text-heavy)', textAlign: 'center' }}>
-                    Inicie sesion con su cuenta
+                    Iniciar sesión
                 </h2>
-                <p style={{ margin: '0 0 28px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-                    Ingrese con su usuario del equipo
-                </p>
 
                 <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 14 }}>
                     <label style={lbl}>Usuario
@@ -54,12 +51,12 @@ export default function Login() {
                             type="text"
                             required
                             autoFocus
-                            placeholder="erimay.torres"
+                            placeholder="nombre.apellido"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                         />
                     </label>
-                    <label style={lbl}>Contrasena
+                    <label style={lbl}>Contraseña
                         <input
                             style={inp}
                             type="password"

@@ -12,8 +12,8 @@ import ActividadModal from '../components/ActividadModal';
 import ComisionModal from '../components/ComisionModal';
 import PeriodoPicker from '../components/PeriodoPicker';
 
-const KANBAN_COLS = ['Pendiente','En Progreso','Completado','Cancelado'];
-const COL_COLOR = { 'Pendiente':'#e67e22','En Progreso':'#10b981','Completado':'#27ae60','Cancelado':'#e74c3c' };
+const KANBAN_COLS = ['Pendiente','En Progreso','Completado','Ganada','Perdida'];
+const COL_COLOR = { 'Pendiente':'#e67e22','En Progreso':'#10b981','Completado':'#27ae60','Ganada':'#2e7d32','Perdida':'#e74c3c' };
 
 function parseArr(val) {
     if (Array.isArray(val)) return val;
@@ -178,7 +178,7 @@ export default function Planificador() {
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                         <thead>
                             <tr style={{ borderBottom:`2px solid ${tk.bdr}`, background:tk.card2 }}>
-                                {['','Actividad','Tipo','Vendedor','Cliente','Monto','Prioridad','Estado','Mes','Tiempo',''].map((h,i) =>
+                                {['','Actividad','Tipo','Vendedor','Cliente','Monto','Prioridad','Estado','Mes','Fin estimado','Tiempo',''].map((h,i) =>
                                     <th key={i} style={{ padding:'10px 10px', textAlign:'left', color:tk.txt2, fontWeight:600, fontSize:11 }}>{h}</th>
                                 )}
                             </tr>
@@ -186,6 +186,12 @@ export default function Planificador() {
                         <tbody>
                             {filtered.map(a => {
                                 const v = vendedores.find(x => x.id === a.vendedor_id);
+                                const _chk = parseArr(a.checklist);
+                                const _cols = parseArr(a.colaboradores);
+                                const _chkIds = _chk.map(it => it && it.vendedor_id).filter(Boolean);
+                                const _colabIds = [...new Set([..._cols, ..._chkIds])].filter(id => id !== a.vendedor_id);
+                                const colabsT = _colabIds.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
+                                const finEst = a.fecha_fin ? new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00') : null;
                                 return (
                                     <tr key={a.id} style={{ borderBottom:`1px solid ${tk.bdr}` }}>
                                         <td style={{ padding:'0 0 0 4px', width:4 }}>
@@ -206,7 +212,19 @@ export default function Planificador() {
                             <div style={{ fontSize:11, color:tk.txt3 }}>{a.notas}</div>
                         </td>
                                         <td style={td}><TipoBadge tipo={a.tipo} /></td>
-                                        <td style={td}><div style={{ display:'flex', alignItems:'center', gap:6 }}><Avatar vendedor={v} /><span>{v?.nombre}</span></div></td>
+                                        <td style={td}>
+                                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                                                <div style={{ display:'flex' }}>
+                                                    <div style={{ position:'relative', zIndex: colabsT.length + 1 }}><Avatar vendedor={v} /></div>
+                                                    {colabsT.map((c, idx) => (
+                                                        <div key={c.id} title={c.nombre} style={{ marginLeft:-8, position:'relative', zIndex: colabsT.length - idx, border:`2px solid ${tk.card}`, borderRadius:'50%' }}>
+                                                            <Avatar vendedor={c} />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <span>{v?.nombre}{colabsT.length ? ` +${colabsT.length}` : ''}</span>
+                                            </div>
+                                        </td>
                                         <td style={td}>{a.cliente}</td>
                                         <td style={{ ...td, fontWeight:700, color:'#10b981' }}>{fmtUSD(a.monto, moneda)}</td>
                                         <td style={td}><PrioBadge prioridad={a.prioridad} /></td>
@@ -214,12 +232,19 @@ export default function Planificador() {
                                             <select value={a.estado} onChange={e => changeEstado(a.id, e.target.value)}
                                                 style={{ border:`1px solid ${tk.bdr}`, borderRadius:6, padding:'4px 8px', fontSize:12, background:tk.card, color:tk.txt, cursor:'pointer' }}>
                                                 {(TIPOS_CON_RESULTADO.includes(a.tipo)
-                                                    ? ['Pendiente','En Progreso','Completado','Ganada','Perdida','Cancelado']
+                                                    ? ['Pendiente','En Progreso','Completado','Ganada','Perdida']
                                                     : ESTADOS
                                                 ).map(e => <option key={e}>{e}</option>)}
                                             </select>
                                         </td>
                                         <td style={td}>{a.mes}</td>
+                                        <td style={td}>
+                                            {finEst ? (
+                                                <span style={{ fontSize:12, color: finEst < new Date() && a.estado !== 'Completado' ? '#e74c3c' : tk.txt2 }}>
+                                                    {finEst.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' })}
+                                                </span>
+                                            ) : <span style={{ color: tk.txt3 }}>—</span>}
+                                        </td>
                                         <td style={td}><span style={{ fontFamily:'monospace', fontSize:12, color:'#6b7a8d' }}>{fmt(calcDuration(a, now))}</span></td>
                                         <td style={td}>
                                             <div style={{ display:'flex', gap:4 }}>
@@ -235,13 +260,13 @@ export default function Planificador() {
                                     </tr>
                                 );
                             })}
-                            {!filtered.length && <tr><td colSpan={11} style={{ padding:32, textAlign:'center', color:'#aaa' }}>Sin actividades</td></tr>}
+                            {!filtered.length && <tr><td colSpan={12} style={{ padding:32, textAlign:'center', color:'#aaa' }}>Sin actividades</td></tr>}
                         </tbody>
                         <tfoot>
                             <tr style={{ borderTop:`2px solid ${tk.bdr}`, background:tk.card2 }}>
                                 <td colSpan={5} style={{ padding:'10px 10px', fontSize:12, color:tk.txt2, fontWeight:600 }}>{filtered.length} actividades · {filtered.filter(a=>a.estado==='Completado').length} completadas</td>
                                 <td style={{ padding:'10px', fontWeight:700, color:'#10b981' }}>{fmtUSD(totalMonto, moneda)}</td>
-                                <td colSpan={5} />
+                                <td colSpan={6} />
                             </tr>
                         </tfoot>
                     </table>
@@ -250,7 +275,7 @@ export default function Planificador() {
 
             {/* Vista Kanban */}
             {view === 'kanban' && (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:14 }}>
                     {KANBAN_COLS.map(col => {
                         const colActs = filtered.filter(a => a.estado === col);
                         return (
@@ -282,6 +307,15 @@ export default function Planificador() {
                                                     <PrioBadge prioridad={a.prioridad} />
                                                 </div>
                                                 <div style={{ fontSize:12, color:tk.txt2, marginBottom:6 }}>{a.cliente} · {fmtUSD(a.monto, moneda)}</div>
+                                                {a.fecha_fin && (() => {
+                                                    const fEst = new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00');
+                                                    const vencida = fEst < new Date() && a.estado !== 'Completado';
+                                                    return (
+                                                        <div style={{ fontSize:11, color: vencida ? '#e74c3c' : tk.txt3, marginBottom:6 }}>
+                                                            🏁 Fin: {fEst.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' })}
+                                                        </div>
+                                                    );
+                                                })()}
                                                 {a.estado === 'Ganada' && (() => { const { util, margen } = miniCalc(a); return (
                                                     <div style={{ display:'flex', gap:5, marginBottom:7 }}>
                                                         <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:700, background:'#27ae6018', color:'#27ae60' }}>

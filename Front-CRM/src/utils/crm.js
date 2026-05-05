@@ -27,7 +27,7 @@ export const ROL_TIPOS = {
     'Soporte Técnico':['Visita','Cotización','Seguimiento','Soporte'],
 };
 
-export const ESTADOS = ['Pendiente','En Progreso','Completado','Cancelado'];
+export const ESTADOS = ['Pendiente','En Progreso','Completado'];
 export const PRIORIDADES = ['Alta','Media','Baja'];
 
 // Tipos que admiten resultado Ganada/Perdida (aparecen en Comisiones)
@@ -35,7 +35,7 @@ export const TIPOS_CON_RESULTADO = [
     'Cotización','Propuesta','Oportunidad','Visita','Homologación','Seguimiento',
 ];
 // Todos los estados posibles (para filtros)
-export const TODOS_ESTADOS = ['Pendiente','En Progreso','Completado','Ganada','Perdida','Cancelado'];
+export const TODOS_ESTADOS = ['Pendiente','En Progreso','Completado','Ganada','Perdida'];
 
 export const TYPE_COLOR = {
     'Venta':           { bg: '#d4edda', color: '#155724' },

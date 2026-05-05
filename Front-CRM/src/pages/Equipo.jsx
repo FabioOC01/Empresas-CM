@@ -14,7 +14,7 @@ import { RolBadge } from '../components/Badge';
 import PeriodoPicker from '../components/PeriodoPicker';
 import { useTheme } from '../context/ThemeContext';
 
-const ESTADO_COLOR = { 'Pendiente': '#e67e22', 'En Progreso': '#10b981', 'Completado': '#27ae60', 'Cancelado': '#e74c3c' };
+const ESTADO_COLOR = { 'Pendiente': '#e67e22', 'En Progreso': '#10b981', 'Completado': '#27ae60', 'Ganada': '#2e7d32', 'Perdida': '#e74c3c' };
 const TIPO_COLORS = ['#10b981', '#27ae60', '#e67e22', '#8e44ad', '#e74c3c', '#1abc9c', '#e91e63', '#4caf50', '#ff9800', '#9c27b0'];
 const GRUPOS_MATRIZ = [
     { label: 'VENTAS', color: '#10b981', tipos: ['Venta', 'Propuesta', 'Oportunidad'] },
@@ -108,7 +108,7 @@ export default function Equipo() {
 
     const totalActs = filtered.length;
     const pctGlobal = totalActs ? Math.round(filtered.filter((a) => a.estado === 'Completado').length / totalActs * 100) : 0;
-    const avanceData = ['Completado', 'En Progreso', 'Pendiente', 'Cancelado'].map((e) => ({
+    const avanceData = ['Completado', 'En Progreso', 'Pendiente', 'Perdida'].map((e) => ({
         name: e, value: filtered.filter((a) => a.estado === e).length,
     }));
 
@@ -427,7 +427,7 @@ export default function Equipo() {
                         <PeriodoPicker trim={trim} mes={mes} onTrim={setTrim} onMes={setMes} />
                         <select style={sel} value={fEstado} onChange={(e) => setFEstado(e.target.value)}>
                             <option value="">Todos los estados</option>
-                            {['Pendiente', 'En Progreso', 'Completado', 'Cancelado'].map((e) => <option key={e}>{e}</option>)}
+                            {['Pendiente', 'En Progreso', 'Completado', 'Ganada', 'Perdida'].map((e) => <option key={e}>{e}</option>)}
                         </select>
                         <select style={sel} value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
                             <option value="">Todos los tipos</option>

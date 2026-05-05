@@ -48,7 +48,7 @@ function tsForEstado(estado) {
     const now = new Date();
     return {
         ts_pendiente:   now,
-        ts_en_progreso: ['En Progreso','Completado','Cancelado'].includes(estado) ? now : null,
+        ts_en_progreso: ['En Progreso','Completado','Ganada','Perdida'].includes(estado) ? now : null,
         ts_completado:  estado === 'Completado' ? now : null,
     };
 }
@@ -122,12 +122,11 @@ router.put('/:id', async (req, res) => {
             if (!esOwner) soloChecklist = true;
         }
 
+        // La fecha de creación NO se puede editar una vez creada la actividad
         const allowedFull = ['nombre','tipo','vendedor_id','cliente','monto','prioridad','estado','mes','notas','fecha_fin',
                          'precio_venta','costo_base','gastos_operativos','ajuste_interno',
                          'cliente_ruc','cliente_email','cliente_telefono',
                          'colaboradores','checklist'];
-        // Solo Admin/Gerencia pueden editar la fecha de creación de la actividad
-        if (canManageAll(req.user)) allowedFull.push('fecha');
         const allowed = soloChecklist ? ['checklist'] : allowedFull;
         const fields = Object.keys(req.body).filter(k => allowed.includes(k));
 

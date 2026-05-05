@@ -72,7 +72,7 @@ export default function Dashboard() {
         cursor:       { fill: tk.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
     };
     const axisProps = { tick: { fill: tk.txt2, fontSize: 11 } };
-    const ESTADO_COLOR = { 'Completado':'#27ae60','Ganada':'#1e8449','En Progreso':'#10b981','Pendiente':'#e67e22','Cancelado':'#e74c3c','Perdida':'#e74c3c' };
+    const ESTADO_COLOR = { 'Completado':'#27ae60','Ganada':'#1e8449','En Progreso':'#10b981','Pendiente':'#e67e22','Perdida':'#e74c3c' };
 
 
     const pipeline = (config?.pipeline_etapas || []).map((e, i) => ({
@@ -88,7 +88,7 @@ export default function Dashboard() {
         Completado:    data.filter(a => a.vendedor_id === v.id && a.estado === 'Completado').length,
         'En Progreso': data.filter(a => a.vendedor_id === v.id && a.estado === 'En Progreso').length,
         Pendiente:     data.filter(a => a.vendedor_id === v.id && a.estado === 'Pendiente').length,
-        Cancelado:     data.filter(a => a.vendedor_id === v.id && a.estado === 'Cancelado').length,
+        Perdida:       data.filter(a => a.vendedor_id === v.id && a.estado === 'Perdida').length,
     }));
 
     const TIPOS_ALL = ['Venta','Homologación','Visita','Propuesta','Seguimiento','Administrativa','Oportunidad','Cotización','Publicidad','Piezas gráficas'];
@@ -231,7 +231,7 @@ export default function Dashboard() {
                             <Bar dataKey="Completado"   stackId="a" fill="#27ae60" />
                             <Bar dataKey="En Progreso"  stackId="a" fill="#10b981" />
                             <Bar dataKey="Pendiente"    stackId="a" fill="#e67e22" />
-                            <Bar dataKey="Cancelado"    stackId="a" fill="#e74c3c" radius={[4,4,0,0]} />
+                            <Bar dataKey="Perdida"      stackId="a" fill="#e74c3c" radius={[4,4,0,0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -244,7 +244,7 @@ export default function Dashboard() {
                                 const estadoColor = {
                                     'Completado':'#27ae60','Ganada':'#1e8449',
                                     'En Progreso':'#10b981','Pendiente':'#e67e22',
-                                    'Cancelado':'#e74c3c','Perdida':'#795548',
+                                    'Perdida':'#e74c3c',
                                 }[v.ultima.estado] || '#aab';
                                 return (
                                     <div key={v.id} style={{ padding:'12px 0', borderBottom: i < actividadReciente.length - 1 ? `1px solid ${tk.bdr}` : 'none' }}>
@@ -362,7 +362,7 @@ export default function Dashboard() {
                     { name:'Completado', value:fsActs.filter(a=>a.estado==='Completado').length, fill:'#27ae60' },
                     { name:'En Progreso',value:fsActs.filter(a=>a.estado==='En Progreso').length,fill:'#10b981' },
                     { name:'Pendiente',  value:fsActs.filter(a=>a.estado==='Pendiente').length,  fill:'#e67e22' },
-                    { name:'Cancelado',  value:fsActs.filter(a=>a.estado==='Cancelado').length,  fill:'#e74c3c' },
+                    { name:'Perdida',    value:fsActs.filter(a=>a.estado==='Perdida').length,    fill:'#e74c3c' },
                 ].filter(x => x.value > 0);
                 const fsRecent = [...fsActs].sort((a,b) => b.id - a.id).slice(0,8);
                 return (

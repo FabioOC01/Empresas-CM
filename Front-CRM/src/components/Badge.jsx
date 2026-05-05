@@ -5,7 +5,6 @@ const ESTADO_COLOR = {
     'Pendiente':   '#e67e22',
     'En Progreso': '#10b981',
     'Completado':  '#27ae60',
-    'Cancelado':   '#e74c3c',
 };
 
 const PRIO_COLOR = {

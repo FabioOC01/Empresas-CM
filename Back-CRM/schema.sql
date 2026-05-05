@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS actividades (
   cliente     TEXT NOT NULL,
   monto       NUMERIC(12,2) DEFAULT 0,
   prioridad   TEXT NOT NULL,           -- 'Alta' | 'Media' | 'Baja'
-  estado      TEXT NOT NULL,           -- 'Pendiente' | 'En Progreso' | 'Completado' | 'Cancelado'
+  estado      TEXT NOT NULL,           -- 'Pendiente' | 'En Progreso' | 'Completado' | 'Ganada' | 'Perdida'
   mes         TEXT NOT NULL,           -- 'Enero'…'Diciembre'
   fecha       DATE NOT NULL,
   elapsed     INTEGER DEFAULT 0,       -- segundos acumulados (solo para estado 'En Progreso')

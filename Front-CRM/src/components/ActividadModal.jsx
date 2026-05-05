@@ -169,7 +169,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const tipoActual = TYPE_COLOR[form.tipo] || { bg: '#e8f0fe', color: '#10b981' };
     const estadosDisponibles = TIPOS_CON_RESULTADO.includes(form.tipo)
-        ? ['Pendiente','En Progreso','Completado','Ganada','Perdida','Cancelado']
+        ? ['Pendiente','En Progreso','Completado','Ganada','Perdida']
         : ESTADOS;
 
     return (
@@ -392,7 +392,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     <div style={lbl}>Estado</div>
                                     <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                                         {estadosDisponibles.map(s => {
-                                            const c = { 'Pendiente':'#e67e22','En Progreso':'#10b981','Completado':'#27ae60','Ganada':'#2e7d32','Perdida':'#795548','Cancelado':'#e74c3c' }[s] || '#6b7a8d';
+                                            const c = { 'Pendiente':'#e67e22','En Progreso':'#10b981','Completado':'#27ae60','Ganada':'#2e7d32','Perdida':'#e74c3c' }[s] || '#6b7a8d';
                                             const active = form.estado === s;
                                             return (
                                                 <button key={s} type="button" onClick={() => set('estado', s)} style={{
@@ -415,12 +415,12 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 {/* Fechas */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                     <label style={lbl}>Fecha de creación
-                                        <input style={puedeElegirVendedor ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
+                                        <input style={(!actividad && puedeElegirVendedor) ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
                                             type="date" value={form.fecha}
-                                            readOnly={!puedeElegirVendedor}
-                                            onChange={e => puedeElegirVendedor && handleFechaChange(e.target.value)} />
+                                            readOnly={!!actividad || !puedeElegirVendedor}
+                                            onChange={e => (!actividad && puedeElegirVendedor) && handleFechaChange(e.target.value)} />
                                     </label>
-                                    <label style={lbl}>Posible fecha de término
+                                    <label style={lbl}> Vencimiento
                                         <input style={inp} type="date" value={form.fecha_fin || ''}
                                             min={form.fecha}
                                             onChange={e => set('fecha_fin', e.target.value)} />
