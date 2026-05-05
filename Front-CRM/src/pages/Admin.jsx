@@ -19,7 +19,7 @@ const MONEDAS = [
 
 const COLORS     = ['#10b981','#27ae60','#8e44ad','#e67e22','#e74c3c','#1abc9c','#1512bb','#e91e63','#f39c12','#16a085'];
 const DIAS_LABEL = ['D','L','M','X','J','V','S'];
-const EMPTY_FORM = { nombre:'', iniciales:'', color:'#10b981', username:'', email:'', cargo:'', password:'', roles:[] };
+const EMPTY_FORM = { nombre:'', iniciales:'', color:'#10b981', username:'', email:'', cargo:'', password:'', roles:[], zkbio_employee_code:'', zkbio_device_name:'', asistencia_activa:true };
 
 const BRANDING_DEFAULT = {
     logo_login:   'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-AZUL.png',
@@ -131,7 +131,10 @@ export default function Admin() {
     const openEdit = (v) => {
         setEditing(v);
         setForm({ nombre:v.nombre, iniciales:v.iniciales, color:v.color,
-            username:v.username||'', email:v.email||'', cargo:v.cargo||'', password:'', roles:v.roles||[] });
+            username:v.username||'', email:v.email||'', cargo:v.cargo||'', password:'', roles:v.roles||[],
+            zkbio_employee_code: v.zkbio_employee_code || '',
+            zkbio_device_name:   v.zkbio_device_name   || '',
+            asistencia_activa:   v.asistencia_activa !== false });
         setMsg(null);
     };
     const openNew  = () => { setEditing('new'); setForm(EMPTY_FORM); setMsg(null); };
@@ -147,7 +150,10 @@ export default function Admin() {
         setSaving(true); setMsg(null);
         try {
             const payload = { nombre:form.nombre, iniciales:form.iniciales.toUpperCase().slice(0,3),
-                color:form.color, username:form.username, email:form.email, cargo:form.cargo, roles:form.roles };
+                color:form.color, username:form.username, email:form.email, cargo:form.cargo, roles:form.roles,
+                zkbio_employee_code: form.zkbio_employee_code?.trim() || null,
+                zkbio_device_name:   form.zkbio_device_name?.trim() || null,
+                asistencia_activa:   !!form.asistencia_activa };
             if (form.password) payload.password = form.password;
             if (editing==='new') {
                 const created = await createVendedor(payload);
@@ -427,6 +433,21 @@ export default function Admin() {
                                                 return <button key={rol} type="button" onClick={() => toggleRol(rol)} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer', background:active?'#10b981':'#10b981'+(tk.isDark?'28':'18'), color:active?'#fff':tk.txt, border:`1px solid ${active?'#10b981':'#10b981'+(tk.isDark?'44':'33')}` }}>{rol}</button>;
                                             })}
                                         </div>
+                                    </div>
+                                    <div style={{ borderTop:`1px solid ${tk.bdr}`, paddingTop:16 }}>
+                                        <div style={{ fontSize:12, color:tk.txt2, fontWeight:700, marginBottom:10, textTransform:'uppercase', letterSpacing:0.5 }}>🕒 Asistencia (BioTime)</div>
+                                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                                            <label style={lbl}>Código BioTime (DNI)
+                                                <input style={inp} placeholder="Ej: 76507151" value={form.zkbio_employee_code || ''} onChange={e => setF('zkbio_employee_code', e.target.value)} />
+                                            </label>
+                                            <label style={lbl}>Sede / Dispositivo (opcional)
+                                                <input style={inp} placeholder="Ej: PUERTA-1" value={form.zkbio_device_name || ''} onChange={e => setF('zkbio_device_name', e.target.value)} />
+                                            </label>
+                                        </div>
+                                        <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:13, color:tk.txt, cursor:'pointer' }}>
+                                            <input type="checkbox" checked={!!form.asistencia_activa} onChange={e => setF('asistencia_activa', e.target.checked)} />
+                                            Aparece en el resumen de asistencia
+                                        </label>
                                     </div>
                                     {msg && <MsgBox msg={msg} />}
                                     <div style={{ display:'flex', gap:10 }}>
