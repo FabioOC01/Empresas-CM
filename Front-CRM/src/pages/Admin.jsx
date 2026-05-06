@@ -288,6 +288,9 @@ export default function Admin() {
         try {
             const updated = await updateVendedorMetas(id, {
                 meta_mensual:      parseFloat(edit.meta_mensual)      || 0,
+                meta_facturacion_mensual: parseFloat(edit.meta_facturacion_mensual) || 0,
+                meta_rentabilidad_trimestral: parseFloat(edit.meta_rentabilidad_trimestral) || 0,
+                meta_facturacion_trimestral: parseFloat(edit.meta_facturacion_trimestral) || 0,
                 umbral_comision:   0,
                 pct_comision_base: (parseFloat(edit.pct_comision_base) || 2)  / 100,
                 pct_comision_bajo: (parseFloat(edit.pct_comision_bajo) || 7)  / 100,
@@ -517,17 +520,20 @@ export default function Admin() {
                         </div>
 
                         {/* Cuotas y comisiones por vendedor */}
-                        <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
+                        <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflowX:'auto', overflowY:'hidden' }}>
                             <div style={{ padding:'16px 22px', borderBottom:`1px solid ${tk.bdr}` }}>
                                 <div style={{ fontWeight:700, fontSize:14, color:tk.txt }}>Cuotas y comisiones por vendedor</div>
-                                <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>Cuota mensual de Rentabilidad Bruta y tasa base de comisión por persona.</div>
+                                <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>Metas mensuales/trimestrales y tasas de comisión por persona. La meta de Facturación no afecta las comisiones.</div>
                             </div>
 
                             {/* Header */}
-                            <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 110px 110px 110px 110px', gap:10, padding:'9px 22px', borderBottom:`1px solid ${tk.bdr}`, background:tk.bg }}>
+                            <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(4,120px) repeat(3,100px) 100px', gap:10, padding:'9px 22px', borderBottom:`1px solid ${tk.bdr}`, background:tk.bg, minWidth:1050 }}>
                                 {[
                                     'Vendedor',
-                                    'Cuota Rent. Bruta',
+                                    'Rent. Bruta Mes',
+                                    'Facturación Mes',
+                                    'Rent. Bruta Trim',
+                                    'Facturación Trim',
                                     'Comision 2%-14%',
                                     'Comisión ≥15%',
                                     'Comisión ≥20%',
@@ -543,6 +549,9 @@ export default function Admin() {
                                 const defAlto = parseFloat(v.pct_comision_alto ?? 0.08) * 100;
                                 const edit = editingTasas[v.id] ?? {
                                     meta_mensual:     v.meta_mensual ?? 0,
+                                    meta_facturacion_mensual: v.meta_facturacion_mensual ?? 0,
+                                    meta_rentabilidad_trimestral: v.meta_rentabilidad_trimestral ?? 0,
+                                    meta_facturacion_trimestral: v.meta_facturacion_trimestral ?? 0,
                                     pct_comision_base: defBase,
                                     pct_comision_bajo: defBajo,
                                     pct_comision_alto: defAlto,
@@ -550,6 +559,9 @@ export default function Admin() {
                                 const isSaving = !!savingTasas[v.id];
                                 const rowMsg   = msgTasas[v.id];
                                 const changed  = String(edit.meta_mensual)      !== String(v.meta_mensual ?? 0)
+                                             || String(edit.meta_facturacion_mensual) !== String(v.meta_facturacion_mensual ?? 0)
+                                             || String(edit.meta_rentabilidad_trimestral) !== String(v.meta_rentabilidad_trimestral ?? 0)
+                                             || String(edit.meta_facturacion_trimestral) !== String(v.meta_facturacion_trimestral ?? 0)
                                              || String(edit.pct_comision_base)  !== String(defBase)
                                              || String(edit.pct_comision_bajo)  !== String(defBajo)
                                              || String(edit.pct_comision_alto)  !== String(defAlto);
@@ -557,7 +569,7 @@ export default function Admin() {
                                     ...prev, [v.id]: { ...edit, [field]: val },
                                 }));
                                 return (
-                                    <div key={v.id} style={{ display:'grid', gridTemplateColumns:'1fr 140px 110px 110px 110px 110px', gap:10, padding:'13px 22px', borderBottom:`1px solid ${tk.bdr}`, alignItems:'center' }}>
+                                    <div key={v.id} style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(4,120px) repeat(3,100px) 100px', gap:10, padding:'13px 22px', borderBottom:`1px solid ${tk.bdr}`, alignItems:'center', minWidth:1050 }}>
                                         {/* Vendedor */}
                                         <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
                                             <Avatar vendedor={v} size="sm" />
@@ -567,11 +579,26 @@ export default function Admin() {
                                             </div>
                                         </div>
 
-                                        {/* Cuota mensual */}
+                                        {/* Metas */}
                                         <input type="number" min="0" step="0.01" placeholder="0.00"
                                             style={{ ...inp, width:'100%' }}
                                             value={edit.meta_mensual}
                                             onChange={e => setEdit('meta_mensual', e.target.value)} />
+
+                                        <input type="number" min="0" step="0.01" placeholder="0.00"
+                                            style={{ ...inp, width:'100%' }}
+                                            value={edit.meta_facturacion_mensual}
+                                            onChange={e => setEdit('meta_facturacion_mensual', e.target.value)} />
+
+                                        <input type="number" min="0" step="0.01" placeholder="0.00"
+                                            style={{ ...inp, width:'100%' }}
+                                            value={edit.meta_rentabilidad_trimestral}
+                                            onChange={e => setEdit('meta_rentabilidad_trimestral', e.target.value)} />
+
+                                        <input type="number" min="0" step="0.01" placeholder="0.00"
+                                            style={{ ...inp, width:'100%' }}
+                                            value={edit.meta_facturacion_trimestral}
+                                            onChange={e => setEdit('meta_facturacion_trimestral', e.target.value)} />
 
                                         {/* Comisión ≥15% margen */}
                                         <PctInput value={edit.pct_comision_base} inp={inp}

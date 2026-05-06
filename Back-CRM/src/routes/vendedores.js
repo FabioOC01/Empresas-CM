@@ -43,7 +43,9 @@ router.get('/', async (req, res) => {
         const columns = await getVendedoresColumns();
         const { rows } = await pool.query(`
             SELECT v.id, v.nombre, v.iniciales, v.color, ${usernameExpr(columns)} AS username, v.email, v.cargo,
-                   v.meta_mensual, v.umbral_comision, ${pctBaseExpr(columns)},
+                   v.meta_mensual, v.umbral_comision,
+                   v.meta_facturacion_mensual, v.meta_rentabilidad_trimestral, v.meta_facturacion_trimestral,
+                   ${pctBaseExpr(columns)},
                    v.pct_comision_bajo, v.pct_comision_alto, v.foto_url,
                    v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa, v.horario_dias,
                    COALESCE(array_agg(vr.rol ORDER BY vr.rol) FILTER (WHERE vr.rol IS NOT NULL), '{}') AS roles
@@ -289,6 +291,9 @@ router.put('/:id/metas', async (req, res) => {
 
     const {
         meta_mensual,
+        meta_facturacion_mensual,
+        meta_rentabilidad_trimestral,
+        meta_facturacion_trimestral,
         umbral_comision,
         pct_comision_base,
         pct_comision_bajo,
@@ -308,15 +313,22 @@ router.put('/:id/metas', async (req, res) => {
                 umbral_comision = $2,
                 pct_comision_base = $3,
                 pct_comision_bajo = $4,
-                pct_comision_alto = $5
-            WHERE id = $6 AND empresa_id = $7
-            RETURNING id, meta_mensual, umbral_comision, pct_comision_base, pct_comision_bajo, pct_comision_alto
+                pct_comision_alto = $5,
+                meta_facturacion_mensual = $6,
+                meta_rentabilidad_trimestral = $7,
+                meta_facturacion_trimestral = $8
+            WHERE id = $9 AND empresa_id = $10
+            RETURNING id, meta_mensual, umbral_comision, pct_comision_base, pct_comision_bajo, pct_comision_alto,
+                      meta_facturacion_mensual, meta_rentabilidad_trimestral, meta_facturacion_trimestral
         `, [
             meta_mensual,
             umbral_comision,
             pct_comision_base ?? 0.02,
             pct_comision_bajo ?? 0.07,
             pct_comision_alto ?? 0.08,
+            meta_facturacion_mensual ?? 0,
+            meta_rentabilidad_trimestral ?? 0,
+            meta_facturacion_trimestral ?? 0,
             req.params.id,
             empresa_id,
         ]);

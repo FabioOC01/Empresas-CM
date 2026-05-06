@@ -123,7 +123,13 @@ export default function Rentabilidad() {
     const [vendedorId, setVendedorId] = useState('');
     const [vendedoresData, setVendedoresData] = useState([]);
     const [editingId,  setEditingId]  = useState(null);
-    const [metaEdit,   setMetaEdit]   = useState({ meta_mensual: 0, umbral_comision: 0 });
+    const [metaEdit,   setMetaEdit]   = useState({
+        meta_mensual: 0,
+        meta_facturacion_mensual: 0,
+        meta_rentabilidad_trimestral: 0,
+        meta_facturacion_trimestral: 0,
+        umbral_comision: 0,
+    });
     const [casosOpen,  setCasosOpen]  = useState(false);
 
     useEffect(() => { getVendedores().then(setVendedoresData); }, []);
@@ -208,7 +214,10 @@ export default function Rentabilidad() {
             {/* Tarjetas por vendedor */}
             {porVendedor.map(v => {
                 const vData      = vendedoresData.find(x => x.id === v.id);
-                const cuota      = vData?.meta_mensual ?? 0;
+                const esTrimestre = !!trimestre;
+                const cuota      = esTrimestre ? (vData?.meta_rentabilidad_trimestral ?? 0) : (vData?.meta_mensual ?? 0);
+                const cuotaFacturacion = esTrimestre ? (vData?.meta_facturacion_trimestral ?? 0) : (vData?.meta_facturacion_mensual ?? 0);
+                const periodoMetaLabel = esTrimestre ? 'trimestral' : 'mensual';
                 const pctBase    = parseFloat(vData?.pct_comision_base) || PCT_BASE;
                 const pctBajo    = parseFloat(vData?.pct_comision_bajo) || PCT_BAJO;
                 const pctAlto    = parseFloat(vData?.pct_comision_alto) || PCT_ALTO;
@@ -217,7 +226,9 @@ export default function Rentabilidad() {
                 const isEditing  = editingId === v.id;
                 const rentabilidadBrutaTotal = v.facturacion - v.costoBase;
                 const metaPct    = cuota > 0 ? Math.min((rentabilidadBrutaTotal / cuota) * 100, 100) : 0;
+                const facturacionPct = cuotaFacturacion > 0 ? Math.min((v.facturacion / cuotaFacturacion) * 100, 100) : 0;
                 const metaHit    = cuota > 0 && rentabilidadBrutaTotal >= cuota;
+                const facturacionHit = cuotaFacturacion > 0 && v.facturacion >= cuotaFacturacion;
                 const ventasDetalle = v.actividades.map((a) => ({
                     ...a,
                     calc: calcComision(a._fact, a._costoBase, a._sunat, a._gastos, pctBase, pctBajo, pctAlto),
@@ -235,19 +246,37 @@ export default function Rentabilidad() {
                             </div>
                             {esAdminGerencia && (
                                 <button
-                                    onClick={() => { setEditingId(isEditing ? null : v.id); setMetaEdit({ meta_mensual: cuota, umbral_comision: vData?.umbral_comision ?? 0 }); }}
+                                    onClick={() => { setEditingId(isEditing ? null : v.id); setMetaEdit({
+                                        meta_mensual: vData?.meta_mensual ?? 0,
+                                        meta_facturacion_mensual: vData?.meta_facturacion_mensual ?? 0,
+                                        meta_rentabilidad_trimestral: vData?.meta_rentabilidad_trimestral ?? 0,
+                                        meta_facturacion_trimestral: vData?.meta_facturacion_trimestral ?? 0,
+                                        umbral_comision: vData?.umbral_comision ?? 0,
+                                    }); }}
                                     style={{ border:`1px solid ${tk.bdr}`, background: isEditing ? '#e74c3c22' : tk.card2, cursor:'pointer', fontSize:12, color: isEditing ? '#e74c3c' : tk.txt2, padding:'5px 12px', borderRadius:7, fontWeight:600 }}>
-                                    {isEditing ? '✕ Cancelar' : '✏ Editar cuota'}
+                                    {isEditing ? '✕ Cancelar' : '✏ Editar metas'}
                                 </button>
                             )}
                         </div>
 
                         {/* Edit cuota inline */}
                         {isEditing && esAdminGerencia && (
-                            <div style={{ background:tk.card2, borderRadius:10, padding:14, marginBottom:12, display:'grid', gridTemplateColumns:'1fr auto', gap:12, alignItems:'end' }}>
+                            <div style={{ background:tk.card2, borderRadius:10, padding:14, marginBottom:12, display:'grid', gridTemplateColumns:'repeat(4, minmax(140px, 1fr)) auto', gap:12, alignItems:'end' }}>
                                 <label style={lbl}>Cuota de Rentabilidad Bruta mensual (USD)
                                     <input style={inp} type="number" min="0" value={metaEdit.meta_mensual}
                                         onChange={e => setMetaEdit(m => ({ ...m, meta_mensual: parseFloat(e.target.value) || 0 }))} />
+                                </label>
+                                <label style={lbl}>Meta de Facturación mensual (USD)
+                                    <input style={inp} type="number" min="0" value={metaEdit.meta_facturacion_mensual}
+                                        onChange={e => setMetaEdit(m => ({ ...m, meta_facturacion_mensual: parseFloat(e.target.value) || 0 }))} />
+                                </label>
+                                <label style={lbl}>Rentabilidad Bruta trimestral (USD)
+                                    <input style={inp} type="number" min="0" value={metaEdit.meta_rentabilidad_trimestral}
+                                        onChange={e => setMetaEdit(m => ({ ...m, meta_rentabilidad_trimestral: parseFloat(e.target.value) || 0 }))} />
+                                </label>
+                                <label style={lbl}>Facturación trimestral (USD)
+                                    <input style={inp} type="number" min="0" value={metaEdit.meta_facturacion_trimestral}
+                                        onChange={e => setMetaEdit(m => ({ ...m, meta_facturacion_trimestral: parseFloat(e.target.value) || 0 }))} />
                                 </label>
                                 <button onClick={() => handleSaveMeta(v.id)}
                                     style={{ padding:'9px 20px', background:'#10b981', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
@@ -274,7 +303,7 @@ export default function Rentabilidad() {
                                             <div style={{ fontSize:24, fontWeight:800, color:tk.txt }}>{USD2(rentabilidadBrutaTotal)}</div>
                                         </div>
                                         <div style={{ background:tk.card2, borderRadius:10, padding:'12px 14px' }}>
-                                            <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Meta mensual</div>
+                                            <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Meta {periodoMetaLabel}</div>
                                             <div style={{ fontSize:24, fontWeight:800, color:tk.txt }}>{USD2(cuota)}</div>
                                         </div>
                                     </div>
@@ -287,9 +316,28 @@ export default function Rentabilidad() {
                                             <div style={{ height:'100%', width:`${metaPct}%`, background:metaHit ? 'linear-gradient(90deg,#10b981,#27ae60)' : 'linear-gradient(90deg,#e67e22,#f1c40f)' }} />
                                         </div>
                                     </div>
-                                    <Row label="Cuota de Rentabilidad Bruta requerida"    value={USD2(cuota)}               color={tk.txt2} />
+                                    <Row label={`Cuota de Rentabilidad Bruta ${periodoMetaLabel}`} value={USD2(cuota)} color={tk.txt2} />
                                     <Row label="Rentabilidad Bruta lograda"               value={USD2(rentabilidadBrutaTotal)} color={metaHit ? '#10b981' : tk.txt2} bold />
                                     <Row label="Diferencia vs meta"                       value={USD2(rentabilidadBrutaTotal - cuota)} color={rentabilidadBrutaTotal - cuota >= 0 ? '#10b981' : '#e74c3c'} bold />
+                                    <div style={{ borderTop:`1px solid ${tk.bdr}`, margin:'4px 0' }} />
+                                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+                                        <span style={{ fontSize:13, fontWeight:700, color:tk.txt }}>Meta de Facturación</span>
+                                        <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background: facturacionHit ? '#10b98122' : '#e67e2222', color: facturacionHit ? '#10b981' : '#e67e22' }}>
+                                            {facturacionHit ? 'Meta alcanzada' : 'Meta pendiente'}
+                                        </span>
+                                    </div>
+                                    <div style={{ background:tk.card2, borderRadius:12, padding:'14px 16px' }}>
+                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                                            <span style={{ fontSize:12, color:tk.txt2, fontWeight:700 }}>Avance de facturación</span>
+                                            <span style={{ fontSize:18, fontWeight:900, color:facturacionHit ? '#10b981' : '#e67e22' }}>{facturacionPct.toFixed(1)}%</span>
+                                        </div>
+                                        <div style={{ height:12, background:tk.bg, borderRadius:999, overflow:'hidden', border:`1px solid ${tk.bdr}` }}>
+                                            <div style={{ height:'100%', width:`${facturacionPct}%`, background:facturacionHit ? 'linear-gradient(90deg,#10b981,#27ae60)' : 'linear-gradient(90deg,#e67e22,#f1c40f)' }} />
+                                        </div>
+                                    </div>
+                                    <Row label={`Meta de Facturación ${periodoMetaLabel}`} value={USD2(cuotaFacturacion)} color={tk.txt2} />
+                                    <Row label="Facturación lograda" value={USD2(v.facturacion)} color={facturacionHit ? '#10b981' : tk.txt2} bold />
+                                    <Row label="Diferencia vs facturación" value={USD2(v.facturacion - cuotaFacturacion)} color={v.facturacion - cuotaFacturacion >= 0 ? '#10b981' : '#e74c3c'} bold />
                                 </div>
                             </div>
 
