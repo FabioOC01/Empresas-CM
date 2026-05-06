@@ -501,10 +501,10 @@ export default function Admin() {
 
                         {/* SUNAT global */}
                         <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'22px 26px' }}>
-                            <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:3 }}>SUNAT — tasa global</div>
-                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se usa como valor por defecto en la calculadora de comisiones.</div>
+                            <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:3 }}>SUNAT — tasa sobre Rentabilidad Bruta</div>
+                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se aplica sobre Facturación menos Costo real en la calculadora de comisiones.</div>
                             <form onSubmit={handleSaveCfg} style={{ display:'flex', gap:14, alignItems:'flex-end', flexWrap:'wrap' }}>
-                                <label style={lbl}>Tasa SUNAT (%)
+                                <label style={lbl}>Tasa sobre Rentabilidad Bruta (%)
                                     <input type="number" min="0" max="100" step="0.1" style={{ ...inp, width:140 }}
                                         value={cfgForm.tasa_sunat}
                                         onChange={e => setCfgForm(f => ({ ...f, tasa_sunat:e.target.value }))} />
@@ -520,14 +520,14 @@ export default function Admin() {
                         <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
                             <div style={{ padding:'16px 22px', borderBottom:`1px solid ${tk.bdr}` }}>
                                 <div style={{ fontWeight:700, fontSize:14, color:tk.txt }}>Cuotas y comisiones por vendedor</div>
-                                <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>Cuota mensual de facturación y tasa base de comisión por persona.</div>
+                                <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>Cuota mensual de Rentabilidad Bruta y tasa base de comisión por persona.</div>
                             </div>
 
                             {/* Header */}
                             <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 110px 110px 110px 110px', gap:10, padding:'9px 22px', borderBottom:`1px solid ${tk.bdr}`, background:tk.bg }}>
                                 {[
                                     'Vendedor',
-                                    'Cuota mensual',
+                                    'Cuota Rent. Bruta',
                                     'Comision 2%-14%',
                                     'Comisión ≥15%',
                                     'Comisión ≥20%',
