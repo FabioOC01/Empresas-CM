@@ -107,7 +107,7 @@ export default function Dashboard() {
 
     const actividadReciente = vendedores
         .map(v => {
-            const ultima = [...actividades]
+            const ultima = [...data]
                 .filter(a => a.vendedor_id === v.id)
                 .sort((a, b) => b.id - a.id)[0];
             return { ...v, ultima };
@@ -363,15 +363,13 @@ export default function Dashboard() {
             {/* Fullscreen vendor overlay */}
             {fsvend && (() => {
                 const fsActs   = data.filter(a => a.vendedor_id === fsvend.id);
-                const fsCerr   = fsActs.filter(a => a.estado === 'Completado');
-                const fsPct    = fsActs.length ? Math.round(fsCerr.length / fsActs.length * 100) : 0;
-                const fsMonto  = fsCerr.reduce((s,a) => s + Number(a.monto), 0);
-                const fsBar    = fsPct >= 70 ? '#27ae60' : fsPct >= 40 ? '#e67e22' : '#e74c3c';
+                const fsAv     = avanceMensual.find(x => x.id === fsvend.id) || { fact:0, rent:0, metaFact:0, metaRent:0, pctFact:0, pctRent:0 };
                 const fsByTipo = TIPOS_ALL.map(t => ({ name:t, value:fsActs.filter(a => a.tipo===t).length })).filter(x => x.value>0);
                 const fsByEst  = [
-                    { name:'Completado', value:fsActs.filter(a=>a.estado==='Completado').length, fill:'#27ae60' },
-                    { name:'En Progreso',value:fsActs.filter(a=>a.estado==='En Progreso').length,fill:'#10b981' },
-                    { name:'Pendiente',  value:fsActs.filter(a=>a.estado==='Pendiente').length,  fill:'#e67e22' },
+                    { name:'Ganada',     value:fsActs.filter(a=>a.estado==='Ganada').length,     fill:'#1e8449' },
+                    { name:'Completado', value:fsActs.filter(a=>a.estado==='Completado').length, fill:'#3498db' },
+                    { name:'En Progreso',value:fsActs.filter(a=>a.estado==='En Progreso').length,fill:'#9b59b6' },
+                    { name:'Pendiente',  value:fsActs.filter(a=>a.estado==='Pendiente').length,  fill:'#f1c40f' },
                     { name:'Perdida',    value:fsActs.filter(a=>a.estado==='Perdida').length,    fill:'#e74c3c' },
                 ].filter(x => x.value > 0);
                 const fsRecent = [...fsActs].sort((a,b) => b.id - a.id).slice(0,8);
@@ -391,18 +389,24 @@ export default function Dashboard() {
                                     style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:20, color:tk.txt3, lineHeight:1, padding:'4px 8px' }}>✕</button>
                             </div>
                             {/* KPIs */}
-                            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:22 }}>
+                            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
                                 {[
-                                    { label:'Total',      value:fsActs.length,       color:'#10b981' },
-                                    { label:'Completadas',value:fsCerr.length,        color:'#27ae60' },
-                                    { label:'Avance',     value:`${fsPct}%`,          color:fsBar },
-                                    { label:'Monto',      value:fmtUSD(fsMonto,moneda),color:'#10b981' },
+                                    { label:'Actividades', value:fsActs.length,                        color:'#5b8dee' },
+                                    { label:'Facturación', value:fmtUSD(fsAv.fact, moneda),            color:'#5b8dee' },
+                                    { label:'Rentabilidad',value:fmtUSD(fsAv.rent, moneda),            color:'#27ae60' },
+                                    { label:`Avance ${periodo}`, value:`${fsAv.pctFact.toFixed(0)}% / ${fsAv.pctRent.toFixed(0)}%`, color:'#10b981' },
                                 ].map(k => (
                                     <div key={k.label} style={{ background:tk.card2, borderRadius:10, padding:'12px 14px', borderTop:`3px solid ${k.color}` }}>
                                         <div style={{ fontSize:10, color:tk.txt3, textTransform:'uppercase', letterSpacing:0.6, marginBottom:4 }}>{k.label}</div>
-                                        <div style={{ fontSize:20, fontWeight:800, color:k.color }}>{k.value}</div>
+                                        <div style={{ fontSize:18, fontWeight:800, color:k.color }}>{k.value}</div>
                                     </div>
                                 ))}
+                            </div>
+
+                            {/* Avance metas */}
+                            <div style={{ display:'grid', gap:10, marginBottom:22 }}>
+                                <AvanceBar tk={tk} label={`Facturación (${periodo})`} logrado={fsAv.fact} meta={fsAv.metaFact} pct={fsAv.pctFact} moneda={moneda} color="#5b8dee" />
+                                <AvanceBar tk={tk} label={`Rentabilidad Bruta (${periodo})`} logrado={fsAv.rent} meta={fsAv.metaRent} pct={fsAv.pctRent} moneda={moneda} color="#27ae60" />
                             </div>
                             {/* Charts */}
                             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:22 }}>
