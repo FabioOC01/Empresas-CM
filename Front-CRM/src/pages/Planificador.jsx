@@ -49,8 +49,8 @@ export default function Planificador() {
         const fact = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
         const costoBase = parseFloat(a.costo_base) || 0;
         const gastos = parseGastos(a.gastos_operativos).reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
-        const sunat = fact * tasa_sunat;
         const utilidadBruta = fact - costoBase;
+        const sunat = utilidadBruta * tasa_sunat;
         const rentabilidad = utilidadBruta - gastos - sunat;
         const margen = fact > 0 ? (rentabilidad / fact) * 100 : 0;
         return { util: rentabilidad, margen };

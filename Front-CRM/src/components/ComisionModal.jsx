@@ -103,9 +103,11 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const pctBase = parseFloat(vendedor?.pct_comision_base) || 0.02;
     const pctBajo = parseFloat(vendedor?.pct_comision_bajo) || 0.07;
     const pctAlto = parseFloat(vendedor?.pct_comision_alto) || 0.08;
+    const utilidadBrutaPreview = facturacion - costoBase;
 
     const calc = useMemo(() => {
-        const sunatMonto  = facturacion * (sunatPct / 100);
+        const utilidadBruta = facturacion - costoBase;
+        const sunatMonto  = utilidadBruta * (sunatPct / 100);
         const gastosTotal = gastos.reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
         return { ...calcComision(facturacion, costoBase, sunatMonto, gastosTotal, cuota, pctBase, pctBajo, pctAlto), sunatMonto, gastosTotal };
     }, [facturacion, costoBase, sunatPct, gastos, cuota, pctBase, pctBajo, pctAlto]);
@@ -186,7 +188,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                         {/* SUNAT — read-only */}
                         <Field label="SUNAT">
                             <ReadonlyVal
-                                value={sunatPct > 0 ? `${sunatPct.toFixed(1)}% = ${USD2(facturacion * (sunatPct / 100))}` : '0% — no configurado'}
+                                value={sunatPct > 0 ? `${sunatPct.toFixed(1)}% = ${USD2(utilidadBrutaPreview * (sunatPct / 100))}` : '0% — no configurado'}
                                 hint="Configurado en Administración" />
                         </Field>
 
