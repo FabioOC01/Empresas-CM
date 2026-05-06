@@ -87,14 +87,20 @@ const USD2 = n => new Intl.NumberFormat('es-PE', {
 
 const PCT  = n => `${n.toFixed(2)}%`;
 const ESTADOS_VENTA_CERRADA = new Set(['Ganada']);
+function tramoComisionLabel(calc) {
+    if (!calc?.pct_comision) return '0%';
+    if (calc.margen_pct < MARGEN_MEDIO) return `${(calc.pct_comision * 100).toFixed(0)}% (margen ${MARGEN_MINIMO}-${MARGEN_MEDIO - 1}%)`;
+    if (calc.margen_pct < MARGEN_ALTO) return `${(calc.pct_comision * 100).toFixed(0)}% (margen ${MARGEN_MEDIO}-${MARGEN_ALTO - 1}%)`;
+    return `${(calc.pct_comision * 100).toFixed(0)}% (margen ${MARGEN_ALTO}%+)`;
+}
 
 // ── Test cases estáticos ───────────────────────────────────────────────────────
 const CASOS = [
-    { label: 'Pérdida',    facturacion: 20000, costo: 21000 },
-    { label: 'Sin margen', facturacion: 20000, costo: 19700 }, // ~1.5%
-    { label: 'Margen 2%',  facturacion: 20000, costo: 18000 }, // 10% → 2%
-    { label: 'Margen 7%',  facturacion: 20000, costo: 16600 }, // 17% → 7%
-    { label: 'Margen 8%',  facturacion: 20000, costo: 15000 }, // 25% → 8%
+    { label: 'Pérdida',     facturacion: 20000, costo: 20500, gastos: 100 },
+    { label: 'Sin margen',  facturacion: 20000, costo: 19300, gastos: 150 },
+    { label: 'Comisión 2%', facturacion: 20000, costo: 18000, gastos: 100 },
+    { label: 'Comisión 7%', facturacion: 20000, costo: 15500, gastos: 150 },
+    { label: 'Comisión 8%', facturacion: 20000, costo: 13500, gastos: 250 },
 ];
 
 export default function Rentabilidad() {
@@ -299,9 +305,17 @@ export default function Rentabilidad() {
                                             <div style={{ fontSize:24, fontWeight:800, color:calc.margen_pct >= MARGEN_MINIMO ? '#10b981' : '#e74c3c' }}>{PCT(calc.margen_pct)}</div>
                                         </div>
                                         <div style={{ background:tk.card2, borderRadius:10, padding:'12px 14px' }}>
-                                            <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Comisión total ganada</div>
-                                            <div style={{ fontSize:24, fontWeight:800, color:comisionTotalSuma > 0 ? '#10b981' : tk.txt3 }}>{USD2(comisionTotalSuma)}</div>
+                                            <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Margen de comisión</div>
+                                            <div style={{ fontSize:24, fontWeight:800, color:calc.pct_comision > 0 ? '#10b981' : tk.txt3 }}>{(calc.pct_comision * 100).toFixed(0)}%</div>
+                                            <div style={{ fontSize:10, color:tk.txt3, marginTop:3 }}>{tramoComisionLabel(calc)}</div>
                                         </div>
+                                    </div>
+                                    <div style={{ background:tk.card2, borderRadius:10, padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+                                        <div>
+                                            <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Comisión total ganada</div>
+                                            <div style={{ fontSize:13, color:tk.txt2 }}>Base: rentabilidad neta</div>
+                                        </div>
+                                        <div style={{ fontSize:24, fontWeight:800, color:comisionTotalSuma > 0 ? '#10b981' : tk.txt3 }}>{USD2(comisionTotalSuma)}</div>
                                     </div>
                                     <div style={{ borderTop:`1px solid ${tk.bdr}` }} />
                                     <div style={{ display:'grid', gap:8 }}>
@@ -314,6 +328,7 @@ export default function Rentabilidad() {
                                                 <div style={{ textAlign:'right' }}>
                                                     <div style={{ fontSize:10, color:tk.txt3 }}>Margen</div>
                                                     <div style={{ fontSize:13, fontWeight:800, color:venta.calc.margen_pct >= MARGEN_MINIMO ? '#10b981' : '#e74c3c' }}>{PCT(venta.calc.margen_pct)}</div>
+                                                    <div style={{ fontSize:9, color:tk.txt3 }}>{tramoComisionLabel(venta.calc)}</div>
                                                 </div>
                                                 <div style={{ textAlign:'right' }}>
                                                     <div style={{ fontSize:10, color:tk.txt3 }}>Comisión</div>
@@ -348,7 +363,7 @@ export default function Rentabilidad() {
                                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                                     <thead>
                                         <tr style={{ background:tk.bg }}>
-                                            {['Actividad','Cliente','Mes','Facturación','Costo real','Rentabilidad Bruta','SUNAT','Gastos','Rentabilidad neta','Margen','Comisión'].map(h => (
+                                            {['Actividad','Cliente','Mes','Facturación','Costo real','Rentabilidad Bruta','SUNAT','Gastos','Rentabilidad neta','Margen','Margen comisión','Comisión'].map(h => (
                                                 <th key={h} style={{ padding:'8px 14px', textAlign: h==='Actividad'||h==='Cliente'||h==='Mes' ? 'left' : 'right', fontWeight:700, color:tk.txt3, fontSize:11, textTransform:'uppercase', letterSpacing:0.4, whiteSpace:'nowrap', borderBottom:`1px solid ${tk.bdr}` }}>{h}</th>
                                             ))}
                                         </tr>
@@ -368,6 +383,7 @@ export default function Rentabilidad() {
                                                     <td style={{ padding:'9px 14px', textAlign:'right', color:tk.txt2, fontFamily:'monospace' }}>{USD2(a._gastos)}</td>
                                                     <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:700, fontFamily:'monospace', color: a._util >= 0 ? '#27ae60' : '#e74c3c' }}>{USD2(a._util)}</td>
                                                     <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:700, fontFamily:'monospace', color: ventaCalc.margen_pct >= MARGEN_MINIMO ? '#27ae60' : '#e74c3c' }}>{PCT(ventaCalc.margen_pct)}</td>
+                                                    <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:700, color: ventaCalc.pct_comision > 0 ? '#10b981' : tk.txt3, whiteSpace:'nowrap' }}>{tramoComisionLabel(ventaCalc)}</td>
                                                     <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:700, fontFamily:'monospace', color: ventaCalc.monto_comision > 0 ? '#10b981' : tk.txt3 }}>{USD2(ventaCalc.monto_comision)}</td>
                                                 </tr>
                                             );
@@ -382,6 +398,7 @@ export default function Rentabilidad() {
                                             <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:700, color:tk.txt2, fontFamily:'monospace' }}>{USD2(v.gastos)}</td>
                                             <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:800, fontFamily:'monospace', color: calc.utilidad >= 0 ? '#27ae60' : '#e74c3c' }}>{USD2(calc.utilidad)}</td>
                                             <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:800, fontFamily:'monospace', color: calc.margen_pct >= MARGEN_MINIMO ? '#27ae60' : '#e74c3c' }}>{PCT(calc.margen_pct)}</td>
+                                            <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:800, color: calc.pct_comision > 0 ? '#10b981' : tk.txt3, whiteSpace:'nowrap' }}>{tramoComisionLabel(calc)}</td>
                                             <td style={{ padding:'9px 14px', textAlign:'right', fontWeight:800, fontFamily:'monospace', color: comisionTotalSuma > 0 ? '#10b981' : tk.txt3 }}>{USD2(comisionTotalSuma)}</td>
                                         </tr>
                                     </tbody>
@@ -406,7 +423,7 @@ export default function Rentabilidad() {
                         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                             <thead>
                                 <tr style={{ background:tk.card2 }}>
-                                    {['Caso','Facturación','Costo','Utilidad','Margen','Estado','% Comisión','Monto comisión'].map(h => (
+                                    {['Caso','Facturación','Costo','Rent. Bruta','SUNAT','Gastos','Rent. neta','Margen','Estado','Margen comisión','Monto comisión'].map(h => (
                                         <th key={h} style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, color:tk.txt2, whiteSpace:'nowrap', borderBottom:`2px solid ${tk.bdr}`, fontSize:11, textTransform:'uppercase', letterSpacing:0.4 }}>
                                             {h}
                                         </th>
@@ -415,14 +432,20 @@ export default function Rentabilidad() {
                             </thead>
                             <tbody>
                                 {CASOS.map((c, idx) => {
-                                    const r  = calcComision(c.facturacion, c.costo);
+                                    const rentabilidadBruta = c.facturacion - c.costo;
+                                    const sunat = rentabilidadBruta * tasa_sunat;
+                                    const gastos = c.gastos || 0;
+                                    const r  = calcComision(c.facturacion, c.costo, sunat, gastos);
                                     const ec = ESTADO_COLOR[r.estado];
                                     return (
                                         <tr key={idx} style={{ borderBottom:`1px solid ${tk.bdr}`, background: idx % 2 === 1 ? tk.card2 : 'transparent' }}>
                                             <td style={{ padding:'10px 14px', fontWeight:700, color:tk.txt2 }}>{c.label}</td>
                                             <td style={{ padding:'10px 14px', textAlign:'right', color:tk.txt, fontWeight:600 }}>{USD2(c.facturacion)}</td>
                                             <td style={{ padding:'10px 14px', textAlign:'right', color:tk.txt2 }}>{USD2(c.costo)}</td>
-                                            <td style={{ padding:'10px 14px', textAlign:'right', color: r.utilidad >= 0 ? '#27ae60' : '#e74c3c', fontWeight:600 }}>{USD2(r.utilidad)}</td>
+                                            <td style={{ padding:'10px 14px', textAlign:'right', color: r.rentabilidad_bruta >= 0 ? '#27ae60' : '#e74c3c', fontWeight:600 }}>{USD2(r.rentabilidad_bruta)}</td>
+                                            <td style={{ padding:'10px 14px', textAlign:'right', color:tk.txt2 }}>{USD2(sunat)}</td>
+                                            <td style={{ padding:'10px 14px', textAlign:'right', color:tk.txt2 }}>{USD2(gastos)}</td>
+                                            <td style={{ padding:'10px 14px', textAlign:'right', color: r.rentabilidad >= 0 ? '#27ae60' : '#e74c3c', fontWeight:600 }}>{USD2(r.rentabilidad)}</td>
                                             <td style={{ padding:'10px 14px', textAlign:'right', color: r.margen_pct >= MARGEN_MINIMO ? '#27ae60' : '#e74c3c', fontWeight:600 }}>{PCT(r.margen_pct)}</td>
                                             <td style={{ padding:'10px 14px', textAlign:'right' }}>
                                                 <span style={{ padding:'2px 10px', borderRadius:20, fontSize:11, fontWeight:700, background: ec + '22', color: ec, whiteSpace:'nowrap' }}>
@@ -430,7 +453,7 @@ export default function Rentabilidad() {
                                                 </span>
                                             </td>
                                             <td style={{ padding:'10px 14px', textAlign:'right', fontWeight:800, color: r.pct_comision > 0 ? '#10b981' : tk.txt3 }}>
-                                                {(r.pct_comision * 100).toFixed(0)}%
+                                                {tramoComisionLabel(r)}
                                             </td>
                                             <td style={{ padding:'10px 14px', textAlign:'right', fontWeight:800, color: r.monto_comision > 0 ? '#10b981' : tk.txt3 }}>
                                                 {USD2(r.monto_comision)}
