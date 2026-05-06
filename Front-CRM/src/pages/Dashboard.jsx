@@ -19,6 +19,7 @@ export default function Dashboard() {
     const [vendedores, setVendedores] = useState([]);
     const [trim, setTrim] = useState('');
     const [mes, setMes]   = useState('');
+    const [año, setAño]   = useState('');
     const [vend, setVend] = useState('');
     const [activePieIdx, setActivePieIdx] = useState(null);
     const [fsvend, setFsvend] = useState(null);
@@ -56,8 +57,11 @@ export default function Dashboard() {
     const data = filterActs(actividades, {
         trimestre:  trim || undefined,
         mes:        mes  || undefined,
+        año:        año  || undefined,
         vendedorId: vend || undefined,
     });
+
+    const periodo = mes ? 'mensual' : trim ? 'trimestral' : año ? 'anual' : 'mensual';
 
     const ttStyle = {
         contentStyle: { background: tk.card, border: `1px solid ${tk.bdr}`, borderRadius: 8, fontSize: 12, color: tk.txt },
@@ -113,18 +117,25 @@ export default function Dashboard() {
 
     const topOps = [...data].sort((a,b) => b.monto - a.monto).slice(0,8);
 
-    // Avance mensual por vendedor (basado en ventas Ganada del periodo)
+    // Avance por vendedor según el periodo seleccionado
     const avanceMensual = vendedores.map(v => {
         const vVentas = ventasGanadas.filter(a => a.vendedor_id === v.id);
         const fact = vVentas.reduce((s,a) => s + (parseFloat(a.precio_venta) || parseFloat(a.monto) || 0), 0);
         const rent = vVentas.reduce((s,a) => {
             const f = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
             const c = parseFloat(a.costo_base) || 0;
-            const g = parseGastos(a.gastos_operativos).reduce((x, y) => x + (parseFloat(y.monto) || 0), 0);
             return s + (f - c);
         }, 0);
-        const metaFact = parseFloat(v.meta_facturacion_mensual) || 0;
-        const metaRent = parseFloat(v.meta_mensual) || 0;
+        const metaFact = parseFloat(
+            periodo === 'anual'      ? v.meta_facturacion_anual :
+            periodo === 'trimestral' ? v.meta_facturacion_trimestral :
+                                       v.meta_facturacion_mensual
+        ) || 0;
+        const metaRent = parseFloat(
+            periodo === 'anual'      ? v.meta_rentabilidad_anual :
+            periodo === 'trimestral' ? v.meta_rentabilidad_trimestral :
+                                       v.meta_mensual
+        ) || 0;
         return {
             ...v,
             fact, rent, metaFact, metaRent,
@@ -147,7 +158,7 @@ export default function Dashboard() {
             <div style={{ display:'flex', justifyContent:'center', alignItems:'center', marginBottom:24 }}>
                 
                 <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                    <PeriodoPicker trim={trim} mes={mes} onTrim={setTrim} onMes={setMes} />
+                    <PeriodoPicker trim={trim} mes={mes} año={año} onTrim={setTrim} onMes={setMes} onAño={setAño} showAño />
                     <select style={sel} value={vend} onChange={e => setVend(e.target.value)}>
                         <option value="">Todos los vendedores</option>
                         {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
@@ -165,11 +176,10 @@ export default function Dashboard() {
            
             <div style={{ display:'grid', gridTemplateColumns:`repeat(${vendedores.length},1fr)`, gap:14, marginBottom:20 }}>
                 {vendedores.map(v => {
-                    const vActs  = data.filter(a => a.vendedor_id === v.id);
-                    const cerr   = vActs.filter(a => a.estado === 'Completado');
-                    const pct    = vActs.length ? Math.round(cerr.length / vActs.length * 100) : 0;
-                    const montoC = cerr.reduce((s,a) => s + Number(a.monto), 0);
-                    const barColor = pct >= 70 ? '#27ae60' : pct >= 40 ? '#e67e22' : '#e74c3c';
+                    const vAv = avanceMensual.find(x => x.id === v.id) || { fact:0, rent:0, metaFact:0, metaRent:0, pctFact:0, pctRent:0 };
+                    const vActsCount = data.filter(a => a.vendedor_id === v.id).length;
+                    const factColor = vAv.pctFact >= 100 ? '#10b981' : '#5b8dee';
+                    const rentColor = vAv.pctRent >= 100 ? '#10b981' : '#27ae60';
                     return (
                         <div key={v.id} className="card" style={{ padding:'16px 14px', position:'relative' }}>
                             <button onClick={() => setFsvend(v)} title="Pantalla completa"
@@ -179,19 +189,32 @@ export default function Dashboard() {
                                     <line x1="13" y1="1" x2="8" y2="6"/><line x1="1" y1="13" x2="6" y2="8"/>
                                 </svg>
                             </button>
-                            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
                                 <Avatar vendedor={v} size="lg" />
-                                <div>
+                                <div style={{ minWidth:0 }}>
                                     <div style={{ fontWeight:700, fontSize:13, color:tk.txt, lineHeight:1.2 }}>{v.nombre}</div>
-                                    <div style={{ fontSize:11, color:tk.txt3, marginTop:2 }}>{vActs.length} actividades · {pct}% completado</div>
+                                    <div style={{ fontSize:11, color:tk.txt3, marginTop:2 }}>{vActsCount} actividades</div>
                                 </div>
                             </div>
-                            <div style={{ height:6, background:tk.bdr, borderRadius:3, marginBottom:8 }}>
-                                <div style={{ height:'100%', borderRadius:3, width:`${pct}%`, background:`linear-gradient(to right, ${barColor}aa, ${barColor})`, transition:'width 0.5s ease', boxShadow:`0 0 6px ${barColor}66` }} />
+                            <div style={{ marginBottom:8 }}>
+                                <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, marginBottom:3 }}>
+                                    <span style={{ color:tk.txt2, fontWeight:600 }}>Facturación</span>
+                                    <span style={{ color:factColor, fontWeight:700 }}>{vAv.pctFact.toFixed(0)}%</span>
+                                </div>
+                                <div style={{ height:6, background:tk.bdr, borderRadius:3 }}>
+                                    <div style={{ height:'100%', borderRadius:3, width:`${vAv.pctFact}%`, background:factColor, transition:'width 0.5s ease' }} />
+                                </div>
+                                <div style={{ fontSize:11, color:tk.txt3, marginTop:3, fontFamily:'monospace' }}>{fmtUSD(vAv.fact, moneda)}{vAv.metaFact > 0 && <span> / {fmtUSD(vAv.metaFact, moneda)}</span>}</div>
                             </div>
-                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                <div style={{ fontSize:15, fontWeight:800, color:'#10b981' }}>{fmtUSD(montoC, moneda)}</div>
-                                <div style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20, background: barColor + '22', color: barColor }}>{pct}%</div>
+                            <div>
+                                <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, marginBottom:3 }}>
+                                    <span style={{ color:tk.txt2, fontWeight:600 }}>Rentabilidad</span>
+                                    <span style={{ color:rentColor, fontWeight:700 }}>{vAv.pctRent.toFixed(0)}%</span>
+                                </div>
+                                <div style={{ height:6, background:tk.bdr, borderRadius:3 }}>
+                                    <div style={{ height:'100%', borderRadius:3, width:`${vAv.pctRent}%`, background:rentColor, transition:'width 0.5s ease' }} />
+                                </div>
+                                <div style={{ fontSize:11, color:tk.txt3, marginTop:3, fontFamily:'monospace' }}>{fmtUSD(vAv.rent, moneda)}{vAv.metaRent > 0 && <span> / {fmtUSD(vAv.metaRent, moneda)}</span>}</div>
                             </div>
                         </div>
                     );
@@ -277,7 +300,7 @@ export default function Dashboard() {
 
             {/* Avance mensual por vendedor */}
             <div style={{ ...card, marginBottom:20 }}>
-                <div style={ct}>Avance mensual por vendedor</div>
+                <div style={ct}>Avance {periodo} por vendedor</div>
                 {avanceMensual.length === 0
                     ? <div style={{ color:tk.txt3, fontSize:12, textAlign:'center', padding:14 }}>Sin vendedores</div>
                     : <div style={{ display:'grid', gap:12 }}>

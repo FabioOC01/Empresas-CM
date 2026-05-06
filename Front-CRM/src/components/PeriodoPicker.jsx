@@ -9,7 +9,7 @@ const PULSE_KEYFRAMES = `
   100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(16,185,129,0); }
 }`;
 
-export default function PeriodoPicker({ trim = '', mes = '', onTrim, onMes }) {
+export default function PeriodoPicker({ trim = '', mes = '', año = '', onTrim, onMes, onAño, showAño = false }) {
     const tk  = useTheme();
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
@@ -20,8 +20,8 @@ export default function PeriodoPicker({ trim = '', mes = '', onTrim, onMes }) {
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    const label    = trim ? `Q${trim}` : mes ? mes.slice(0, 3) : 'Período';
-    const hasFilter = !!(trim || mes);
+    const label    = mes ? mes.slice(0, 3) : trim ? `Q${trim}${año ? ' '+año : ''}` : año ? año : 'Período';
+    const hasFilter = !!(trim || mes || año);
 
     // Q actual
     const mesActualIdx = new Date().getMonth();
@@ -49,6 +49,25 @@ export default function PeriodoPicker({ trim = '', mes = '', onTrim, onMes }) {
                     background: tk.card, border: `1px solid ${tk.bdr}`, borderRadius: 10,
                     padding: '14px', boxShadow: tk.isDark ? '0 8px 24px rgba(0,0,0,0.5)' : '0 8px 24px rgba(0,0,0,0.12)', minWidth: 280,
                 }}>
+                    {showAño && (
+                        <>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: tk.txt2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Año</div>
+                            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                                {['2024','2025','2026'].map(y => (
+                                    <button key={y} onClick={() => { onAño && onAño(año === y ? '' : y); }}
+                                        style={{
+                                            flex: 1, padding: '7px 0', borderRadius: 7, border: 'none', cursor: 'pointer',
+                                            fontWeight: 700, fontSize: 13,
+                                            background: año === y ? '#10b981' : tk.card2,
+                                            color: año === y ? '#fff' : tk.txt,
+                                        }}>
+                                        {y}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
                     {/* Q */}
                     <div style={{ fontSize: 10, fontWeight: 700, color: tk.txt2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Trimestre</div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -98,7 +117,7 @@ export default function PeriodoPicker({ trim = '', mes = '', onTrim, onMes }) {
                     </div>
 
                     {hasFilter && (
-                        <button onClick={() => { onTrim(''); onMes(''); setOpen(false); }}
+                        <button onClick={() => { onTrim(''); onMes(''); onAño && onAño(''); setOpen(false); }}
                             style={{ marginTop: 10, width: '100%', padding: '7px', border: 'none', borderRadius: 7, background: '#e74c3c22', color: '#e74c3c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                             ✕ Limpiar período
                         </button>
