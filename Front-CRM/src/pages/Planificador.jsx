@@ -5,7 +5,7 @@ import useActividades from '../hooks/useActividades';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import useRolFilter from '../hooks/useRolFilter';
-import { filterActs, fmtUSD, fmt, calcDuration, parseGastos, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO, MESES } from '../utils/crm';
+import { filterActs, fmtUSD, parseGastos, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO, MESES } from '../utils/crm';
 import Avatar from '../components/Avatar';
 import { TipoBadge, PrioBadge } from '../components/Badge';
 import ActividadModal from '../components/ActividadModal';
@@ -21,6 +21,13 @@ function parseArr(val) {
         try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
     }
     return [];
+}
+
+function fmtDateShort(value) {
+    if (!value) return null;
+    const d = new Date(String(value).slice(0, 10) + 'T12:00:00');
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' });
 }
 
 export default function Planificador() {
@@ -63,10 +70,8 @@ export default function Planificador() {
     const MES_ACTUAL = MESES[new Date().getMonth()];
     const Q_ACTUAL = String(Math.floor(new Date().getMonth() / 3) + 1);
     const [filters, setFilters] = useState({ vendedorId:'', trimestre:'', mes: MES_ACTUAL, tipo:'', estado:'', prioridad:'', buscar:'' });
-    const [now, setNow] = useState(Date.now());
     const [dragId, setDragId] = useState(null);
     const [dragOverCol, setDragOverCol] = useState(null);
-    useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
     useEffect(() => { getVendedores().then(setVendedores); }, []);
 
     // Teclado: N = nueva actividad
@@ -221,7 +226,7 @@ export default function Planificador() {
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                         <thead>
                             <tr style={{ borderBottom:`2px solid ${tk.bdr}`, background:tk.card2 }}>
-                                {['','Actividad','Tipo','Vendedor','Cliente','Monto','Prioridad','Estado','Mes','Fin estimado','Tiempo',''].map((h,i) =>
+                                {['','Actividad','Tipo','Vendedor','Cliente','Monto','Prioridad','Estado','Mes','Fecha de inicio','Fin estimado',''].map((h,i) =>
                                     <th key={i} style={{ padding:'10px 10px', textAlign:'left', color:tk.txt2, fontWeight:600, fontSize:11 }}>{h}</th>
                                 )}
                             </tr>
@@ -231,6 +236,7 @@ export default function Planificador() {
                                 const v = vendedores.find(x => x.id === a.vendedor_id);
                                 const _cols = parseArr(a.colaboradores).filter(id => id !== a.vendedor_id);
                                 const colabsT = _cols.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
+                                const inicio = fmtDateShort(a.fecha);
                                 const finEst = a.fecha_fin ? new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00') : null;
                                 return (
                                     <tr key={a.id} style={{ borderBottom:`1px solid ${tk.bdr}` }}>
@@ -279,13 +285,17 @@ export default function Planificador() {
                                         </td>
                                         <td style={td}>{a.mes}</td>
                                         <td style={td}>
+                                            {inicio ? (
+                                                <span style={{ fontSize:12, color: tk.txt2 }}>{inicio}</span>
+                                            ) : <span style={{ color: tk.txt3 }}>—</span>}
+                                        </td>
+                                        <td style={td}>
                                             {finEst ? (
                                                 <span style={{ fontSize:12, color: finEst < new Date() && a.estado !== 'Completado' ? '#e74c3c' : tk.txt2 }}>
                                                     {finEst.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' })}
                                                 </span>
                                             ) : <span style={{ color: tk.txt3 }}>—</span>}
                                         </td>
-                                        <td style={td}><span style={{ fontFamily:'monospace', fontSize:12, color:'#6b7a8d' }}>{fmt(calcDuration(a, now))}</span></td>
                                         <td style={td}>
                                             <div style={{ display:'flex', gap:4 }}>
                                                 <button onClick={() => setModal({ open:true, actividad:a })} style={iconBtn} title="Editar">✏️</button>
@@ -361,12 +371,17 @@ export default function Planificador() {
                                                     <PrioBadge prioridad={a.prioridad} />
                                                 </div>
                                                 <div style={{ fontSize:12, color:tk.txt2, marginBottom:6 }}>{a.cliente} · {fmtUSD(a.monto, moneda)}</div>
+                                                {a.fecha && (
+                                                    <div style={{ fontSize:11, color: tk.txt3, marginBottom:6 }}>
+                                                        Inicio: {fmtDateShort(a.fecha)}
+                                                    </div>
+                                                )}
                                                 {a.fecha_fin && (() => {
                                                     const fEst = new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00');
                                                     const vencida = fEst < new Date() && a.estado !== 'Completado';
                                                     return (
                                                         <div style={{ fontSize:11, color: vencida ? '#e74c3c' : tk.txt3, marginBottom:6 }}>
-                                                            🏁 Fin: {fEst.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' })}
+                                                            Fin estimado: {fEst.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' })}
                                                         </div>
                                                     );
                                                 })()}
@@ -395,7 +410,6 @@ export default function Planificador() {
                                                         </span>
                                                     </div>
                                                     <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                                                        <span style={{ fontFamily:'monospace', fontSize:11, color:tk.txt3 }}>{fmt(calcDuration(a, now))}</span>
                                                         {a.estado === 'Ganada' && (
                                                             <button onClick={e => { e.stopPropagation(); setCalcModal({ open:true, actividad:a }); }}
                                                                 style={{ background:'#27ae6018', border:'none', borderRadius:6, cursor:'pointer', fontSize:13, padding:'2px 5px' }} title="Ver comisión">🧮</button>

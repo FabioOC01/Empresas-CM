@@ -414,13 +414,13 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
                                 {/* Fechas */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                                    <label style={lbl}>Fecha de creación
+                                    <label style={lbl}>Fecha de inicio
                                         <input style={(!actividad && puedeElegirVendedor) ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
                                             type="date" value={form.fecha}
                                             readOnly={!!actividad || !puedeElegirVendedor}
                                             onChange={e => (!actividad && puedeElegirVendedor) && handleFechaChange(e.target.value)} />
                                     </label>
-                                    <label style={lbl}> Vencimiento
+                                    <label style={lbl}>Fin estimado
                                         <input style={inp} type="date" value={form.fecha_fin || ''}
                                             min={form.fecha}
                                             onChange={e => set('fecha_fin', e.target.value)} />
