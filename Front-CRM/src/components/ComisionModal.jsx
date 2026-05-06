@@ -6,20 +6,21 @@ import { updateActividad } from '../api/actividades';
 import { fmtUSD, parseGastos } from '../utils/crm';
 
 // ── Configuración ──────────────────────────────────────────────────────────
-const COMISION_BASE = 'utilidad'; // 'facturacion' | 'utilidad'
+const COMISION_BASE = 'rentabilidad'; // 'facturacion' | 'rentabilidad'
 const MARGEN_MINIMO = 2;
 const MARGEN_MEDIO  = 15;
 const MARGEN_ALTO   = 20;
 // ──────────────────────────────────────────────────────────────────────────
 
-function calcComision(facturacion, costoTotal, cuota, pctBase = 0.02, pctBajo = 0.07, pctAlto = 0.08) {
-    const utilidad    = facturacion - costoTotal;
-    const margen_pct  = facturacion > 0 ? (utilidad / facturacion) * 100 : 0;
+function calcComision(facturacion, costoBase, sunatMonto, gastosTotal, cuota, pctBase = 0.02, pctBajo = 0.07, pctAlto = 0.08) {
+    const utilidad_bruta = facturacion - costoBase;
+    const rentabilidad   = utilidad_bruta - sunatMonto - gastosTotal;
+    const margen_pct     = facturacion > 0 ? (rentabilidad / facturacion) * 100 : 0;
     const util_minima = cuota * (MARGEN_MINIMO / 100);
 
     let estado, pct_comision = 0, mensaje = '';
 
-    if (utilidad < 0) {
+    if (rentabilidad < 0) {
         estado  = 'perdida';
         mensaje = 'Trabajó con pérdida, no aplica comisión';
     } else if (facturacion < cuota) {
@@ -42,9 +43,21 @@ function calcComision(facturacion, costoTotal, cuota, pctBase = 0.02, pctBajo = 
         mensaje      = `Comision del ${(pctAlto * 100).toFixed(0)}% por margen desde ${MARGEN_ALTO}%`;
     }
 
-    const base_valor     = COMISION_BASE === 'facturacion' ? facturacion : Math.max(0, utilidad);
+    const base_valor     = COMISION_BASE === 'facturacion' ? facturacion : Math.max(0, rentabilidad);
     const monto_comision = base_valor * pct_comision;
-    return { utilidad, margen_pct, util_minima, costoTotal, estado, pct_comision, monto_comision, mensaje, base_valor };
+    return {
+        utilidad_bruta,
+        rentabilidad,
+        utilidad: rentabilidad,
+        margen_pct,
+        util_minima,
+        costoTotal: costoBase + sunatMonto + gastosTotal,
+        estado,
+        pct_comision,
+        monto_comision,
+        mensaje,
+        base_valor,
+    };
 }
 
 const ESTADO_LABEL = {
@@ -94,8 +107,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const calc = useMemo(() => {
         const sunatMonto  = facturacion * (sunatPct / 100);
         const gastosTotal = gastos.reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
-        const costoTotal  = costoBase + gastosTotal + sunatMonto;
-        return { ...calcComision(facturacion, costoTotal, cuota, pctBase, pctBajo, pctAlto), sunatMonto, gastosTotal };
+        return { ...calcComision(facturacion, costoBase, sunatMonto, gastosTotal, cuota, pctBase, pctBajo, pctAlto), sunatMonto, gastosTotal };
     }, [facturacion, costoBase, sunatPct, gastos, cuota, pctBase, pctBajo, pctAlto]);
 
     const ec = ESTADO_COLOR[calc.estado];
@@ -215,28 +227,31 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                     <div style={{ display:'grid', gap:14 }}>
                         <div style={{ fontSize:12, fontWeight:700, color:tk.txt2, textTransform:'uppercase', letterSpacing:0.6 }}>Resultado</div>
 
-                        {/* Cuadro 1 — cascada de utilidad */}
+                        {/* Cuadro 1 — cascada de rentabilidad */}
                         <div style={{ background:tk.card2, borderRadius:12, overflow:'hidden', borderTop:`3px solid ${ec}` }}>
                             <div style={{ padding:'11px 16px', borderBottom:`1px solid ${tk.bdr}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                <span style={{ fontSize:12, fontWeight:700, color:tk.txt }}>Utilidad y margen</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:tk.txt }}>Rentabilidad</span>
                                 <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:ec+'22', color:ec, whiteSpace:'nowrap' }}>
                                     {ESTADO_LABEL[calc.estado]}
                                 </span>
                             </div>
                             <div style={{ padding:'12px 16px', display:'grid', gap:8 }}>
-                                {/* Fórmula: Facturación − costos = Utilidad */}
+                                {/* Formula: facturacion - costo = utilidad bruta; luego SUNAT/gastos = rentabilidad. */}
                                 <ResRow label="Facturación real"                        value={USD2(facturacion)}             color={tk.txt} bold />
                                 <ResRow label="− Costo real"                            value={USD2(costoBase)}               color='#e74c3c' />
-                                {calc.gastosTotal > 0 && (
-                                    <ResRow label="− Gastos adicionales"                value={USD2(calc.gastosTotal)}        color='#e74c3c' />
-                                )}
+                                <ResRow label="= Utilidad bruta"
+                                    value={USD2(calc.utilidad_bruta)}
+                                    color={calc.utilidad_bruta >= 0 ? '#27ae60' : '#e74c3c'} bold />
                                 {calc.sunatMonto > 0 && (
                                     <ResRow label={`− SUNAT (${sunatPct.toFixed(1)}%)`} value={USD2(calc.sunatMonto)}         color='#e74c3c' />
                                 )}
+                                {calc.gastosTotal > 0 && (
+                                    <ResRow label="− Gastos adicionales"                value={USD2(calc.gastosTotal)}        color='#e74c3c' />
+                                )}
                                 <div style={{ borderTop:`1px solid ${tk.bdr}`, margin:'2px 0' }} />
-                                <ResRow label="= Utilidad"
-                                    value={USD2(calc.utilidad)}
-                                    color={calc.utilidad >= 0 ? '#27ae60' : '#e74c3c'} bold />
+                                <ResRow label="= Rentabilidad"
+                                    value={USD2(calc.rentabilidad)}
+                                    color={calc.rentabilidad >= 0 ? '#27ae60' : '#e74c3c'} bold />
                                 <ResRow label="Margen obtenido"
                                     value={`${calc.margen_pct.toFixed(2)}%`}
                                     color={calc.margen_pct >= MARGEN_MINIMO ? '#27ae60' : '#e74c3c'} bold />
@@ -261,7 +276,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                     <div>
                                         <div style={{ fontSize:10, color:tk.txt3 }}>tramo aplicado</div>
                                         <div style={{ fontSize:11, color:tk.txt2, marginTop:2 }}>
-                                            base: {COMISION_BASE === 'facturacion' ? 'facturación' : 'utilidad'}
+                                            base: {COMISION_BASE === 'facturacion' ? 'facturación' : 'rentabilidad'}
                                         </div>
                                     </div>
                                 </div>

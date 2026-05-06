@@ -46,13 +46,14 @@ export default function Planificador() {
     const tasa_sunat = parseFloat(config?.tasa_sunat) || 0;
 
     const miniCalc = (a) => {
-        const fact  = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
-        const costo = (parseFloat(a.costo_base) || 0)
-            + parseGastos(a.gastos_operativos).reduce((s, g) => s + (parseFloat(g.monto) || 0), 0)
-            + fact * tasa_sunat;
-        const util   = fact - costo;
-        const margen = fact > 0 ? (util / fact) * 100 : 0;
-        return { util, margen };
+        const fact = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
+        const costoBase = parseFloat(a.costo_base) || 0;
+        const gastos = parseGastos(a.gastos_operativos).reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
+        const sunat = fact * tasa_sunat;
+        const utilidadBruta = fact - costoBase;
+        const rentabilidad = utilidadBruta - gastos - sunat;
+        const margen = fact > 0 ? (rentabilidad / fact) * 100 : 0;
+        return { util: rentabilidad, margen };
     };
     const vendedorForzado = useRolFilter(); // null = ve todo, string = solo su id
     const [searchParams] = useSearchParams();
