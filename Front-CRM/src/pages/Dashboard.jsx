@@ -11,17 +11,6 @@ import PeriodoPicker from '../components/PeriodoPicker';
 import Avatar from '../components/Avatar';
 import { useTheme } from '../context/ThemeContext';
 
-const ETAPA_STYLES = [
-    { bg: '#fdf0f8', accent: '#e91e8c' },
-    { bg: '#eaf4fb', accent: '#2980b9' },
-    { bg: '#fef9e7', accent: '#d4ac0d' },
-    { bg: '#e8f8f0', accent: '#1e8449' },
-    { bg: '#f5f0ff', accent: '#8e44ad' },
-    { bg: '#fff0f5', accent: '#e74c3c' },
-    { bg: '#f0fff4', accent: '#16a085' },
-];
-
-
 export default function Dashboard() {
     const { actividades, config } = useActividades();
     const tk     = useTheme();
@@ -80,13 +69,6 @@ export default function Dashboard() {
     const ESTADO_COLOR = { 'Completado':'#27ae60','Ganada':'#1e8449','En Progreso':'#10b981','Pendiente':'#e67e22','Perdida':'#e74c3c' };
 
 
-    const pipeline = (config?.pipeline_etapas || []).map((e, i) => ({
-        label: e.nombre.toUpperCase(),
-        tipos: e.tipos,
-        items: data.filter(a => e.tipos.includes(a.tipo)),
-        ...ETAPA_STYLES[i % ETAPA_STYLES.length],
-    }));
-
     // Charts
     const byVendedorEstado = vendedores.map(v => ({
         name: v.nombre.split(' ')[0],
@@ -131,25 +113,35 @@ export default function Dashboard() {
 
     const topOps = [...data].sort((a,b) => b.monto - a.monto).slice(0,8);
 
-    const completadasN = data.filter(a => a.estado === 'Completado').length;
-    const enProgresoN  = data.filter(a => a.estado === 'En Progreso').length;
-    const pendientesN  = data.filter(a => a.estado === 'Pendiente').length;
-    const tasaCierre   = data.length ? Math.round(completadasN / data.length * 100) : 0;
-    const montoTotal   = data.filter(a => a.estado === 'Completado').reduce((s,a) => s + Number(a.monto), 0);
-    const pipelineMax  = Math.max(...pipeline.map(p => p.items.length), 1);
+    // Avance mensual por vendedor (basado en ventas Ganada del periodo)
+    const avanceMensual = vendedores.map(v => {
+        const vVentas = ventasGanadas.filter(a => a.vendedor_id === v.id);
+        const fact = vVentas.reduce((s,a) => s + (parseFloat(a.precio_venta) || parseFloat(a.monto) || 0), 0);
+        const rent = vVentas.reduce((s,a) => {
+            const f = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
+            const c = parseFloat(a.costo_base) || 0;
+            const g = parseGastos(a.gastos_operativos).reduce((x, y) => x + (parseFloat(y.monto) || 0), 0);
+            return s + (f - c);
+        }, 0);
+        const metaFact = parseFloat(v.meta_facturacion_mensual) || 0;
+        const metaRent = parseFloat(v.meta_mensual) || 0;
+        return {
+            ...v,
+            fact, rent, metaFact, metaRent,
+            pctFact: metaFact > 0 ? Math.min((fact / metaFact) * 100, 100) : 0,
+            pctRent: metaRent > 0 ? Math.min((rent / metaRent) * 100, 100) : 0,
+        };
+    });
 
     return (
-        <div>           
-            <div className="card" style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:0, marginBottom:20, overflow:'hidden', padding:0 }}>
-                {pipeline.map((p, i) => (
-                    <div key={p.label} style={{ background: tk.isDark ? 'var(--bg-card)' : p.bg, padding:'16px 14px', borderRight: i < 4 ? `1px solid var(--border)` : 'none', textAlign:'center' }}>
-                        <div style={{ fontSize:10, fontWeight:800, color:p.accent, letterSpacing:1, marginBottom:6 }}>{p.label}</div>
-                        <div style={{ fontSize:26, fontWeight:800, color:tk.txt, lineHeight:1, marginBottom:8 }}>{p.items.length}</div>
-                        <div style={{ height:3, background: p.accent + '25', borderRadius:2 }}>
-                            <div style={{ height:'100%', borderRadius:2, width:`${(p.items.length/pipelineMax)*100}%`, background:p.accent, transition:'width 0.6s ease' }} />
-                        </div>
-                    </div>
-                ))}
+        <div>
+            {/* Meta Global */}
+            <div style={{ ...card, marginBottom:20 }}>
+                <div style={ct}>Meta Global</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+                    <MetaGlobalBox tk={tk} titulo="Rentabilidad" logrado={rentabilidadGlobal} meta={metaGlobalRent} pct={pctMetaRent} hit={metaRentHit} moneda={moneda} />
+                    <MetaGlobalBox tk={tk} titulo="Facturación"  logrado={facturacionGlobal}  meta={metaGlobalFact} pct={pctMetaFact} hit={metaFactHit} moneda={moneda} />
+                </div>
             </div>
 
             <div style={{ display:'flex', justifyContent:'center', alignItems:'center', marginBottom:24 }}>
@@ -283,13 +275,24 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* Meta Global */}
+            {/* Avance mensual por vendedor */}
             <div style={{ ...card, marginBottom:20 }}>
-                <div style={ct}>Meta Global</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-                    <MetaGlobalBox tk={tk} titulo="Rentabilidad" logrado={rentabilidadGlobal} meta={metaGlobalRent} pct={pctMetaRent} hit={metaRentHit} moneda={moneda} />
-                    <MetaGlobalBox tk={tk} titulo="Facturación"  logrado={facturacionGlobal}  meta={metaGlobalFact} pct={pctMetaFact} hit={metaFactHit} moneda={moneda} />
-                </div>
+                <div style={ct}>Avance mensual por vendedor</div>
+                {avanceMensual.length === 0
+                    ? <div style={{ color:tk.txt3, fontSize:12, textAlign:'center', padding:14 }}>Sin vendedores</div>
+                    : <div style={{ display:'grid', gap:12 }}>
+                        {avanceMensual.map(v => (
+                            <div key={v.id} style={{ display:'grid', gridTemplateColumns:'180px 1fr 1fr', gap:14, alignItems:'center' }}>
+                                <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+                                    <Avatar vendedor={v} size="sm" />
+                                    <div style={{ fontSize:13, fontWeight:700, color:tk.txt, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{v.nombre}</div>
+                                </div>
+                                <AvanceBar tk={tk} label="Facturación" logrado={v.fact} meta={v.metaFact} pct={v.pctFact} moneda={moneda} color="#5b8dee" />
+                                <AvanceBar tk={tk} label="Rentabilidad Bruta" logrado={v.rent} meta={v.metaRent} pct={v.pctRent} moneda={moneda} color="#10b981" />
+                            </div>
+                        ))}
+                    </div>
+                }
             </div>
 
             {/* Top oportunidades */}
@@ -427,6 +430,26 @@ export default function Dashboard() {
                     </div>
                 );
             })()}
+        </div>
+    );
+}
+
+function AvanceBar({ tk, label, logrado, meta, pct, moneda, color }) {
+    const hit = meta > 0 && logrado >= meta;
+    const barColor = hit ? '#10b981' : color;
+    return (
+        <div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:4 }}>
+                <span style={{ color:tk.txt2, fontWeight:600 }}>{label}</span>
+                <span style={{ color:tk.txt2, fontFamily:'monospace' }}>
+                    <strong style={{ color:tk.txt }}>{fmtUSD(logrado, moneda)}</strong>
+                    {meta > 0 && <span style={{ color:tk.txt3 }}> / {fmtUSD(meta, moneda)}</span>}
+                    <span style={{ marginLeft:6, color: hit ? '#10b981' : tk.txt3, fontWeight:700 }}>{pct.toFixed(0)}%</span>
+                </span>
+            </div>
+            <div style={{ height:8, background:tk.bg, borderRadius:999, overflow:'hidden', border:`1px solid ${tk.bdr}` }}>
+                <div style={{ height:'100%', width:`${pct}%`, background:barColor, transition:'width 0.5s ease' }} />
+            </div>
         </div>
     );
 }
