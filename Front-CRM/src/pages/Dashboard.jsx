@@ -6,7 +6,7 @@ const renderActivePie = ({ cx, cy, innerRadius, outerRadius, startAngle, endAngl
 );
 import { getVendedores } from '../api/actividades';
 import useActividades from '../hooks/useActividades';
-import { filterActs, fmtUSD, fmt, calcDuration, parseGastos } from '../utils/crm';
+import { filterActs, fmtUSD, fmt, calcDuration, parseGastos, MESES } from '../utils/crm';
 import PeriodoPicker from '../components/PeriodoPicker';
 import Avatar from '../components/Avatar';
 import { useTheme } from '../context/ThemeContext';
@@ -18,7 +18,7 @@ export default function Dashboard() {
     const moneda = config?.moneda || 'USD';
     const [vendedores, setVendedores] = useState([]);
     const [trim, setTrim] = useState('');
-    const [mes, setMes]   = useState('');
+    const [mes, setMes]   = useState(MESES[new Date().getMonth()]);
     const [año, setAño]   = useState('');
     const [vend, setVend] = useState('');
     const [activePieIdx, setActivePieIdx] = useState(null);
@@ -76,6 +76,7 @@ export default function Dashboard() {
     // Charts
     const byVendedorEstado = vendedores.map(v => ({
         name: v.nombre.split(' ')[0],
+        Ganada:        data.filter(a => a.vendedor_id === v.id && a.estado === 'Ganada').length,
         Completado:    data.filter(a => a.vendedor_id === v.id && a.estado === 'Completado').length,
         'En Progreso': data.filter(a => a.vendedor_id === v.id && a.estado === 'En Progreso').length,
         Pendiente:     data.filter(a => a.vendedor_id === v.id && a.estado === 'Pendiente').length,
@@ -256,10 +257,11 @@ export default function Dashboard() {
                             <YAxis {...axisProps} allowDecimals={false} />
                             <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} />
                             <Legend iconSize={11} iconType="square" wrapperStyle={{ fontSize:11, color: tk.txt2 }} />
-                            <Bar dataKey="Completado"   stackId="a" fill="#27ae60" />
-                            <Bar dataKey="En Progreso"  stackId="a" fill="#10b981" />
-                            <Bar dataKey="Pendiente"    stackId="a" fill="#e67e22" />
-                            <Bar dataKey="Perdida"      stackId="a" fill="#e74c3c" radius={[4,4,0,0]} />
+                            <Bar dataKey="Ganada"       stackId="a" fill="#1e8449" animationDuration={900} animationEasing="ease-out" />
+                            <Bar dataKey="Completado"   stackId="a" fill="#3498db" animationDuration={900} animationEasing="ease-out" />
+                            <Bar dataKey="En Progreso"  stackId="a" fill="#9b59b6" animationDuration={900} animationEasing="ease-out" />
+                            <Bar dataKey="Pendiente"    stackId="a" fill="#f1c40f" animationDuration={900} animationEasing="ease-out" />
+                            <Bar dataKey="Perdida"      stackId="a" fill="#e74c3c" radius={[4,4,0,0]} animationDuration={900} animationEasing="ease-out" />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>

@@ -53,7 +53,7 @@ export default function PeriodoPicker({ trim = '', mes = '', año = '', onTrim, 
                         <>
                             <div style={{ fontSize: 10, fontWeight: 700, color: tk.txt2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Año</div>
                             <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                                {['2024','2025','2026'].map(y => (
+                                {['2026'].map(y => (
                                     <button key={y} onClick={() => { onAño && onAño(año === y ? '' : y); }}
                                         style={{
                                             flex: 1, padding: '7px 0', borderRadius: 7, border: 'none', cursor: 'pointer',
