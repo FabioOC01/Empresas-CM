@@ -112,6 +112,10 @@ export function filterActs(acts, filters = {}) {
             if (a.vendedor_id !== filters.vendedorId && !cols.includes(filters.vendedorId)) return false;
         }
         if (filters.mes       && a.mes        !== filters.mes)       return false;
+        if (filters.año) {
+            const y = a.fecha ? new Date(a.fecha).getFullYear() : null;
+            if (String(y) !== String(filters.año)) return false;
+        }
         if (filters.tipo      && a.tipo        !== filters.tipo)      return false;
         if (filters.estado    && a.estado      !== filters.estado)    return false;
         if (filters.prioridad && a.prioridad   !== filters.prioridad) return false;

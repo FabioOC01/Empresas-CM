@@ -6,7 +6,7 @@ const renderActivePie = ({ cx, cy, innerRadius, outerRadius, startAngle, endAngl
 );
 import { getVendedores } from '../api/actividades';
 import useActividades from '../hooks/useActividades';
-import { filterActs, fmtUSD, fmt, calcDuration, MESES } from '../utils/crm';
+import { filterActs, fmtUSD, fmt, calcDuration, parseGastos } from '../utils/crm';
 import PeriodoPicker from '../components/PeriodoPicker';
 import Avatar from '../components/Avatar';
 import { useTheme } from '../context/ThemeContext';
@@ -55,7 +55,12 @@ export default function Dashboard() {
 
     useEffect(() => {
         getVendedores().then(vs =>
-            setVendedores(vs.filter(v => !v.roles?.some(r => ['Admin','Gerencia'].includes(r))))
+            setVendedores(vs.filter(v => {
+                const roles = v.roles || [];
+                if (roles.includes('Admin')) return false;
+                if (roles.includes('Gerencia')) return roles.some(r => r !== 'Gerencia');
+                return true;
+            }))
         );
     }, []);
 
@@ -95,9 +100,23 @@ export default function Dashboard() {
     const byTipo = TIPOS_ALL.map(t => ({ name: t, value: data.filter(a => a.tipo === t).length })).filter(x => x.value > 0);
     const TIPO_COLORS = ['#10b981','#27ae60','#e67e22','#8e44ad','#e74c3c','#1abc9c','#e91e63','#4caf50','#ff9800','#9c27b0'];
 
-    const byMes = MESES.map(m => ({
-        name: m, count: data.filter(a => a.mes === m).length,
-    })).filter(x => x.count > 0);
+    const tasaSunatGlobal = parseFloat(config?.tasa_sunat) || 0;
+    const ventasGanadas   = data.filter(a => a.estado === 'Ganada');
+    const facturacionGlobal = ventasGanadas.reduce((s,a) => s + (parseFloat(a.precio_venta) || parseFloat(a.monto) || 0), 0);
+    const rentabilidadGlobal = ventasGanadas.reduce((s,a) => {
+        const fact     = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
+        const costo    = parseFloat(a.costo_base) || 0;
+        const gastos   = parseGastos(a.gastos_operativos).reduce((g, x) => g + (parseFloat(x.monto) || 0), 0);
+        const rentBruta = fact - costo;
+        const sunat    = rentBruta * tasaSunatGlobal;
+        return s + (rentBruta - sunat - gastos);
+    }, 0);
+    const metaGlobalRent = parseFloat(config?.meta_global_rentabilidad) || 0;
+    const metaGlobalFact = parseFloat(config?.meta_global_facturacion)  || 0;
+    const pctMetaRent = metaGlobalRent > 0 ? Math.min((rentabilidadGlobal / metaGlobalRent) * 100, 100) : 0;
+    const pctMetaFact = metaGlobalFact > 0 ? Math.min((facturacionGlobal  / metaGlobalFact) * 100, 100) : 0;
+    const metaRentHit = metaGlobalRent > 0 && rentabilidadGlobal >= metaGlobalRent;
+    const metaFactHit = metaGlobalFact > 0 && facturacionGlobal  >= metaGlobalFact;
 
     const actividadReciente = vendedores
         .map(v => {
@@ -109,12 +128,6 @@ export default function Dashboard() {
         .filter(v => v.ultima)
         .sort((a, b) => b.ultima.id - a.ultima.id)
         .slice(0, 3);
-
-    const tiempoPorEtapa = pipeline.map(p => {
-        const acts = data.filter(a => p.tipos.includes(a.tipo) && (a.elapsed || 0) > 0);
-        const avg  = acts.length > 0 ? acts.reduce((s, a) => s + (a.elapsed || 0), 0) / acts.length : 0;
-        return { name: p.label, horas: parseFloat((avg / 3600).toFixed(1)), color: p.accent };
-    }).filter(x => x.horas > 0);
 
     const topOps = [...data].sort((a,b) => b.monto - a.monto).slice(0,8);
 
@@ -270,43 +283,12 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* Charts — fila 2: barras mes + barras apiladas prioridad */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
-                <div style={card}>
-                    <div style={ct}>Actividades por Mes</div>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={byMes} margin={{ top:20, right:10, left:-10, bottom:0 }}>
-                            <defs>
-                                <linearGradient id="gradMes" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#5b8dee" />
-                                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.7} />
-                                </linearGradient>
-                            </defs>
-                            <XAxis dataKey="name" {...axisProps} />
-                            <YAxis {...axisProps} allowDecimals={false} />
-                            <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} />
-                            <Bar dataKey="count" name="Actividades" fill="url(#gradMes)" radius={[6,6,0,0]} animationDuration={800} animationEasing="ease-out">
-                                <LabelList dataKey="count" position="top" style={{ fill: tk.txt2, fontSize: 11, fontWeight: 600 }} />
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-                <div style={card}>
-                    <div style={ct}>Tiempo Promedio por Etapa</div>
-                    {tiempoPorEtapa.length === 0
-                        ? <div style={{ color: tk.txt3, fontSize:12, textAlign:'center', paddingTop:20 }}>Sin datos de tiempo registrado</div>
-                        : <ResponsiveContainer width="100%" height={240}>
-                            <BarChart data={tiempoPorEtapa} layout="vertical" margin={{ top:4, right:40, left:10, bottom:0 }}>
-                                <XAxis type="number" tick={{ fill: tk.txt2, fontSize:10 }} tickFormatter={v => `${v}h`} />
-                                <YAxis type="category" dataKey="name" tick={{ fill: tk.txt2, fontSize:11 }} width={90} />
-                                <Tooltip contentStyle={ttStyle.contentStyle} itemStyle={ttStyle.itemStyle} cursor={ttStyle.cursor} formatter={v => [`${v}h`, 'Promedio']} />
-                                <Bar dataKey="horas" radius={[0,4,4,0]} fill="#5b8dee" animationDuration={800} animationEasing="ease-out">
-                                    {tiempoPorEtapa.map((e, i) => <Cell key={i} fill={e.color} />)}
-                                    <LabelList dataKey="horas" position="right" formatter={v => `${v}h`} style={{ fill: tk.txt2, fontSize: 11, fontWeight: 600 }} />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    }
+            {/* Meta Global */}
+            <div style={{ ...card, marginBottom:20 }}>
+                <div style={ct}>Meta Global</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+                    <MetaGlobalBox tk={tk} titulo="Rentabilidad" logrado={rentabilidadGlobal} meta={metaGlobalRent} pct={pctMetaRent} hit={metaRentHit} moneda={moneda} />
+                    <MetaGlobalBox tk={tk} titulo="Facturación"  logrado={facturacionGlobal}  meta={metaGlobalFact} pct={pctMetaFact} hit={metaFactHit} moneda={moneda} />
                 </div>
             </div>
 
@@ -445,6 +427,37 @@ export default function Dashboard() {
                     </div>
                 );
             })()}
+        </div>
+    );
+}
+
+function MetaGlobalBox({ tk, titulo, logrado, meta, pct, hit, moneda }) {
+    const color = hit ? '#10b981' : meta > 0 ? '#e67e22' : tk.txt3;
+    return (
+        <div style={{ background:tk.card2, borderRadius:12, padding:'16px 18px', borderTop:`3px solid ${color}` }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <span style={{ fontSize:12, fontWeight:700, color:tk.txt }}>{titulo}</span>
+                <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background: color + '22', color }}>
+                    {meta > 0 ? (hit ? 'Meta alcanzada' : 'Meta pendiente') : 'Sin meta'}
+                </span>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                <div>
+                    <div style={{ fontSize:10, color:tk.txt3, marginBottom:3 }}>Logrado</div>
+                    <div style={{ fontSize:20, fontWeight:800, color:tk.txt }}>{fmtUSD(logrado, moneda)}</div>
+                </div>
+                <div>
+                    <div style={{ fontSize:10, color:tk.txt3, marginBottom:3 }}>Meta</div>
+                    <div style={{ fontSize:20, fontWeight:800, color:tk.txt }}>{fmtUSD(meta, moneda)}</div>
+                </div>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                <span style={{ fontSize:11, color:tk.txt2, fontWeight:600 }}>Avance</span>
+                <span style={{ fontSize:14, fontWeight:800, color }}>{pct.toFixed(1)}%</span>
+            </div>
+            <div style={{ height:10, background:tk.bg, borderRadius:999, overflow:'hidden', border:`1px solid ${tk.bdr}` }}>
+                <div style={{ height:'100%', width:`${pct}%`, background: hit ? 'linear-gradient(90deg,#10b981,#27ae60)' : 'linear-gradient(90deg,#e67e22,#f1c40f)', transition:'width 0.6s ease' }} />
+            </div>
         </div>
     );
 }

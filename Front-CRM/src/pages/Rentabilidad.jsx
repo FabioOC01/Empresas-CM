@@ -120,6 +120,7 @@ export default function Rentabilidad() {
 
     const [mes,        setMes]        = useState('');
     const [trimestre,  setTrimestre]  = useState('');
+    const [año,        setAño]        = useState('');
     const [vendedorId, setVendedorId] = useState('');
     const [vendedoresData, setVendedoresData] = useState([]);
     const [editingId,  setEditingId]  = useState(null);
@@ -128,6 +129,8 @@ export default function Rentabilidad() {
         meta_facturacion_mensual: 0,
         meta_rentabilidad_trimestral: 0,
         meta_facturacion_trimestral: 0,
+        meta_rentabilidad_anual: 0,
+        meta_facturacion_anual: 0,
         umbral_comision: 0,
     });
     const [casosOpen,  setCasosOpen]  = useState(false);
@@ -135,10 +138,10 @@ export default function Rentabilidad() {
     useEffect(() => { getVendedores().then(setVendedoresData); }, []);
 
     const ventas = useMemo(() => filterActs(actividades, {
-        mes, trimestre,
+        mes, trimestre, año,
         vendedorId: vendedorForzado || vendedorId,
     }).filter(a => ESTADOS_VENTA_CERRADA.has(a.estado)),
-    [actividades, mes, trimestre, vendedorId, vendedorForzado]);
+    [actividades, mes, trimestre, año, vendedorId, vendedorForzado]);
 
     // Agrupado por vendedor — incluye SUNAT y desglose por actividad
     const porVendedor = useMemo(() => {
@@ -196,6 +199,12 @@ export default function Rentabilidad() {
             {/* Filtros */}
             <div style={{ display:'flex', justifyContent:'center', gap:8, alignItems:'center' }}>
                 <PeriodoPicker trim={trimestre} mes={mes} onTrim={setTrimestre} onMes={setMes} />
+                <select style={sel} value={año} onChange={e => setAño(e.target.value)}>
+                    <option value="">Todos los años</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                </select>
                 {!vendedorForzado && (
                     <select style={sel} value={vendedorId} onChange={e => setVendedorId(e.target.value)}>
                         <option value="">Todos los vendedores</option>
@@ -214,10 +223,15 @@ export default function Rentabilidad() {
             {/* Tarjetas por vendedor */}
             {porVendedor.map(v => {
                 const vData      = vendedoresData.find(x => x.id === v.id);
-                const esTrimestre = !!trimestre;
-                const cuota      = esTrimestre ? (vData?.meta_rentabilidad_trimestral ?? 0) : (vData?.meta_mensual ?? 0);
-                const cuotaFacturacion = esTrimestre ? (vData?.meta_facturacion_trimestral ?? 0) : (vData?.meta_facturacion_mensual ?? 0);
-                const periodoMetaLabel = esTrimestre ? 'trimestral' : 'mensual';
+                const esAnual    = !!año && !trimestre && !mes;
+                const esTrimestre = !!trimestre && !esAnual;
+                const cuota = esAnual
+                    ? (vData?.meta_rentabilidad_anual ?? 0)
+                    : esTrimestre ? (vData?.meta_rentabilidad_trimestral ?? 0) : (vData?.meta_mensual ?? 0);
+                const cuotaFacturacion = esAnual
+                    ? (vData?.meta_facturacion_anual ?? 0)
+                    : esTrimestre ? (vData?.meta_facturacion_trimestral ?? 0) : (vData?.meta_facturacion_mensual ?? 0);
+                const periodoMetaLabel = esAnual ? 'anual' : esTrimestre ? 'trimestral' : 'mensual';
                 const pctBase    = parseFloat(vData?.pct_comision_base) || PCT_BASE;
                 const pctBajo    = parseFloat(vData?.pct_comision_bajo) || PCT_BAJO;
                 const pctAlto    = parseFloat(vData?.pct_comision_alto) || PCT_ALTO;
@@ -251,6 +265,8 @@ export default function Rentabilidad() {
                                         meta_facturacion_mensual: vData?.meta_facturacion_mensual ?? 0,
                                         meta_rentabilidad_trimestral: vData?.meta_rentabilidad_trimestral ?? 0,
                                         meta_facturacion_trimestral: vData?.meta_facturacion_trimestral ?? 0,
+                                        meta_rentabilidad_anual: vData?.meta_rentabilidad_anual ?? 0,
+                                        meta_facturacion_anual: vData?.meta_facturacion_anual ?? 0,
                                         umbral_comision: vData?.umbral_comision ?? 0,
                                     }); }}
                                     style={{ border:`1px solid ${tk.bdr}`, background: isEditing ? '#e74c3c22' : tk.card2, cursor:'pointer', fontSize:12, color: isEditing ? '#e74c3c' : tk.txt2, padding:'5px 12px', borderRadius:7, fontWeight:600 }}>
@@ -261,23 +277,38 @@ export default function Rentabilidad() {
 
                         {/* Edit cuota inline */}
                         {isEditing && esAdminGerencia && (
-                            <div style={{ background:tk.card2, borderRadius:10, padding:14, marginBottom:12, display:'grid', gridTemplateColumns:'repeat(4, minmax(140px, 1fr)) auto', gap:12, alignItems:'end' }}>
-                                <label style={lbl}>Cuota de Rentabilidad Bruta mensual (USD)
-                                    <input style={inp} type="number" min="0" value={metaEdit.meta_mensual}
-                                        onChange={e => setMetaEdit(m => ({ ...m, meta_mensual: parseFloat(e.target.value) || 0 }))} />
-                                </label>
-                                <label style={lbl}>Meta de Facturación mensual (USD)
-                                    <input style={inp} type="number" min="0" value={metaEdit.meta_facturacion_mensual}
-                                        onChange={e => setMetaEdit(m => ({ ...m, meta_facturacion_mensual: parseFloat(e.target.value) || 0 }))} />
-                                </label>
-                                <label style={lbl}>Rentabilidad Bruta trimestral (USD)
-                                    <input style={inp} type="number" min="0" value={metaEdit.meta_rentabilidad_trimestral}
-                                        onChange={e => setMetaEdit(m => ({ ...m, meta_rentabilidad_trimestral: parseFloat(e.target.value) || 0 }))} />
-                                </label>
-                                <label style={lbl}>Facturación trimestral (USD)
-                                    <input style={inp} type="number" min="0" value={metaEdit.meta_facturacion_trimestral}
-                                        onChange={e => setMetaEdit(m => ({ ...m, meta_facturacion_trimestral: parseFloat(e.target.value) || 0 }))} />
-                                </label>
+                            <div style={{ background:tk.card2, borderRadius:10, padding:14, marginBottom:12, display:'grid', gridTemplateColumns:`repeat(${esAnual ? 2 : 4}, minmax(140px, 1fr)) auto`, gap:12, alignItems:'end' }}>
+                                {esAnual ? (
+                                    <>
+                                        <label style={lbl}>Rentabilidad Bruta anual (USD)
+                                            <input style={inp} type="number" min="0" value={metaEdit.meta_rentabilidad_anual}
+                                                onChange={e => setMetaEdit(m => ({ ...m, meta_rentabilidad_anual: parseFloat(e.target.value) || 0 }))} />
+                                        </label>
+                                        <label style={lbl}>Facturación anual (USD)
+                                            <input style={inp} type="number" min="0" value={metaEdit.meta_facturacion_anual}
+                                                onChange={e => setMetaEdit(m => ({ ...m, meta_facturacion_anual: parseFloat(e.target.value) || 0 }))} />
+                                        </label>
+                                    </>
+                                ) : (
+                                    <>
+                                        <label style={lbl}>Cuota de Rentabilidad Bruta mensual (USD)
+                                            <input style={inp} type="number" min="0" value={metaEdit.meta_mensual}
+                                                onChange={e => setMetaEdit(m => ({ ...m, meta_mensual: parseFloat(e.target.value) || 0 }))} />
+                                        </label>
+                                        <label style={lbl}>Meta de Facturación mensual (USD)
+                                            <input style={inp} type="number" min="0" value={metaEdit.meta_facturacion_mensual}
+                                                onChange={e => setMetaEdit(m => ({ ...m, meta_facturacion_mensual: parseFloat(e.target.value) || 0 }))} />
+                                        </label>
+                                        <label style={lbl}>Rentabilidad Bruta trimestral (USD)
+                                            <input style={inp} type="number" min="0" value={metaEdit.meta_rentabilidad_trimestral}
+                                                onChange={e => setMetaEdit(m => ({ ...m, meta_rentabilidad_trimestral: parseFloat(e.target.value) || 0 }))} />
+                                        </label>
+                                        <label style={lbl}>Facturación trimestral (USD)
+                                            <input style={inp} type="number" min="0" value={metaEdit.meta_facturacion_trimestral}
+                                                onChange={e => setMetaEdit(m => ({ ...m, meta_facturacion_trimestral: parseFloat(e.target.value) || 0 }))} />
+                                        </label>
+                                    </>
+                                )}
                                 <button onClick={() => handleSaveMeta(v.id)}
                                     style={{ padding:'9px 20px', background:'#10b981', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
                                     Guardar

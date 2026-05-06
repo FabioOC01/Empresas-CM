@@ -46,6 +46,8 @@ function initCfgForm(config) {
         horario_dias:    (config?.horario_dias || CONFIG_DEFAULT.horario_dias).map(d => ({ ...d })),
         tasa_sunat:      ((parseFloat(config?.tasa_sunat)    || 0.295) * 100).toFixed(1),
         tasa_comision:   ((parseFloat(config?.tasa_comision) || 0.05)  * 100).toFixed(1),
+        meta_global_rentabilidad: parseFloat(config?.meta_global_rentabilidad) || 0,
+        meta_global_facturacion:  parseFloat(config?.meta_global_facturacion)  || 0,
         feriados:        [...(config?.feriados || [])],
         feriadoInput:    '',
         moneda:          config?.moneda || 'USD',
@@ -80,9 +82,13 @@ export default function Admin() {
     const inp = { padding:'9px 11px', borderRadius:7, border:`1px solid ${tk.bdr}`, fontSize:13, outline:'none', width:'100%', boxSizing:'border-box', fontFamily:'inherit', background:tk.inp, color:tk.txt };
     const { config, setConfig, configLoaded } = useActividadesContext();
     const { user } = useAuth();
-    const esAdminGerencia = user?.is_superadmin || user?.roles?.some(r => ['Admin','Gerencia'].includes(r));
+    const esAdmin = user?.is_superadmin || user?.roles?.includes('Admin');
+    const esGerencia = user?.roles?.includes('Gerencia');
+    const esAdminGerencia = esAdmin || esGerencia;
 
-    const [seccion,    setSeccion]    = useState('vendedores');
+    const [seccion,    setSeccion]    = useState(
+        (user?.roles?.includes('Gerencia') && !(user?.is_superadmin || user?.roles?.includes('Admin'))) ? 'horario' : 'vendedores'
+    );
     const [vendedores, setVendedores] = useState([]);
     const [editing,    setEditing]    = useState(null);
     const [form,       setForm]       = useState(EMPTY_FORM);
@@ -112,9 +118,13 @@ export default function Admin() {
     }, [configLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Secciones disponibles
-    const secciones = [
+    const secciones = esGerencia && !esAdmin ? [
+        { id: 'horario',   label: 'Horario laboral', icon: '🕐' },
+        { id: 'tasas',     label: 'Tasas',           icon: '💹' },
+        { id: 'feriados',  label: 'Feriados',        icon: '📅' },
+    ] : [
         { id: 'vendedores', label: 'Vendedores',      icon: '👤' },
-        ...(esAdminGerencia ? [
+        ...(esAdmin ? [
             { id: 'horario',   label: 'Horario laboral', icon: '🕐' },
             { id: 'tasas',     label: 'Tasas',           icon: '💹' },
             { id: 'feriados',  label: 'Feriados',        icon: '📅' },
@@ -199,6 +209,8 @@ export default function Admin() {
                 horario_dias:    cfgForm.horario_dias,
                 tasa_sunat:      parseFloat(cfgForm.tasa_sunat)    / 100,
                 tasa_comision:   parseFloat(cfgForm.tasa_comision) / 100,
+                meta_global_rentabilidad: parseFloat(cfgForm.meta_global_rentabilidad) || 0,
+                meta_global_facturacion:  parseFloat(cfgForm.meta_global_facturacion)  || 0,
                 feriados:        cfgForm.feriados,
                 moneda:          cfgForm.moneda,
                 tipos_actividad: cfgForm.tipos_actividad,
@@ -291,6 +303,8 @@ export default function Admin() {
                 meta_facturacion_mensual: parseFloat(edit.meta_facturacion_mensual) || 0,
                 meta_rentabilidad_trimestral: parseFloat(edit.meta_rentabilidad_trimestral) || 0,
                 meta_facturacion_trimestral: parseFloat(edit.meta_facturacion_trimestral) || 0,
+                meta_rentabilidad_anual: parseFloat(edit.meta_rentabilidad_anual) || 0,
+                meta_facturacion_anual:  parseFloat(edit.meta_facturacion_anual)  || 0,
                 umbral_comision:   0,
                 pct_comision_base: (parseFloat(edit.pct_comision_base) || 2)  / 100,
                 pct_comision_bajo: (parseFloat(edit.pct_comision_bajo) || 7)  / 100,
@@ -519,6 +533,27 @@ export default function Admin() {
                             {cfgMsg && <div style={{ marginTop:12 }}><MsgBox msg={cfgMsg} /></div>}
                         </div>
 
+                        {/* Meta Global de la empresa */}
+                        <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'22px 26px' }}>
+                            <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:3 }}>Meta Global de la empresa</div>
+                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se muestran en el Dashboard como Meta Global de Rentabilidad y Facturación.</div>
+                            <form onSubmit={handleSaveCfg} style={{ display:'flex', gap:14, alignItems:'flex-end', flexWrap:'wrap' }}>
+                                <label style={lbl}>Meta Global Rentabilidad (USD)
+                                    <input type="number" min="0" step="0.01" style={{ ...inp, width:180 }}
+                                        value={cfgForm.meta_global_rentabilidad}
+                                        onChange={e => setCfgForm(f => ({ ...f, meta_global_rentabilidad:e.target.value }))} />
+                                </label>
+                                <label style={lbl}>Meta Global Facturación (USD)
+                                    <input type="number" min="0" step="0.01" style={{ ...inp, width:180 }}
+                                        value={cfgForm.meta_global_facturacion}
+                                        onChange={e => setCfgForm(f => ({ ...f, meta_global_facturacion:e.target.value }))} />
+                                </label>
+                                <button type="submit" disabled={cfgSaving} style={btnGuardar(cfgSaving)}>
+                                    {cfgSaving ? 'Guardando...' : 'Guardar'}
+                                </button>
+                            </form>
+                        </div>
+
                         {/* Cuotas y comisiones por vendedor */}
                         <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflowX:'auto', overflowY:'hidden' }}>
                             <div style={{ padding:'16px 22px', borderBottom:`1px solid ${tk.bdr}` }}>
@@ -527,13 +562,15 @@ export default function Admin() {
                             </div>
 
                             {/* Header */}
-                            <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(4,120px) repeat(3,100px) 100px', gap:10, padding:'9px 22px', borderBottom:`1px solid ${tk.bdr}`, background:tk.bg, minWidth:1050 }}>
+                            <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(6,110px) repeat(3,100px) 100px', gap:10, padding:'9px 22px', borderBottom:`1px solid ${tk.bdr}`, background:tk.bg, minWidth:1290 }}>
                                 {[
                                     'Vendedor',
                                     'Rent. Bruta Mes',
                                     'Facturación Mes',
                                     'Rent. Bruta Trim',
                                     'Facturación Trim',
+                                    'Rent. Bruta Anual',
+                                    'Facturación Anual',
                                     'Comision 2%-14%',
                                     'Comisión ≥15%',
                                     'Comisión ≥20%',
@@ -552,6 +589,8 @@ export default function Admin() {
                                     meta_facturacion_mensual: v.meta_facturacion_mensual ?? 0,
                                     meta_rentabilidad_trimestral: v.meta_rentabilidad_trimestral ?? 0,
                                     meta_facturacion_trimestral: v.meta_facturacion_trimestral ?? 0,
+                                    meta_rentabilidad_anual: v.meta_rentabilidad_anual ?? 0,
+                                    meta_facturacion_anual:  v.meta_facturacion_anual  ?? 0,
                                     pct_comision_base: defBase,
                                     pct_comision_bajo: defBajo,
                                     pct_comision_alto: defAlto,
@@ -562,6 +601,8 @@ export default function Admin() {
                                              || String(edit.meta_facturacion_mensual) !== String(v.meta_facturacion_mensual ?? 0)
                                              || String(edit.meta_rentabilidad_trimestral) !== String(v.meta_rentabilidad_trimestral ?? 0)
                                              || String(edit.meta_facturacion_trimestral) !== String(v.meta_facturacion_trimestral ?? 0)
+                                             || String(edit.meta_rentabilidad_anual) !== String(v.meta_rentabilidad_anual ?? 0)
+                                             || String(edit.meta_facturacion_anual)  !== String(v.meta_facturacion_anual  ?? 0)
                                              || String(edit.pct_comision_base)  !== String(defBase)
                                              || String(edit.pct_comision_bajo)  !== String(defBajo)
                                              || String(edit.pct_comision_alto)  !== String(defAlto);
@@ -569,7 +610,7 @@ export default function Admin() {
                                     ...prev, [v.id]: { ...edit, [field]: val },
                                 }));
                                 return (
-                                    <div key={v.id} style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(4,120px) repeat(3,100px) 100px', gap:10, padding:'13px 22px', borderBottom:`1px solid ${tk.bdr}`, alignItems:'center', minWidth:1050 }}>
+                                    <div key={v.id} style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(6,110px) repeat(3,100px) 100px', gap:10, padding:'13px 22px', borderBottom:`1px solid ${tk.bdr}`, alignItems:'center', minWidth:1290 }}>
                                         {/* Vendedor */}
                                         <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
                                             <Avatar vendedor={v} size="sm" />
@@ -599,6 +640,16 @@ export default function Admin() {
                                             style={{ ...inp, width:'100%' }}
                                             value={edit.meta_facturacion_trimestral}
                                             onChange={e => setEdit('meta_facturacion_trimestral', e.target.value)} />
+
+                                        <input type="number" min="0" step="0.01" placeholder="0.00"
+                                            style={{ ...inp, width:'100%' }}
+                                            value={edit.meta_rentabilidad_anual}
+                                            onChange={e => setEdit('meta_rentabilidad_anual', e.target.value)} />
+
+                                        <input type="number" min="0" step="0.01" placeholder="0.00"
+                                            style={{ ...inp, width:'100%' }}
+                                            value={edit.meta_facturacion_anual}
+                                            onChange={e => setEdit('meta_facturacion_anual', e.target.value)} />
 
                                         {/* Comisión ≥15% margen */}
                                         <PctInput value={edit.pct_comision_base} inp={inp}

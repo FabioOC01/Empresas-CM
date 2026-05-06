@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
         const { rows } = await pool.query(
             `SELECT nombre, horario_dias, tasa_sunat, tasa_comision, feriados,
                     moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
-                    attendance_config
+                    attendance_config, meta_global_rentabilidad, meta_global_facturacion
              FROM empresas WHERE id = $1`,
             [req.user.empresa_id]
         );
@@ -28,7 +28,7 @@ router.put('/', async (req, res) => {
 
     const { horario_dias, tasa_sunat, tasa_comision, feriados,
             moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
-            attendance_config } = req.body;
+            attendance_config, meta_global_rentabilidad, meta_global_facturacion } = req.body;
     try {
         const { rows } = await pool.query(
             `UPDATE empresas
@@ -41,11 +41,13 @@ router.put('/', async (req, res) => {
                  pipeline_etapas = COALESCE($7::jsonb, pipeline_etapas),
                  rol_tipos       = COALESCE($8::jsonb, rol_tipos),
                  branding        = COALESCE($9::jsonb, branding),
-                 attendance_config = COALESCE($10::jsonb, attendance_config)
+                 attendance_config = COALESCE($10::jsonb, attendance_config),
+                 meta_global_rentabilidad = COALESCE($12, meta_global_rentabilidad),
+                 meta_global_facturacion  = COALESCE($13, meta_global_facturacion)
              WHERE id = $11
              RETURNING horario_dias, tasa_sunat, tasa_comision, feriados,
                        moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
-                       attendance_config`,
+                       attendance_config, meta_global_rentabilidad, meta_global_facturacion`,
             [
                 horario_dias    != null ? JSON.stringify(horario_dias)    : null,
                 tasa_sunat      ?? null,
@@ -58,6 +60,8 @@ router.put('/', async (req, res) => {
                 branding        != null ? JSON.stringify(branding)        : null,
                 attendance_config != null ? JSON.stringify(attendance_config) : null,
                 req.user.empresa_id,
+                meta_global_rentabilidad ?? null,
+                meta_global_facturacion  ?? null,
             ]
         );
         res.json(rows[0]);

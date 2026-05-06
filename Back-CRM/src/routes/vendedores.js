@@ -45,6 +45,7 @@ router.get('/', async (req, res) => {
             SELECT v.id, v.nombre, v.iniciales, v.color, ${usernameExpr(columns)} AS username, v.email, v.cargo,
                    v.meta_mensual, v.umbral_comision,
                    v.meta_facturacion_mensual, v.meta_rentabilidad_trimestral, v.meta_facturacion_trimestral,
+                   v.meta_rentabilidad_anual, v.meta_facturacion_anual,
                    ${pctBaseExpr(columns)},
                    v.pct_comision_bajo, v.pct_comision_alto, v.foto_url,
                    v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa, v.horario_dias,
@@ -294,6 +295,8 @@ router.put('/:id/metas', async (req, res) => {
         meta_facturacion_mensual,
         meta_rentabilidad_trimestral,
         meta_facturacion_trimestral,
+        meta_rentabilidad_anual,
+        meta_facturacion_anual,
         umbral_comision,
         pct_comision_base,
         pct_comision_bajo,
@@ -316,10 +319,13 @@ router.put('/:id/metas', async (req, res) => {
                 pct_comision_alto = $5,
                 meta_facturacion_mensual = $6,
                 meta_rentabilidad_trimestral = $7,
-                meta_facturacion_trimestral = $8
-            WHERE id = $9 AND empresa_id = $10
+                meta_facturacion_trimestral = $8,
+                meta_rentabilidad_anual = $9,
+                meta_facturacion_anual  = $10
+            WHERE id = $11 AND empresa_id = $12
             RETURNING id, meta_mensual, umbral_comision, pct_comision_base, pct_comision_bajo, pct_comision_alto,
-                      meta_facturacion_mensual, meta_rentabilidad_trimestral, meta_facturacion_trimestral
+                      meta_facturacion_mensual, meta_rentabilidad_trimestral, meta_facturacion_trimestral,
+                      meta_rentabilidad_anual, meta_facturacion_anual
         `, [
             meta_mensual,
             umbral_comision,
@@ -329,6 +335,8 @@ router.put('/:id/metas', async (req, res) => {
             meta_facturacion_mensual ?? 0,
             meta_rentabilidad_trimestral ?? 0,
             meta_facturacion_trimestral ?? 0,
+            meta_rentabilidad_anual ?? 0,
+            meta_facturacion_anual  ?? 0,
             req.params.id,
             empresa_id,
         ]);
