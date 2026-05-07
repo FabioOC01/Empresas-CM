@@ -7,6 +7,10 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const Q_MAP = { '1':[0,1,2], '2':[3,4,5], '3':[6,7,8], '4':[9,10,11] };
 
+function todayISODate() {
+    return new Date().toISOString().slice(0, 10);
+}
+
 // GET /api/actividades
 router.get('/', async (req, res) => {
     try {
@@ -66,6 +70,8 @@ router.post('/', async (req, res) => {
                 cliente_ruc, cliente_email, cliente_telefono,
                 colaboradores, checklist } = req.body;
         const empresa_id = req.user.empresa_id;
+        const fechaInicio = fecha || todayISODate();
+        const mesActividad = mes || MESES[new Date(`${fechaInicio}T12:00:00`).getMonth()];
 
         // Solo Admin/Gerencia/Superadmin pueden asignar actividades a otros vendedores
         if (!canManageAll(req.user) && vendedor_id !== req.user.id)
@@ -82,7 +88,7 @@ router.post('/', async (req, res) => {
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
              RETURNING *`,
             [id || Date.now(), nombre, tipo, vendedor_id, cliente, monto || 0,
-             prioridad, estado, mes, fecha, fecha_fin || null, elapsed || 0, notas || '',
+             prioridad, estado, mesActividad, fechaInicio, fecha_fin || null, elapsed || 0, notas || '',
              ts.ts_pendiente, ts.ts_en_progreso, ts.ts_completado,
              precio_venta || 0, costo_base || 0,
              JSON.stringify(gastos_operativos || []), ajuste_interno || 0,
@@ -122,11 +128,12 @@ router.put('/:id', async (req, res) => {
             if (!esOwner) soloChecklist = true;
         }
 
-        // La fecha de creación NO se puede editar una vez creada la actividad
+        const puedeEditarFechaInicio = req.user?.is_superadmin || req.user?.roles?.includes('Admin');
         const allowedFull = ['nombre','tipo','vendedor_id','cliente','monto','prioridad','estado','mes','notas','fecha_fin',
                          'precio_venta','costo_base','gastos_operativos','ajuste_interno',
                          'cliente_ruc','cliente_email','cliente_telefono',
                          'colaboradores','checklist'];
+        if (puedeEditarFechaInicio) allowedFull.push('fecha');
         const allowed = soloChecklist ? ['checklist'] : allowedFull;
         const fields = Object.keys(req.body).filter(k => allowed.includes(k));
 

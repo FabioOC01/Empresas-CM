@@ -13,11 +13,16 @@ function fmtTS(ts) {
         + ' ' + d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
 }
 
+function todayInputDate() {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+}
 
 const EMPTY = {
     nombre: '', tipo: 'Venta', vendedor_id: '', cliente: '',
     monto: '', prioridad: 'Media', estado: 'Pendiente',
-    mes: MESES[new Date().getMonth()], fecha: new Date().toISOString().slice(0, 10), fecha_fin: '', notas: '',
+    mes: MESES[new Date().getMonth()], fecha: todayInputDate(), fecha_fin: '', notas: '',
     precio_venta: '', costo_base: '', gastos_operativos: [], ajuste_interno: '',
     cliente_ruc: '', cliente_email: '', cliente_telefono: '',
     colaboradores: [], checklist: [],
@@ -59,6 +64,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         : vendedores;
 
     const esAdmin = user?.is_superadmin || user?.roles?.includes('Admin');
+    const puedeEditarFechaInicio = esAdmin;
     const puedeElegirVendedor = esAdmin || user?.roles?.includes('Gerencia');
     const puedeAjuste = esAdmin || user?.roles?.includes('Gerencia');
     const tiposPermitidos = esAdmin ? todosLosTipos : (user?.roles?.reduce((acc, rol) => {
@@ -74,8 +80,11 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     useEffect(() => {
         if (!open) return;
         if (actividad) {
+            const fechaInicio = actividad.fecha ? String(actividad.fecha).slice(0,10) : todayInputDate();
             setForm({
                 ...EMPTY, ...actividad,
+                fecha:             fechaInicio,
+                mes:               actividad.mes || MESES[new Date(`${fechaInicio}T12:00:00`).getMonth()],
                 fecha_fin:         actividad.fecha_fin         ? String(actividad.fecha_fin).slice(0,10) : '',
                 monto:             actividad.monto             ?? '',
                 precio_venta:      actividad.precio_venta      ?? '',
@@ -92,7 +101,8 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
             setExpanded(true);
         } else {
             const primerTipo = tiposDisponibles[0] || 'Venta';
-            setForm({ ...EMPTY, tipo: primerTipo, vendedor_id: user?.id || vendedores[0]?.id || '' });
+            const fechaInicio = todayInputDate();
+            setForm({ ...EMPTY, fecha: fechaInicio, mes: MESES[new Date(`${fechaInicio}T12:00:00`).getMonth()], tipo: primerTipo, vendedor_id: user?.id || vendedores[0]?.id || '' });
             setExpanded(MARKETING_TIPOS.has(primerTipo));
         }
     }, [open, actividad]);
@@ -415,10 +425,10 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 {/* Fechas */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                     <label style={lbl}>Fecha de inicio
-                                        <input style={(!actividad && puedeElegirVendedor) ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
+                                        <input style={(!actividad || puedeEditarFechaInicio) ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
                                             type="date" value={form.fecha}
-                                            readOnly={!!actividad || !puedeElegirVendedor}
-                                            onChange={e => (!actividad && puedeElegirVendedor) && handleFechaChange(e.target.value)} />
+                                            readOnly={!!actividad && !puedeEditarFechaInicio}
+                                            onChange={e => (!actividad || puedeEditarFechaInicio) && handleFechaChange(e.target.value)} />
                                     </label>
                                     <label style={lbl}>Fin estimado
                                         <input style={inp} type="date" value={form.fecha_fin || ''}
