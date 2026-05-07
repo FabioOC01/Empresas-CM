@@ -8,7 +8,9 @@ router.get('/', async (req, res) => {
         const { rows } = await pool.query(
             `SELECT nombre, horario_dias, tasa_sunat, tasa_comision, feriados,
                     moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
-                    attendance_config, meta_global_rentabilidad, meta_global_facturacion
+                    attendance_config, meta_global_rentabilidad, meta_global_facturacion,
+                    meta_global_rentabilidad_mes,  meta_global_facturacion_mes,
+                    meta_global_rentabilidad_trim, meta_global_facturacion_trim
              FROM empresas WHERE id = $1`,
             [req.user.empresa_id]
         );
@@ -28,7 +30,9 @@ router.put('/', async (req, res) => {
 
     const { horario_dias, tasa_sunat, tasa_comision, feriados,
             moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
-            attendance_config, meta_global_rentabilidad, meta_global_facturacion } = req.body;
+            attendance_config, meta_global_rentabilidad, meta_global_facturacion,
+            meta_global_rentabilidad_mes,  meta_global_facturacion_mes,
+            meta_global_rentabilidad_trim, meta_global_facturacion_trim } = req.body;
     try {
         const { rows } = await pool.query(
             `UPDATE empresas
@@ -43,11 +47,17 @@ router.put('/', async (req, res) => {
                  branding        = COALESCE($9::jsonb, branding),
                  attendance_config = COALESCE($10::jsonb, attendance_config),
                  meta_global_rentabilidad = COALESCE($12, meta_global_rentabilidad),
-                 meta_global_facturacion  = COALESCE($13, meta_global_facturacion)
+                 meta_global_facturacion  = COALESCE($13, meta_global_facturacion),
+                 meta_global_rentabilidad_mes  = COALESCE($14, meta_global_rentabilidad_mes),
+                 meta_global_facturacion_mes   = COALESCE($15, meta_global_facturacion_mes),
+                 meta_global_rentabilidad_trim = COALESCE($16, meta_global_rentabilidad_trim),
+                 meta_global_facturacion_trim  = COALESCE($17, meta_global_facturacion_trim)
              WHERE id = $11
              RETURNING horario_dias, tasa_sunat, tasa_comision, feriados,
                        moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
-                       attendance_config, meta_global_rentabilidad, meta_global_facturacion`,
+                       attendance_config, meta_global_rentabilidad, meta_global_facturacion,
+                       meta_global_rentabilidad_mes,  meta_global_facturacion_mes,
+                       meta_global_rentabilidad_trim, meta_global_facturacion_trim`,
             [
                 horario_dias    != null ? JSON.stringify(horario_dias)    : null,
                 tasa_sunat      ?? null,
@@ -62,6 +72,10 @@ router.put('/', async (req, res) => {
                 req.user.empresa_id,
                 meta_global_rentabilidad ?? null,
                 meta_global_facturacion  ?? null,
+                meta_global_rentabilidad_mes  ?? null,
+                meta_global_facturacion_mes   ?? null,
+                meta_global_rentabilidad_trim ?? null,
+                meta_global_facturacion_trim  ?? null,
             ]
         );
         res.json(rows[0]);

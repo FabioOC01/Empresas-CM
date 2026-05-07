@@ -48,6 +48,10 @@ function initCfgForm(config) {
         tasa_comision:   ((parseFloat(config?.tasa_comision) || 0.05)  * 100).toFixed(1),
         meta_global_rentabilidad: parseFloat(config?.meta_global_rentabilidad) || 0,
         meta_global_facturacion:  parseFloat(config?.meta_global_facturacion)  || 0,
+        meta_global_rentabilidad_mes:  parseFloat(config?.meta_global_rentabilidad_mes)  || 0,
+        meta_global_facturacion_mes:   parseFloat(config?.meta_global_facturacion_mes)   || 0,
+        meta_global_rentabilidad_trim: parseFloat(config?.meta_global_rentabilidad_trim) || 0,
+        meta_global_facturacion_trim:  parseFloat(config?.meta_global_facturacion_trim)  || 0,
         feriados:        [...(config?.feriados || [])],
         feriadoInput:    '',
         moneda:          config?.moneda || 'USD',
@@ -211,6 +215,10 @@ export default function Admin() {
                 tasa_comision:   parseFloat(cfgForm.tasa_comision) / 100,
                 meta_global_rentabilidad: parseFloat(cfgForm.meta_global_rentabilidad) || 0,
                 meta_global_facturacion:  parseFloat(cfgForm.meta_global_facturacion)  || 0,
+                meta_global_rentabilidad_mes:  parseFloat(cfgForm.meta_global_rentabilidad_mes)  || 0,
+                meta_global_facturacion_mes:   parseFloat(cfgForm.meta_global_facturacion_mes)   || 0,
+                meta_global_rentabilidad_trim: parseFloat(cfgForm.meta_global_rentabilidad_trim) || 0,
+                meta_global_facturacion_trim:  parseFloat(cfgForm.meta_global_facturacion_trim)  || 0,
                 feriados:        cfgForm.feriados,
                 moneda:          cfgForm.moneda,
                 tipos_actividad: cfgForm.tipos_actividad,
@@ -536,21 +544,32 @@ export default function Admin() {
                         {/* Meta Global de la empresa */}
                         <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'22px 26px' }}>
                             <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:3 }}>Meta Global de la empresa</div>
-                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se muestran en el Dashboard como Meta Global de Rentabilidad y Facturación.</div>
-                            <form onSubmit={handleSaveCfg} style={{ display:'flex', gap:14, alignItems:'flex-end', flexWrap:'wrap' }}>
-                                <label style={lbl}>Meta Global Rentabilidad (USD)
-                                    <input type="number" min="0" step="0.01" style={{ ...inp, width:180 }}
-                                        value={cfgForm.meta_global_rentabilidad}
-                                        onChange={e => setCfgForm(f => ({ ...f, meta_global_rentabilidad:e.target.value }))} />
-                                </label>
-                                <label style={lbl}>Meta Global Facturación (USD)
-                                    <input type="number" min="0" step="0.01" style={{ ...inp, width:180 }}
-                                        value={cfgForm.meta_global_facturacion}
-                                        onChange={e => setCfgForm(f => ({ ...f, meta_global_facturacion:e.target.value }))} />
-                                </label>
-                                <button type="submit" disabled={cfgSaving} style={btnGuardar(cfgSaving)}>
-                                    {cfgSaving ? 'Guardando...' : 'Guardar'}
-                                </button>
+                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se muestran en el Dashboard como Meta Global de Rentabilidad y Facturación según el periodo.</div>
+                            <form onSubmit={handleSaveCfg} style={{ display:'grid', gap:14 }}>
+                                {[
+                                    { titulo:'Mensual',     keyR:'meta_global_rentabilidad_mes',  keyF:'meta_global_facturacion_mes' },
+                                    { titulo:'Trimestral',  keyR:'meta_global_rentabilidad_trim', keyF:'meta_global_facturacion_trim' },
+                                    { titulo:'Anual',       keyR:'meta_global_rentabilidad',      keyF:'meta_global_facturacion' },
+                                ].map(p => (
+                                    <div key={p.titulo} style={{ display:'flex', gap:14, alignItems:'flex-end', flexWrap:'wrap' }}>
+                                        <div style={{ fontSize:12, fontWeight:700, color:tk.txt2, minWidth:90 }}>{p.titulo}</div>
+                                        <label style={lbl}>Rentabilidad (USD)
+                                            <input type="number" min="0" step="0.01" style={{ ...inp, width:180 }}
+                                                value={cfgForm[p.keyR]}
+                                                onChange={e => setCfgForm(f => ({ ...f, [p.keyR]:e.target.value }))} />
+                                        </label>
+                                        <label style={lbl}>Facturación (USD)
+                                            <input type="number" min="0" step="0.01" style={{ ...inp, width:180 }}
+                                                value={cfgForm[p.keyF]}
+                                                onChange={e => setCfgForm(f => ({ ...f, [p.keyF]:e.target.value }))} />
+                                        </label>
+                                    </div>
+                                ))}
+                                <div>
+                                    <button type="submit" disabled={cfgSaving} style={btnGuardar(cfgSaving)}>
+                                        {cfgSaving ? 'Guardando...' : 'Guardar'}
+                                    </button>
+                                </div>
                             </form>
                         </div>
 

@@ -98,8 +98,16 @@ export default function Dashboard() {
         const sunat    = rentBruta * tasaSunatGlobal;
         return s + (rentBruta - sunat - gastos);
     }, 0);
-    const metaGlobalRent = parseFloat(config?.meta_global_rentabilidad) || 0;
-    const metaGlobalFact = parseFloat(config?.meta_global_facturacion)  || 0;
+    const metaGlobalRent = parseFloat(
+        periodo === 'anual'      ? config?.meta_global_rentabilidad :
+        periodo === 'trimestral' ? config?.meta_global_rentabilidad_trim :
+                                   config?.meta_global_rentabilidad_mes
+    ) || 0;
+    const metaGlobalFact = parseFloat(
+        periodo === 'anual'      ? config?.meta_global_facturacion :
+        periodo === 'trimestral' ? config?.meta_global_facturacion_trim :
+                                   config?.meta_global_facturacion_mes
+    ) || 0;
     const pctMetaRent = metaGlobalRent > 0 ? Math.min((rentabilidadGlobal / metaGlobalRent) * 100, 100) : 0;
     const pctMetaFact = metaGlobalFact > 0 ? Math.min((facturacionGlobal  / metaGlobalFact) * 100, 100) : 0;
     const metaRentHit = metaGlobalRent > 0 && rentabilidadGlobal >= metaGlobalRent;
@@ -149,7 +157,7 @@ export default function Dashboard() {
         <div>
             {/* Meta Global */}
             <div style={{ ...card, marginBottom:20 }}>
-                <div style={ct}>Meta Global</div>
+                <div style={ct}>Meta Global ({periodo})</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
                     <MetaGlobalBox tk={tk} titulo="Rentabilidad" logrado={rentabilidadGlobal} meta={metaGlobalRent} pct={pctMetaRent} hit={metaRentHit} moneda={moneda} />
                     <MetaGlobalBox tk={tk} titulo="Facturación"  logrado={facturacionGlobal}  meta={metaGlobalFact} pct={pctMetaFact} hit={metaFactHit} moneda={moneda} />
