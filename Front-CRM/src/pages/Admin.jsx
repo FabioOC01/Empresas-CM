@@ -125,6 +125,7 @@ export default function Admin() {
     const secciones = esGerencia && !esAdmin ? [
         { id: 'horario',   label: 'Horario laboral', icon: '🕐' },
         { id: 'tasas',     label: 'Tasas',           icon: '💹' },
+        { id: 'moneda',    label: 'Moneda',          icon: '💱' },
         { id: 'feriados',  label: 'Feriados',        icon: '📅' },
     ] : [
         { id: 'vendedores', label: 'Vendedores',      icon: '👤' },
