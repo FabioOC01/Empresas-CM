@@ -30,6 +30,13 @@ function fmtDateShort(value) {
     return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' });
 }
 
+function dateOrderValue(value, fallback) {
+    const raw = value || fallback;
+    if (!raw) return 0;
+    const d = new Date(String(raw).slice(0, 10) + 'T12:00:00');
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
 export default function Planificador() {
     const { actividades, config } = useActividades();
     const { user } = useAuth();
@@ -70,7 +77,8 @@ export default function Planificador() {
     const [calcModal,  setCalcModal]  = useState({ open:false, actividad:null });
     const MES_ACTUAL = MESES[new Date().getMonth()];
     const Q_ACTUAL = String(Math.floor(new Date().getMonth() / 3) + 1);
-    const [filters, setFilters] = useState({ vendedorId:'', trimestre:'', mes: MES_ACTUAL, tipo:'', estado:'', prioridad:'', buscar:'' });
+    const DEFAULT_FILTERS = { vendedorId:'', trimestre: Q_ACTUAL, mes:'', tipo:'', estado:'', prioridad:'', buscar:'' };
+    const [filters, setFilters] = useState(DEFAULT_FILTERS);
     const [dragId, setDragId] = useState(null);
     const [dragOverCol, setDragOverCol] = useState(null);
     useEffect(() => { getVendedores().then(setVendedores); }, []);
@@ -108,6 +116,9 @@ export default function Planificador() {
         const ids = new Set(baseFiltered.map(a => a.id));
         filtered = [...baseFiltered, ...arrastradas.filter(a => !ids.has(a.id))];
     }
+    filtered = [...filtered].sort((a, b) =>
+        dateOrderValue(b.fecha, b.created_at) - dateOrderValue(a.fecha, a.created_at)
+    );
 
     const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
@@ -211,8 +222,8 @@ export default function Planificador() {
                                 {opts.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
                             </select>
                         ))}
-                        {(filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre || filters.mes !== MES_ACTUAL) &&
-                            <button onClick={() => setFilters({ vendedorId:'',trimestre:'',mes:MES_ACTUAL,tipo:'',estado:'',prioridad:'',buscar:'' })}
+                        {(filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre !== Q_ACTUAL || filters.mes) &&
+                            <button onClick={() => setFilters(DEFAULT_FILTERS)}
                                 style={{ padding:'7px 12px', borderRadius:7, border:`1px solid ${tk.bdr}`, background:tk.card, cursor:'pointer', fontSize:12, color:'#e74c3c' }}>
                                 Limpiar
                             </button>
