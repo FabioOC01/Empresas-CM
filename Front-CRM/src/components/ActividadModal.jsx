@@ -64,7 +64,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         : vendedores;
 
     const esAdmin = user?.is_superadmin || user?.roles?.includes('Admin');
-    const puedeEditarFechaInicio = esAdmin;
+    const puedeEditarFechaInicio = !actividad || esAdmin || actividad.vendedor_id === user?.id;
     const puedeElegirVendedor = esAdmin || user?.roles?.includes('Gerencia');
     const puedeAjuste = esAdmin || user?.roles?.includes('Gerencia');
     const tiposPermitidos = esAdmin ? todosLosTipos : (user?.roles?.reduce((acc, rol) => {

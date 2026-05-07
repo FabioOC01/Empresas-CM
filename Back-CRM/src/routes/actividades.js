@@ -114,13 +114,14 @@ router.put('/:id', async (req, res) => {
         // Verificar ownership si no es Admin/Gerencia
         // Colaboradores pueden editar SOLO el campo `checklist`
         let soloChecklist = false;
+        let esOwner = canManageAll(req.user);
         if (!canManageAll(req.user)) {
             const { rows } = await pool.query(
                 'SELECT vendedor_id, colaboradores FROM actividades WHERE id=$1 AND empresa_id=$2',
                 [req.params.id, empresa_id]
             );
             if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
-            const esOwner = rows[0].vendedor_id === req.user.id;
+            esOwner = rows[0].vendedor_id === req.user.id;
             const cols = Array.isArray(rows[0].colaboradores) ? rows[0].colaboradores : [];
             const esColab = cols.includes(req.user.id);
             if (!esOwner && !esColab)
@@ -128,7 +129,7 @@ router.put('/:id', async (req, res) => {
             if (!esOwner) soloChecklist = true;
         }
 
-        const puedeEditarFechaInicio = req.user?.is_superadmin || req.user?.roles?.includes('Admin');
+        const puedeEditarFechaInicio = req.user?.is_superadmin || req.user?.roles?.includes('Admin') || esOwner;
         const allowedFull = ['nombre','tipo','vendedor_id','cliente','monto','prioridad','estado','mes','notas','fecha_fin',
                          'precio_venta','costo_base','gastos_operativos','ajuste_interno',
                          'cliente_ruc','cliente_email','cliente_telefono',

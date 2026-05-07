@@ -113,6 +113,18 @@ export default function Admin() {
     const [attendanceMsg, setAttendanceMsg] = useState({});
     const [unmapped, setUnmapped] = useState([]);
 
+    const num = (v) => parseFloat(v) || 0;
+    const metasGlobalesVendedores = vendedores.reduce((acc, v) => {
+        const edit = editingTasas[v.id] || {};
+        acc.rentMes += num(edit.meta_mensual ?? v.meta_mensual);
+        acc.factMes += num(edit.meta_facturacion_mensual ?? v.meta_facturacion_mensual);
+        acc.rentTrim += num(edit.meta_rentabilidad_trimestral ?? v.meta_rentabilidad_trimestral);
+        acc.factTrim += num(edit.meta_facturacion_trimestral ?? v.meta_facturacion_trimestral);
+        acc.rentAnual += num(edit.meta_rentabilidad_anual ?? v.meta_rentabilidad_anual);
+        acc.factAnual += num(edit.meta_facturacion_anual ?? v.meta_facturacion_anual);
+        return acc;
+    }, { rentMes:0, factMes:0, rentTrim:0, factTrim:0, rentAnual:0, factAnual:0 });
+
     useEffect(() => { getVendedores().then(setVendedores); }, []);
     useEffect(() => {
         if (esAdminGerencia) getAttendanceUnmapped().then(setUnmapped).catch(() => {});
@@ -238,6 +250,27 @@ export default function Admin() {
             const updated = await updateConfig(payload);
             setConfig(prev => ({ ...prev, ...updated }));
             setCfgMsg({ type:'ok', text:'Configuración guardada.' });
+        } catch (err) {
+            setCfgMsg({ type:'err', text: err.response?.data?.error || 'Error al guardar.' });
+        } finally { setCfgSaving(false); }
+    };
+
+    const handleSaveGlobalMetas = async (e) => {
+        e.preventDefault();
+        setCfgSaving(true); setCfgMsg(null);
+        try {
+            const payload = {
+                meta_global_rentabilidad_mes:  metasGlobalesVendedores.rentMes,
+                meta_global_facturacion_mes:   metasGlobalesVendedores.factMes,
+                meta_global_rentabilidad_trim: metasGlobalesVendedores.rentTrim,
+                meta_global_facturacion_trim:  metasGlobalesVendedores.factTrim,
+                meta_global_rentabilidad:      metasGlobalesVendedores.rentAnual,
+                meta_global_facturacion:       metasGlobalesVendedores.factAnual,
+            };
+            const updated = await updateConfig(payload);
+            setConfig(prev => ({ ...prev, ...updated }));
+            setCfgForm(f => ({ ...f, ...payload }));
+            setCfgMsg({ type:'ok', text:'Meta global actualizada con la suma de vendedores.' });
         } catch (err) {
             setCfgMsg({ type:'err', text: err.response?.data?.error || 'Error al guardar.' });
         } finally { setCfgSaving(false); }
@@ -545,35 +578,30 @@ export default function Admin() {
                         {/* Meta Global de la empresa */}
                         <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'22px 26px' }}>
                             <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:3 }}>Meta Global de la empresa</div>
-                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se muestran en el Dashboard como Meta Global de Rentabilidad y Facturación según el periodo.</div>
-                            <form onSubmit={handleSaveCfg} style={{ display:'grid', gap:14 }}>
+                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se calcula con la suma de las cuotas configuradas por vendedor y se muestra en el Dashboard segun el periodo.</div>
+                            <form onSubmit={handleSaveGlobalMetas} style={{ display:'grid', gap:14 }}>
                                 {[
-                                    { titulo:'Mensual',     keyR:'meta_global_rentabilidad_mes',  keyF:'meta_global_facturacion_mes' },
-                                    { titulo:'Trimestral',  keyR:'meta_global_rentabilidad_trim', keyF:'meta_global_facturacion_trim' },
-                                    { titulo:'Anual',       keyR:'meta_global_rentabilidad',      keyF:'meta_global_facturacion' },
+                                    { titulo:'Mensual',     rent: metasGlobalesVendedores.rentMes,   fact: metasGlobalesVendedores.factMes },
+                                    { titulo:'Trimestral',  rent: metasGlobalesVendedores.rentTrim,  fact: metasGlobalesVendedores.factTrim },
+                                    { titulo:'Anual',       rent: metasGlobalesVendedores.rentAnual, fact: metasGlobalesVendedores.factAnual },
                                 ].map(p => (
                                     <div key={p.titulo} style={{ display:'flex', gap:14, alignItems:'flex-end', flexWrap:'wrap' }}>
                                         <div style={{ fontSize:12, fontWeight:700, color:tk.txt2, minWidth:90 }}>{p.titulo}</div>
                                         <label style={lbl}>Rentabilidad (USD)
-                                            <input type="number" min="0" step="0.01" style={{ ...inp, width:180 }}
-                                                value={cfgForm[p.keyR]}
-                                                onChange={e => setCfgForm(f => ({ ...f, [p.keyR]:e.target.value }))} />
+                                            <input type="number" readOnly style={{ ...inp, width:180, background:tk.card2, color:tk.txt2 }} value={p.rent.toFixed(2)} />
                                         </label>
-                                        <label style={lbl}>Facturación (USD)
-                                            <input type="number" min="0" step="0.01" style={{ ...inp, width:180 }}
-                                                value={cfgForm[p.keyF]}
-                                                onChange={e => setCfgForm(f => ({ ...f, [p.keyF]:e.target.value }))} />
+                                        <label style={lbl}>Facturacion (USD)
+                                            <input type="number" readOnly style={{ ...inp, width:180, background:tk.card2, color:tk.txt2 }} value={p.fact.toFixed(2)} />
                                         </label>
                                     </div>
                                 ))}
                                 <div>
                                     <button type="submit" disabled={cfgSaving} style={btnGuardar(cfgSaving)}>
-                                        {cfgSaving ? 'Guardando...' : 'Guardar'}
+                                        {cfgSaving ? 'Guardando...' : 'Guardar suma como meta global'}
                                     </button>
                                 </div>
                             </form>
                         </div>
-
                         {/* Cuotas y comisiones por vendedor */}
                         <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflowX:'auto', overflowY:'hidden' }}>
                             <div style={{ padding:'16px 22px', borderBottom:`1px solid ${tk.bdr}` }}>
@@ -626,9 +654,20 @@ export default function Admin() {
                                              || String(edit.pct_comision_base)  !== String(defBase)
                                              || String(edit.pct_comision_bajo)  !== String(defBajo)
                                              || String(edit.pct_comision_alto)  !== String(defAlto);
-                                const setEdit  = (field, val) => setEditingTasas(prev => ({
-                                    ...prev, [v.id]: { ...edit, [field]: val },
-                                }));
+                                const setEdit  = (field, val) => setEditingTasas(prev => {
+                                    const next = { ...edit, [field]: val };
+                                    if (field === 'meta_mensual') {
+                                        const base = num(val);
+                                        next.meta_rentabilidad_trimestral = base * 3;
+                                        next.meta_rentabilidad_anual = base * 12;
+                                    }
+                                    if (field === 'meta_facturacion_mensual') {
+                                        const base = num(val);
+                                        next.meta_facturacion_trimestral = base * 3;
+                                        next.meta_facturacion_anual = base * 12;
+                                    }
+                                    return { ...prev, [v.id]: next };
+                                });
                                 return (
                                     <div key={v.id} style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(6,110px) repeat(3,100px) 100px', gap:10, padding:'13px 22px', borderBottom:`1px solid ${tk.bdr}`, alignItems:'center', minWidth:1290 }}>
                                         {/* Vendedor */}
