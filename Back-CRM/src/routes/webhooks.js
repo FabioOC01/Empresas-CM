@@ -41,6 +41,10 @@ function pick(body, keys, fallback = '') {
     return fallback;
 }
 
+function cleanDoc(value) {
+    return String(value || '').replace(/\D/g, '');
+}
+
 async function findVendedorByFirstName(firstName) {
     if (!firstName) return null;
     const { rows } = await pool.query(
@@ -54,12 +58,13 @@ async function findVendedorByFirstName(firstName) {
 }
 
 async function findOrCreateCliente({ nombre, ruc, email, telefono, contacto, registrado_por }) {
+    const rucClean = cleanDoc(ruc);
     const nombreFinal = (nombre || '').trim() || ruc || email || 'Cliente sin nombre';
 
-    if (ruc) {
+    if (rucClean) {
         const { rows } = await pool.query(
             `SELECT * FROM clientes WHERE empresa_id=$1 AND ruc=$2 LIMIT 1`,
-            [EMPRESA_ID, ruc]
+            [EMPRESA_ID, rucClean]
         );
         if (rows[0]) {
             const c = rows[0];
@@ -82,7 +87,7 @@ async function findOrCreateCliente({ nombre, ruc, email, telefono, contacto, reg
     const { rows } = await pool.query(
         `INSERT INTO clientes (nombre, ruc, email, telefono, contacto, registrado_por, empresa_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-        [nombreFinal, ruc || '', email || '', telefono || '', contacto || '', registrado_por || null, EMPRESA_ID]
+        [nombreFinal, rucClean, email || '', telefono || '', contacto || '', registrado_por || null, EMPRESA_ID]
     );
     return rows[0];
 }

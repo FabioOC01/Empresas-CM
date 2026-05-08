@@ -64,6 +64,9 @@ export const createCliente = (data) =>
 export const updateCliente = (id, data) =>
     api.put(`/api/clientes/${id}`, data).then(r => r.data);
 
+export const lookupRuc = (ruc) =>
+    api.post('/api/clientes/sunat/ruc', { ruc }).then(r => r.data);
+
 export const switchEmpresa = (empresa_id) =>
     api.post('/api/auth/switch', { empresa_id }).then(r => r.data);
 

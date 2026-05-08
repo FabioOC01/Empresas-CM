@@ -35,11 +35,18 @@ function RequireRole({ roles, children }) {
 
 function AppLayout() {
     const [collapsed, setCollapsed] = useState(false);
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 760);
     const { config } = useActividadesContext();
     const { user } = useAuth();
     const tk        = useTheme();
     const copyright = config?.branding?.copyright || 'VANTIO Copyright (C) 2026 Comutel and contributors';
-    const ml = collapsed ? COLLAPSED_W : SIDEBAR_W;
+    const ml = isMobile ? 0 : (collapsed ? COLLAPSED_W : SIDEBAR_W);
+
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth <= 760);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     const changelogFlag = user?.id ? `crm_changelog_seen_v${CHANGELOG_VERSION}_${user.id}` : null;
     const [showChangelog, setShowChangelog] = useState(false);
@@ -53,9 +60,9 @@ function AppLayout() {
 
     return (
         <div style={{ display: 'flex', background: tk.bg, minHeight: '100vh' }}>
-            <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
+            <Sidebar collapsed={isMobile ? true : collapsed} isMobile={isMobile} onToggle={() => setCollapsed(c => !c)} />
             <main style={{
-                marginLeft: ml, flex: 1, padding: '28px 28px 16px',
+                marginLeft: ml, flex: 1, padding: isMobile ? '76px 12px 14px' : '28px 28px 16px',
                 minHeight: '100vh', background: tk.bg,
                 transition: 'margin-left 0.25s ease',
                 display: 'flex', flexDirection: 'column',

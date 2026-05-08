@@ -1,31 +1,76 @@
 import { useState, useEffect } from 'react';
-import { getClientes, createCliente, updateCliente } from '../api/actividades';
+import { getClientes, createCliente, updateCliente, lookupRuc } from '../api/actividades';
 import { useTheme } from '../context/ThemeContext';
 
 const EMPTY = { nombre: '', ruc: '', email: '', telefono: '', contacto: '' };
 
 export default function Clientes() {
     const tk = useTheme();
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 760);
     const lbl = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: tk.txt2, fontWeight: 600 };
     const inp = { padding: '9px 11px', borderRadius: 7, border: `1px solid ${tk.bdr}`, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', background: tk.inp, color: tk.txt };
     const [clientes,  setClientes]  = useState([]);
     const [buscar,    setBuscar]    = useState('');
+    const [vendedorFiltro, setVendedorFiltro] = useState('');
     const [editing,   setEditing]   = useState(null); // cliente | 'new' | null
     const [form,      setForm]      = useState(EMPTY);
     const [saving,    setSaving]    = useState(false);
+    const [lookingRuc,setLookingRuc]= useState(false);
     const [msg,       setMsg]       = useState(null);
+    const [sunatInfo, setSunatInfo] = useState(null);
 
     useEffect(() => { getClientes().then(setClientes); }, []);
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth <= 760);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
-    const filtered = clientes.filter(c =>
-        c.nombre.toLowerCase().includes(buscar.toLowerCase()) ||
-        c.ruc.includes(buscar) ||
-        c.email.toLowerCase().includes(buscar.toLowerCase())
-    );
+    const vendedoresCliente = [...new Map(
+        clientes
+            .filter(c => c.registrado_por && c.registrado_por_nombre)
+            .map(c => [c.registrado_por, c.registrado_por_nombre])
+    )].sort((a, b) => a[1].localeCompare(b[1]));
 
-    const openEdit = (c) => { setEditing(c); setForm({ nombre: c.nombre, ruc: c.ruc, email: c.email, telefono: c.telefono, contacto: c.contacto || '' }); setMsg(null); };
-    const openNew  = ()  => { setEditing('new'); setForm(EMPTY); setMsg(null); };
+    const filtered = clientes.filter(c => {
+        const q = buscar.toLowerCase();
+        const matchesSearch =
+            c.nombre.toLowerCase().includes(q) ||
+            c.ruc.includes(buscar) ||
+            c.email.toLowerCase().includes(q);
+        const matchesVendedor = !vendedorFiltro || c.registrado_por === vendedorFiltro;
+        return matchesSearch && matchesVendedor;
+    });
+
+    const openEdit = (c) => { setEditing(c); setForm({ nombre: c.nombre, ruc: c.ruc, email: c.email, telefono: c.telefono, contacto: c.contacto || '' }); setMsg(null); setSunatInfo(null); };
+    const openNew  = ()  => { setEditing('new'); setForm(EMPTY); setMsg(null); setSunatInfo(null); };
     const set      = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+    const handleRucChange = (value) => {
+        set('ruc', value.replace(/\D/g, '').slice(0, 11));
+        setSunatInfo(null);
+    };
+
+    const handleLookupRuc = async () => {
+        const ruc = String(form.ruc || '').replace(/\D/g, '');
+        if (!/^\d{11}$/.test(ruc)) {
+            setMsg({ type: 'err', text: 'Ingresa un RUC válido de 11 dígitos.' });
+            return;
+        }
+
+        setLookingRuc(true);
+        setMsg(null);
+        try {
+            const data = await lookupRuc(ruc);
+            setForm(f => ({ ...f, ruc: data.ruc || ruc, nombre: data.nombre || f.nombre }));
+            setSunatInfo(data);
+        } catch (err) {
+            setSunatInfo(null);
+            setMsg({ type: 'err', text: err.response?.data?.error || 'No se pudo consultar SUNAT. Intenta nuevamente.' });
+        } finally {
+            setLookingRuc(false);
+        }
+    };
 
     const handleSave = async (e) => {
         e.preventDefault();
@@ -34,8 +79,11 @@ export default function Clientes() {
         try {
             if (editing === 'new') {
                 const created = await createCliente(form);
-                setClientes(cs => [created, ...cs]);
-                setMsg({ type: 'ok', text: 'Cliente creado.' });
+                setClientes(cs => {
+                    const exists = cs.some(c => c.id === created.id);
+                    return exists ? cs.map(c => c.id === created.id ? { ...c, ...created } : c) : [created, ...cs];
+                });
+                setMsg({ type: 'ok', text: created.reused ? 'El RUC ya existía. Se abrió el cliente registrado.' : 'Cliente creado.' });
                 setEditing(created);
             } else {
                 const updated = await updateCliente(editing.id, form);
@@ -53,7 +101,7 @@ export default function Clientes() {
     const isNew = editing === 'new';
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: isMobile ? 12 : 20, alignItems: 'start' }}>
 
             {/* Lista */}
             <div style={{ background: tk.card, borderRadius: 10, boxShadow: tk.shadow, overflow: 'hidden' }}>
@@ -72,9 +120,19 @@ export default function Clientes() {
                         value={buscar}
                         onChange={e => setBuscar(e.target.value)}
                     />
+                    <select
+                        style={{ width: '100%', marginTop: 8, padding: '7px 10px', borderRadius: 7, border: `1px solid ${tk.bdr}`, fontSize: 12, outline: 'none', boxSizing: 'border-box', background: tk.inp, color: tk.txt }}
+                        value={vendedorFiltro}
+                        onChange={e => setVendedorFiltro(e.target.value)}
+                    >
+                        <option value="">Todos los vendedores</option>
+                        {vendedoresCliente.map(([id, nombre]) => (
+                            <option key={id} value={id}>{nombre}</option>
+                        ))}
+                    </select>
                 </div>
 
-                <div style={{ maxHeight: 520, overflowY: 'auto' }}>
+                <div style={{ maxHeight: isMobile ? 300 : 520, overflowY: 'auto' }}>
                     {filtered.length === 0 && (
                         <div style={{ padding: 24, textAlign: 'center', color: '#8899aa', fontSize: 12 }}>Sin clientes</div>
                     )}
@@ -105,7 +163,7 @@ export default function Clientes() {
 
             {/* Panel derecho */}
             {editing ? (
-                <div style={{ background: tk.card, borderRadius: 10, boxShadow: tk.shadow, padding: '24px 28px' }}>
+                <div style={{ background: tk.card, borderRadius: 10, boxShadow: tk.shadow, padding: isMobile ? '18px 16px' : '24px 28px' }}>
                     <div style={{ fontWeight: 700, fontSize: 15, color: tk.txt, marginBottom: 22 }}>
                         {isNew ? 'Nuevo cliente' : editing.nombre}
                     </div>
@@ -126,12 +184,22 @@ export default function Clientes() {
                             <input style={inp} required value={form.nombre} onChange={e => set('nombre', e.target.value)} />
                         </label>
                         <label style={lbl}>RUC
-                            <input style={inp} maxLength={11} placeholder="20XXXXXXXXX" value={form.ruc} onChange={e => set('ruc', e.target.value)} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                                <input style={inp} inputMode="numeric" maxLength={11} placeholder="20XXXXXXXXX" value={form.ruc} onChange={e => handleRucChange(e.target.value)} />
+                                <button type="button" disabled={lookingRuc} onClick={handleLookupRuc} style={{ padding: '9px 14px', background: lookingRuc ? '#a0b8e8' : '#1e88e5', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: lookingRuc ? 'default' : 'pointer' }}>
+                                    {lookingRuc ? 'Buscando...' : 'Buscar'}
+                                </button>
+                            </div>
                         </label>
+                        {sunatInfo && (
+                            <div style={{ padding: '9px 12px', borderRadius: 7, fontSize: 12, background: tk.card2, border: `1px solid ${tk.bdr}`, color: tk.txt2 }}>
+                                SUNAT: <strong style={{ color: tk.txt }}>{sunatInfo.estado || 'Sin estado'} / {sunatInfo.condicion || 'Sin condición'}</strong>
+                            </div>
+                        )}
                         <label style={lbl}>Nombre de contacto
                             <input style={inp} placeholder="Persona de contacto" value={form.contacto} onChange={e => set('contacto', e.target.value)} />
                         </label>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                             <label style={lbl}>Correo
                                 <input style={inp} type="email" placeholder="correo@empresa.com" value={form.email} onChange={e => set('email', e.target.value)} />
                             </label>
@@ -164,4 +232,3 @@ export default function Clientes() {
         </div>
     );
 }
-

@@ -1,16 +1,16 @@
 import { useTheme } from '../context/ThemeContext';
 
-export const CHANGELOG_VERSION = 1;
+export const CHANGELOG_VERSION = 2;
 
 const CHANGES = [
-    { icon: '🎯', text: 'Nuevo filtro de período con resaltado del trimestre actual (Q animado).' },
-    { icon: '📅', text: 'Mes actual por defecto + arrastre automático de actividades "En Progreso" del mes anterior.' },
-    { icon: '🏁', text: 'Campo "Posible fecha de término" en cada actividad.' },
-    { icon: '✅', text: 'Checklist con cronómetro por ítem (arranca al guardar la actividad).' },
-    { icon: '👥', text: 'Avatares de colaboradores en tarjetas Kanban y tabla.' },
-    { icon: '🗂', text: 'Kanban con columnas Ganada / Perdida (colapsables, ocultas por defecto).' },
-    { icon: '🔒', text: 'Solo Admin/Gerencia pueden eliminar actividades y editar la fecha de creación.' },
-    { icon: '🧭', text: 'Matriz de Equipo dividida por rol cuando un vendedor tiene múltiples roles.' },
+    { icon: 'SUNAT', text: 'Busqueda de RUC con Migo/SUNAT para autollenar razon social al crear o editar clientes.' },
+    { icon: 'RUC', text: 'Nueva actividad permite buscar clientes por nombre o RUC, con sugerencias mientras se escribe y boton SUNAT.' },
+    { icon: 'OK', text: 'Se evita duplicar clientes por RUC, tanto desde el CRM como desde el webhook de SendPulse.' },
+    { icon: 'SP', text: 'Los clientes creados desde SendPulse quedan asociados al vendedor asignado.' },
+    { icon: 'USER', text: 'Planificador muestra de que vendedor es cada cliente cuando el dato esta disponible.' },
+    { icon: 'FILT', text: 'Clientes incorpora filtro por vendedor/registrador.' },
+    { icon: 'ORD', text: 'Planificador incluye buscador general y ordenamiento por columnas con flechas.' },
+    { icon: 'MOB', text: 'Interfaz adaptada para movil: barra superior, paginas apiladas, tablas con scroll y modales responsivos.' },
 ];
 
 export default function ChangelogModal({ open, onClose }) {
@@ -37,10 +37,10 @@ export default function ChangelogModal({ open, onClose }) {
                         Novedades
                     </div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: tk.txt }}>
-                        ¡Hay cambios nuevos! 🚀
+                        Hay cambios nuevos
                     </div>
                     <div style={{ fontSize: 12, color: tk.txt2, marginTop: 4 }}>
-                        Estos son los últimos cambios incorporados al sistema.
+                        Estos son los ultimos cambios incorporados al sistema.
                     </div>
                 </div>
 
@@ -50,7 +50,7 @@ export default function ChangelogModal({ open, onClose }) {
                             display: 'flex', gap: 10, alignItems: 'flex-start',
                             padding: '10px 12px', background: tk.card2, borderRadius: 8,
                         }}>
-                            <span style={{ fontSize: 18, lineHeight: 1.2, flexShrink: 0 }}>{c.icon}</span>
+                            <span style={{ minWidth: 46, textAlign: 'center', fontSize: 10, lineHeight: 1.2, flexShrink: 0, fontWeight: 800, color: '#10b981' }}>{c.icon}</span>
                             <span style={{ fontSize: 13, color: tk.txt, lineHeight: 1.5 }}>{c.text}</span>
                         </div>
                     ))}
@@ -62,7 +62,7 @@ export default function ChangelogModal({ open, onClose }) {
                         border: 'none', borderRadius: 9, fontWeight: 700, fontSize: 13, cursor: 'pointer',
                         boxShadow: '0 4px 12px #10b98144',
                     }}>
-                        Entendido ✓
+                        Entendido
                     </button>
                 </div>
             </div>

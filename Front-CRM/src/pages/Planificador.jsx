@@ -45,6 +45,7 @@ export default function Planificador() {
     const tk = useTheme();
     const sel    = { padding:'7px 10px', borderRadius:7, border:`1px solid ${tk.bdr}`, fontSize:13, background:tk.card, color:tk.txt };
     const td     = { padding:'10px 10px', color:tk.txt };
+    const th     = { padding:'8px 10px', textAlign:'left', color:tk.txt2, fontWeight:700, fontSize:11, whiteSpace:'nowrap' };
     const iconBtn = { padding:'4px 6px', border:`1px solid ${tk.bdr}`, borderRadius:6, background:tk.card, cursor:'pointer', fontSize:13 };
     const btnPri  = { padding:'9px 20px', background:'#10b981', color:'#fff', border:'none', borderRadius:8, fontWeight:600, cursor:'pointer', fontSize:13 };
     const btnSec  = { padding:'9px 20px', background:tk.card2, color:tk.txt, border:'none', borderRadius:8, fontWeight:600, cursor:'pointer', fontSize:13 };
@@ -65,6 +66,7 @@ export default function Planificador() {
     const vendedorForzado = useRolFilter(); // null = ve todo, string = solo su id
     const [searchParams] = useSearchParams();
     const [vendedores, setVendedores] = useState([]);
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 760);
     const [view, setView] = useState(searchParams.get('view') === 'kanban' ? 'kanban' : 'tabla');
     const [collapsedCols, setCollapsedCols] = useState(new Set(['Ganada','Perdida']));
     const toggleCol = (col) => setCollapsedCols(s => {
@@ -79,9 +81,15 @@ export default function Planificador() {
     const Q_ACTUAL = String(Math.floor(new Date().getMonth() / 3) + 1);
     const DEFAULT_FILTERS = { vendedorId:'', trimestre: Q_ACTUAL, mes:'', tipo:'', estado:'', prioridad:'', buscar:'' };
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
+    const [sort, setSort] = useState({ key:'fecha', dir:'desc' });
     const [dragId, setDragId] = useState(null);
     const [dragOverCol, setDragOverCol] = useState(null);
     useEffect(() => { getVendedores().then(setVendedores); }, []);
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth <= 760);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     // Teclado: N = nueva actividad
     useEffect(() => {
@@ -93,6 +101,10 @@ export default function Planificador() {
         return () => window.removeEventListener('keydown', handler);
     }, []);
 
+    const norm = (value) => String(value || '').toLowerCase();
+    const vendedorNombre = (a) => vendedores.find(v => v.id === a.vendedor_id)?.nombre || '';
+    const matchText = (value, query) => norm(value).includes(norm(query));
+
     const baseFiltered = filterActs(actividades, {
         vendedorId: vendedorForzado || filters.vendedorId || undefined,
         trimestre:  filters.trimestre  || undefined,
@@ -100,7 +112,6 @@ export default function Planificador() {
         tipo:       filters.tipo       || undefined,
         estado:     filters.estado     || undefined,
         prioridad:  filters.prioridad  || undefined,
-        cliente:    filters.buscar     || undefined,
     });
 
     // Si el filtro de mes es el mes actual, también arrastrar actividades En Progreso de meses anteriores
@@ -111,16 +122,47 @@ export default function Planificador() {
             vendedorId: vendedorForzado || filters.vendedorId || undefined,
             tipo:       filters.tipo       || undefined,
             prioridad:  filters.prioridad  || undefined,
-            cliente:    filters.buscar     || undefined,
         }).filter(a => a.estado === 'En Progreso' && MESES.indexOf(a.mes) < idxActual && MESES.indexOf(a.mes) >= 0);
         const ids = new Set(baseFiltered.map(a => a.id));
         filtered = [...baseFiltered, ...arrastradas.filter(a => !ids.has(a.id))];
     }
-    filtered = [...filtered].sort((a, b) =>
-        dateOrderValue(b.fecha, b.created_at) - dateOrderValue(a.fecha, a.created_at)
-    );
+    if (filters.buscar) {
+        filtered = filtered.filter(a => {
+            const vendedor = vendedorNombre(a);
+            return [a.nombre, a.cliente, a.notas, a.tipo, a.estado, a.prioridad, a.mes, vendedor]
+                .some(value => matchText(value, filters.buscar));
+        });
+    }
+    const sortValue = (a, key) => {
+        if (key === 'actividad') return norm(a.nombre);
+        if (key === 'tipo') return norm(a.tipo);
+        if (key === 'vendedor') return norm(vendedorNombre(a));
+        if (key === 'cliente') return norm(a.cliente);
+        if (key === 'monto') return Number(a.monto) || 0;
+        if (key === 'prioridad') return norm(a.prioridad);
+        if (key === 'estado') return norm(a.estado);
+        if (key === 'mes') return MESES.indexOf(a.mes);
+        if (key === 'fecha_fin') return dateOrderValue(a.fecha_fin, null);
+        return dateOrderValue(a.fecha, a.created_at);
+    };
+    filtered = [...filtered].sort((a, b) => {
+        const av = sortValue(a, sort.key);
+        const bv = sortValue(b, sort.key);
+        const cmp = typeof av === 'number' && typeof bv === 'number'
+            ? av - bv
+            : String(av).localeCompare(String(bv), 'es', { sensitivity:'base' });
+        return sort.dir === 'asc' ? cmp : -cmp;
+    });
 
     const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
+    const toggleSort = (key) => {
+        setSort(cur => {
+            if (cur.key === key) return { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' };
+            const dir = ['monto','fecha','fecha_fin'].includes(key) ? 'desc' : 'asc';
+            return { key, dir };
+        });
+    };
+    const sortArrow = (key) => sort.key === key ? (sort.dir === 'asc' ? '↑' : '↓') : '↕';
 
     // No actualizamos estado manualmente — el socket broadcast lo hace para todos los clientes
     const handleSave = async (data) => {
@@ -155,7 +197,7 @@ export default function Planificador() {
     return (
         <div>
             {/* Header + Mini stats en una sola fila */}
-            <div style={{ display:'flex', alignItems:'center', marginBottom:20, gap:10 }}>
+            <div style={{ display:'flex', alignItems:isMobile ? 'stretch' : 'center', marginBottom:20, gap:10, flexDirection:isMobile ? 'column' : 'row' }}>
                 {/* Vista */}
                 <div style={{ display:'flex', gap:6, flexShrink:0 }}>
                     {['tabla','kanban'].map(v => (
@@ -167,7 +209,7 @@ export default function Planificador() {
                 </div>
 
                 {/* Stats centrados */}
-                <div style={{ display:'flex', gap:8, flex:1, justifyContent:'center', flexWrap:'wrap' }}>
+                <div style={{ display:'flex', gap:8, flex:1, justifyContent:isMobile ? 'flex-start' : 'center', flexWrap:'wrap' }}>
                     {[
                         ['Total', filtered.length, '#10b981'],
                         ['Monto', fmtUSD(totalMonto, moneda), '#27ae60'],
@@ -183,7 +225,7 @@ export default function Planificador() {
                 </div>
 
                 {/* Nueva actividad */}
-                <button onClick={() => setModal({ open:true, actividad:null })} style={{ ...btnPri, flexShrink:0 }}>+ Nueva actividad</button>
+                <button onClick={() => setModal({ open:true, actividad:null })} style={{ ...btnPri, flexShrink:0, width:isMobile ? '100%' : 'auto' }}>+ Nueva actividad</button>
             </div>
 
             {/* Filtros */}
@@ -193,7 +235,9 @@ export default function Planificador() {
                     trim={filters.trimestre} mes={filters.mes}
                     onTrim={t => setF('trimestre', t)} onMes={m => setF('mes', m)}
                 />
-                <div style={{ flex:1, display:'flex', justifyContent:'center', gap:5, transform:'translateX(-50px)' }}>
+                <input placeholder="Buscar actividad, cliente, vendedor..." style={{ ...sel, minWidth:isMobile ? '100%' : 250, flex:isMobile ? '1 1 100%' : '0 1 auto' }}
+                    value={filters.buscar} onChange={e => setF('buscar', e.target.value)} />
+                <div style={{ flex:1, display:'flex', justifyContent:isMobile ? 'flex-start' : 'center', gap:5, transform:isMobile ? 'none' : 'translateX(-50px)', overflowX:'auto' }}>
                     {['1','2','3','4'].map(q => {
                         const activo = q === Q_ACTUAL;
                         return (
@@ -210,8 +254,6 @@ export default function Planificador() {
                 </div>
                 {puedeFiltrar && (
                     <>
-                        <input placeholder="Buscar cliente o actividad..." style={{ ...sel, minWidth:220 }}
-                            value={filters.buscar} onChange={e => setF('buscar', e.target.value)} />
                         {[
                             ...(!vendedorForzado ? [['vendedorId', [['','Vendedor'],...vendedores.map(v=>[v.id,v.nombre])]]] : []),
                             ['tipo',       [['','Tipo'],...tipos.map(t=>[t,t])]],
@@ -234,12 +276,34 @@ export default function Planificador() {
 
             {/* Vista Tabla */}
             {view === 'tabla' && (
-                <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
-                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflowX:'auto', overflowY:'hidden' }}>
+                    <table style={{ width:'100%', minWidth: isMobile ? 980 : 'auto', borderCollapse:'collapse', fontSize:13 }}>
                         <thead>
                             <tr style={{ borderBottom:`2px solid ${tk.bdr}`, background:tk.card2 }}>
-                                {['','Actividad','Tipo','Vendedor','Cliente','Monto','Prioridad','Estado','Mes','Fecha de inicio','Fin estimado',''].map((h,i) =>
-                                    <th key={i} style={{ padding:'10px 10px', textAlign:'left', color:tk.txt2, fontWeight:600, fontSize:11 }}>{h}</th>
+                                {[
+                                    ['', null],
+                                    ['Actividad', 'actividad'],
+                                    ['Tipo', 'tipo'],
+                                    ['Vendedor', 'vendedor'],
+                                    ['Cliente', 'cliente'],
+                                    ['Monto', 'monto'],
+                                    ['Prioridad', 'prioridad'],
+                                    ['Estado', 'estado'],
+                                    ['Mes', 'mes'],
+                                    ['Fecha de inicio', 'fecha'],
+                                    ['Fin estimado', 'fecha_fin'],
+                                    ['', null],
+                                ].map(([h, key], i) =>
+                                    <th key={i} style={th}>
+                                        {key ? (
+                                            <button type="button" onClick={() => toggleSort(key)}
+                                                title="Ordenar"
+                                                style={{ display:'inline-flex', alignItems:'center', gap:5, border:'none', background:'transparent', color:tk.txt2, fontWeight:700, fontSize:11, padding:0, cursor:'pointer' }}>
+                                                <span>{h}</span>
+                                                <span style={{ color:sort.key === key ? '#10b981' : tk.txt3, fontSize:11 }}>{sortArrow(key)}</span>
+                                            </button>
+                                        ) : h}
+                                    </th>
                                 )}
                             </tr>
                         </thead>
@@ -283,7 +347,19 @@ export default function Planificador() {
                                                 <span>{v?.nombre}{colabsT.length ? ` +${colabsT.length}` : ''}</span>
                                             </div>
                                         </td>
-                                        <td style={td}>{a.cliente}</td>
+                                        <td style={td}>
+                                            <div>{a.cliente}</div>
+                                            {a.cliente_registrado_por_nombre && (
+                                                <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:3, fontSize:10, color:tk.txt3 }}>
+                                                    {a.cliente_registrado_por_iniciales && (
+                                                        <span style={{ width:16, height:16, borderRadius:'50%', background:a.cliente_registrado_por_color || '#10b981', color:'#fff', fontSize:8, fontWeight:800, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
+                                                            {a.cliente_registrado_por_iniciales}
+                                                        </span>
+                                                    )}
+                                                    <span>Cliente de {a.cliente_registrado_por_nombre}</span>
+                                                </div>
+                                            )}
+                                        </td>
                                         <td style={{ ...td, fontWeight:700, color:'#10b981' }}>{fmtUSD(a.monto, moneda)}</td>
                                         <td style={td}><PrioBadge prioridad={a.prioridad} /></td>
                                         <td style={td}>
@@ -337,7 +413,7 @@ export default function Planificador() {
 
             {/* Vista Kanban */}
             {view === 'kanban' && (
-                <div style={{ display:'grid', gridTemplateColumns: KANBAN_COLS.map(c => collapsedCols.has(c) ? '40px' : '1fr').join(' '), gap:14 }}>
+                <div style={{ display:'grid', gridTemplateColumns: isMobile ? KANBAN_COLS.map(c => collapsedCols.has(c) ? '40px' : '260px').join(' ') : KANBAN_COLS.map(c => collapsedCols.has(c) ? '40px' : '1fr').join(' '), gap:14, overflowX:isMobile ? 'auto' : 'visible', paddingBottom:isMobile ? 8 : 0 }}>
                     {KANBAN_COLS.map(col => {
                         const colActs = filtered.filter(a => a.estado === col);
                         const isCollapsed = collapsedCols.has(col);
@@ -383,6 +459,16 @@ export default function Planificador() {
                                                     <PrioBadge prioridad={a.prioridad} />
                                                 </div>
                                                 <div style={{ fontSize:12, color:tk.txt2, marginBottom:6 }}>{a.cliente} · {fmtUSD(a.monto, moneda)}</div>
+                                                {a.cliente_registrado_por_nombre && (
+                                                    <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:10, color:tk.txt3, marginBottom:6 }}>
+                                                        {a.cliente_registrado_por_iniciales && (
+                                                            <span style={{ width:16, height:16, borderRadius:'50%', background:a.cliente_registrado_por_color || '#10b981', color:'#fff', fontSize:8, fontWeight:800, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
+                                                                {a.cliente_registrado_por_iniciales}
+                                                            </span>
+                                                        )}
+                                                        <span>Cliente de {a.cliente_registrado_por_nombre}</span>
+                                                    </div>
+                                                )}
                                                 {a.fecha && (
                                                     <div style={{ fontSize:11, color: tk.txt3, marginBottom:6 }}>
                                                         Inicio: {fmtDateShort(a.fecha)}

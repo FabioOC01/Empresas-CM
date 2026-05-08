@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
-import { getClientes, createCliente, uploadArchivoActividad, deleteArchivoActividad } from '../api/actividades';
+import { getClientes, createCliente, lookupRuc, uploadArchivoActividad, deleteArchivoActividad } from '../api/actividades';
 import { TIPOS, ESTADOS, PRIORIDADES, MESES, ROL_TIPOS, ROLES, TYPE_COLOR, TYPE_ICON, TIPOS_CON_RESULTADO, fmt as fmtDur } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
 
@@ -48,15 +48,25 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const [form,      setForm]      = useState(EMPTY);
     const [expanded,  setExpanded]  = useState(false);
     const [now,       setNow]       = useState(Date.now());
+    const [isMobile,  setIsMobile]  = useState(() => window.innerWidth <= 760);
     useEffect(() => {
         if (!open) return;
         const t = setInterval(() => setNow(Date.now()), 1000);
         return () => clearInterval(t);
     }, [open]);
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth <= 760);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
     const [clientes,  setClientes]  = useState([]);
     const [nuevoC,    setNuevoC]    = useState(false);
+    const [clienteQuery,setClienteQuery]= useState('');
     const [formC,     setFormC]     = useState({ nombre:'', ruc:'', email:'', telefono:'' });
     const [savingC,   setSavingC]   = useState(false);
+    const [lookingRucC,setLookingRucC]= useState(false);
+    const [sunatInfoC,setSunatInfoC]= useState(null);
+    const [clienteMsg,setClienteMsg]= useState(null);
 
     const esMarketing = MARKETING_TIPOS.has(form.tipo);
     const vendedoresFiltrados = esMarketing
@@ -72,6 +82,15 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         return acc;
     }, []) || todosLosTipos);
     const tiposDisponibles = tiposPermitidos.length > 0 ? tiposPermitidos : todosLosTipos;
+    const clientesFiltrados = clientes
+        .filter(c => {
+            const q = clienteQuery.trim().toLowerCase();
+            if (!q) return false;
+            return c.nombre.toLowerCase().includes(q) || String(c.ruc || '').includes(q);
+        })
+        .slice(0, 8);
+    const clienteQueryRuc = clienteQuery.replace(/\D/g, '');
+    const clienteSeleccionadoExacto = clientes.some(c => c.nombre === form.cliente && c.nombre === clienteQuery);
 
     useEffect(() => {
         if (open) getClientes().then(setClientes);
@@ -98,11 +117,13 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 colaboradores:     parseArr(actividad.colaboradores),
                 checklist:         parseArr(actividad.checklist),
             });
+            setClienteQuery(actividad.cliente || '');
             setExpanded(true);
         } else {
             const primerTipo = tiposDisponibles[0] || 'Venta';
             const fechaInicio = todayInputDate();
             setForm({ ...EMPTY, fecha: fechaInicio, mes: MESES[new Date(`${fechaInicio}T12:00:00`).getMonth()], tipo: primerTipo, vendedor_id: user?.id || vendedores[0]?.id || '' });
+            setClienteQuery('');
             setExpanded(MARKETING_TIPOS.has(primerTipo));
         }
     }, [open, actividad]);
@@ -111,10 +132,87 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+    const resetNuevoCliente = () => {
+        setFormC({ nombre:'', ruc:'', email:'', telefono:'' });
+        setClienteQuery('');
+        setSunatInfoC(null);
+        setClienteMsg(null);
+    };
+
+    const setClienteRuc = (value) => {
+        setFormC(f => ({ ...f, ruc: value.replace(/\D/g, '').slice(0, 11) }));
+        setSunatInfoC(null);
+        setClienteMsg(null);
+    };
+
+    const handleLookupClienteRuc = async () => {
+        const ruc = String(formC.ruc || clienteQuery || '').replace(/\D/g, '');
+        if (!/^\d{11}$/.test(ruc)) {
+            setClienteMsg({ type:'err', text:'Ingresa un RUC válido de 11 dígitos.' });
+            return;
+        }
+
+        setLookingRucC(true);
+        setClienteMsg(null);
+        try {
+            const data = await lookupRuc(ruc);
+            setFormC(f => ({ ...f, ruc: data.ruc || ruc, nombre: data.nombre || f.nombre }));
+            setClienteQuery(data.nombre || ruc);
+            setForm(f => ({
+                ...f,
+                cliente: data.nombre || ruc,
+                cliente_ruc: data.ruc || ruc,
+                ...(!actividad ? { nombre: `${f.tipo} — ${data.nombre || ruc}` } : {}),
+            }));
+            setNuevoC(true);
+            setSunatInfoC(data);
+        } catch (err) {
+            setSunatInfoC(null);
+            setClienteMsg({ type:'err', text: err.response?.data?.error || 'No se pudo consultar SUNAT. Intenta nuevamente.' });
+        } finally {
+            setLookingRucC(false);
+        }
+    };
+
     const handleClienteChange = (val) => {
+        const cliente = clientes.find(c => c.nombre === val);
+        setClienteQuery(val);
         set('cliente', val);
+        if (cliente) {
+            setForm(f => ({
+                ...f,
+                cliente: val,
+                cliente_ruc: cliente.ruc || '',
+                cliente_email: cliente.email || '',
+                cliente_telefono: cliente.telefono || '',
+            }));
+        }
         if (!actividad) set('nombre', `${form.tipo} — ${val}`);
     };
+    const handleClienteSearchChange = (val) => {
+        setClienteQuery(val);
+        const ruc = val.replace(/\D/g, '').slice(0, 11);
+        if (ruc) setFormC(f => ({ ...f, ruc }));
+        setForm(f => ({
+            ...f,
+            cliente: val,
+            cliente_ruc: '',
+            cliente_email: '',
+            cliente_telefono: '',
+            ...(!actividad ? { nombre: `${f.tipo} — ${val}` } : {}),
+        }));
+    };
+
+    const handleClienteSearchKeyDown = (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (clientesFiltrados.length === 1) {
+            handleClienteChange(clientesFiltrados[0].nombre);
+            return;
+        }
+        if (clienteQueryRuc.length === 11) handleLookupClienteRuc();
+    };
+
     const handleTipoChange = (tipo) => {
         set('tipo', tipo);
         if (!actividad && form.cliente) set('nombre', `${tipo} — ${form.cliente}`);
@@ -189,7 +287,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         }}>
             <div onClick={e => e.stopPropagation()} className="card" style={{
                 borderRadius: 14,
-                width: expanded ? 900 : 520,
+                width: isMobile ? '96vw' : (expanded ? 900 : 520),
                 maxWidth: '96vw',
                 maxHeight: '92vh', overflowY: 'auto',
                 boxShadow: '0 24px 64px rgba(0,0,0,0.35)',
@@ -226,8 +324,8 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px' }}>
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: expanded ? '1fr 1fr' : '1fr',
-                        gap: expanded ? 28 : 0,
+                        gridTemplateColumns: expanded && !isMobile ? '1fr 1fr' : '1fr',
+                        gap: expanded && !isMobile ? 28 : 0,
                         alignItems: 'start',
                     }}>
 
@@ -262,7 +360,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 <div style={{ ...lbl, flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
                                     <span>{esMarketing ? 'Área *' : 'Cliente *'}</span>
                                     {!esMarketing && (
-                                        <button type="button" onClick={() => { setNuevoC(x => !x); setFormC({ nombre:'', ruc:'', email:'', telefono:'' }); }}
+                                        <button type="button" onClick={() => { setNuevoC(x => !x); resetNuevoCliente(); }}
                                             style={{ fontSize:11, fontWeight:700, padding:'2px 10px', borderRadius:6, border:`1px solid ${'#10b981'}`, background: nuevoC ? '#10b981' : '#10b98118', color: nuevoC ? '#fff' : '#10b981', cursor:'pointer' }}>
                                             {nuevoC ? '✕ Cancelar' : '+ Nuevo'}
                                         </button>
@@ -274,24 +372,79 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
                                 ) : (
-                                    <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
+                                    <>
+                                    <div style={{ position:'relative' }}>
+                                        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8 }}>
+                                            <input
+                                                style={inp}
+                                                required
+                                                placeholder="Buscar por nombre o RUC..."
+                                                value={clienteQuery}
+                                                onChange={e => handleClienteSearchChange(e.target.value)}
+                                                onKeyDown={handleClienteSearchKeyDown}
+                                                onBlur={() => setTimeout(() => setClienteQuery(form.cliente || clienteQuery), 120)}
+                                            />
+                                            <button type="button" disabled={lookingRucC || clienteQueryRuc.length !== 11} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteRuc}
+                                                title="Buscar RUC en SUNAT"
+                                                style={{ padding:'9px 12px', borderRadius:8, border:'none', background: lookingRucC || clienteQueryRuc.length !== 11 ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingRucC || clienteQueryRuc.length !== 11 ? 'default' : 'pointer' }}>
+                                                {lookingRucC ? '...' : 'SUNAT'}
+                                            </button>
+                                        </div>
+                                        {clienteQuery.trim() && !clienteSeleccionadoExacto && clientesFiltrados.length > 0 && (
+                                            <div style={{ position:'absolute', zIndex:20, top:'calc(100% + 4px)', left:0, right:0, background:tk.card, border:`1px solid ${tk.bdr}`, borderRadius:8, boxShadow:tk.shadow, overflow:'hidden' }}>
+                                                {clientesFiltrados.map(c => (
+                                                    <button key={c.id} type="button" onMouseDown={e => e.preventDefault()} onClick={() => handleClienteChange(c.nombre)}
+                                                        style={{ width:'100%', border:'none', background:'transparent', color:tk.txt, textAlign:'left', padding:'9px 11px', cursor:'pointer', display:'block' }}>
+                                                        <div style={{ fontSize:12, fontWeight:700 }}>{c.nombre}</div>
+                                                        <div style={{ fontSize:10, color:tk.txt3 }}>{c.ruc ? `RUC: ${c.ruc}` : c.email || 'Sin contacto'}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {clienteQueryRuc.length === 11 && !clienteSeleccionadoExacto && clientesFiltrados.length === 0 && (
+                                            <div style={{ position:'absolute', zIndex:20, top:'calc(100% + 4px)', left:0, right:0, background:tk.card, border:`1px solid ${tk.bdr}`, borderRadius:8, boxShadow:tk.shadow, overflow:'hidden' }}>
+                                                <button type="button" disabled={lookingRucC} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteRuc}
+                                                    style={{ width:'100%', border:'none', background:'transparent', color:tk.txt, textAlign:'left', padding:'10px 11px', cursor: lookingRucC ? 'default' : 'pointer', display:'block' }}>
+                                                    <div style={{ fontSize:12, fontWeight:700 }}>{lookingRucC ? 'Buscando en SUNAT...' : `Buscar RUC ${clienteQueryRuc} en SUNAT`}</div>
+                                                    <div style={{ fontSize:10, color:tk.txt3 }}>Si existe, se llenará el nuevo cliente para crearlo.</div>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Legacy select removed; client search above replaces it. */}
+                                    {false && <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
                                         <option value="">— Seleccionar cliente —</option>
                                         {clientes.map(c => (
                                             <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` · ${c.ruc}` : ''}</option>
                                         ))}
-                                    </select>
+                                    </select>}
+                                    </>
                                 )}
                                 {!esMarketing && nuevoC && (
                                     <div style={{ marginTop:10, padding:'14px', background:tk.card2, borderRadius:10, border:`1px solid ${tk.bdr}`, display:'grid', gap:8 }}>
                                         <div style={{ fontSize:11, fontWeight:700, color:tk.txt2, marginBottom:2 }}>Nuevo cliente</div>
                                         <input style={inp} placeholder="Nombre *" required value={formC.nombre}
                                             onChange={e => setFormC(f => ({ ...f, nombre: e.target.value }))} />
-                                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                                            <input style={inp} placeholder="RUC" value={formC.ruc}
-                                                onChange={e => setFormC(f => ({ ...f, ruc: e.target.value }))} />
+                                        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8 }}>
+                                            <input style={inp} inputMode="numeric" maxLength={11} placeholder="RUC" value={formC.ruc}
+                                                onChange={e => setClienteRuc(e.target.value)} />
+                                            <button type="button" disabled={lookingRucC} onClick={handleLookupClienteRuc}
+                                                style={{ padding:'8px 12px', borderRadius:8, border:'none', background: lookingRucC ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingRucC ? 'default' : 'pointer' }}>
+                                                {lookingRucC ? 'Buscando...' : 'Buscar'}
+                                            </button>
                                             <input style={inp} placeholder="Teléfono" value={formC.telefono}
                                                 onChange={e => setFormC(f => ({ ...f, telefono: e.target.value }))} />
                                         </div>
+                                        {sunatInfoC && (
+                                            <div style={{ padding:'8px 10px', borderRadius:8, background:tk.card, border:`1px solid ${tk.bdr}`, color:tk.txt2, fontSize:11 }}>
+                                                SUNAT: <strong style={{ color:tk.txt }}>{sunatInfoC.estado || 'Sin estado'} / {sunatInfoC.condicion || 'Sin condición'}</strong>
+                                            </div>
+                                        )}
+                                        {clienteMsg && (
+                                            <div style={{ padding:'8px 10px', borderRadius:8, background: clienteMsg.type === 'err' ? '#fff0f0' : '#e8f8ee', border:`1px solid ${clienteMsg.type === 'err' ? '#fcc' : '#a8ddb8'}`, color: clienteMsg.type === 'err' ? '#c0392b' : '#1a7a3c', fontSize:11 }}>
+                                                {clienteMsg.text}
+                                            </div>
+                                        )}
                                         <input style={inp} placeholder="Email" type="email" value={formC.email}
                                             onChange={e => setFormC(f => ({ ...f, email: e.target.value }))} />
                                         <button type="button" disabled={savingC || !formC.nombre.trim()}
@@ -300,8 +453,20 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                 setSavingC(true);
                                                 try {
                                                     const nuevo = await createCliente(formC);
-                                                    setClientes(cs => [...cs, nuevo].sort((a,b) => a.nombre.localeCompare(b.nombre)));
+                                                    setClientes(cs => {
+                                                        const exists = cs.some(c => c.id === nuevo.id);
+                                                        const next = exists ? cs : [...cs, nuevo];
+                                                        return next.sort((a,b) => a.nombre.localeCompare(b.nombre));
+                                                    });
                                                     handleClienteChange(nuevo.nombre);
+                                                    setForm(f => ({
+                                                        ...f,
+                                                        cliente: nuevo.nombre,
+                                                        cliente_ruc: nuevo.ruc || '',
+                                                        cliente_email: nuevo.email || '',
+                                                        cliente_telefono: nuevo.telefono || '',
+                                                    }));
+                                                    if (nuevo.reused) setClienteMsg({ type:'ok', text:'El RUC ya existía. Se seleccionó el cliente registrado.' });
                                                     setNuevoC(false);
                                                 } finally {
                                                     setSavingC(false);
@@ -315,7 +480,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                             </div>
 
                             {/* Vendedor + Monto */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px', gap: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 150px', gap: 12 }}>
                                 <label style={lbl}>Vendedor *
                                     <select style={{ ...inp, background: tk.inp, color: puedeElegirVendedor ? tk.txt : tk.txt2 }}
                                         required value={form.vendedor_id} disabled={!puedeElegirVendedor}
@@ -367,7 +532,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
                         {/* ── Columna derecha — más opciones (solo cuando expandido) ── */}
                         {expanded && (
-                            <div style={{ display: 'grid', gap: 16, borderLeft: `1px solid ${tk.bdr}`, paddingLeft: 28 }}>
+                            <div style={{ display: 'grid', gap: 16, borderLeft: isMobile ? 'none' : `1px solid ${tk.bdr}`, paddingLeft: isMobile ? 0 : 28, marginTop:isMobile ? 18 : 0 }}>
 
                                 {/* Nombre */}
                                 <label style={lbl}>Nombre
@@ -423,7 +588,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 </div>
 
                                 {/* Fechas */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                     <label style={lbl}>Fecha de inicio
                                         <input style={(!actividad || puedeEditarFechaInicio) ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
                                             type="date" value={form.fecha}

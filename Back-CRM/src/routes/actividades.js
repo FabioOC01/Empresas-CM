@@ -33,9 +33,25 @@ router.get('/', async (req, res) => {
             params.push(mesesQ);
         }
 
-        const sql = `SELECT a.*, v.nombre AS vendedor_nombre, v.iniciales, v.color, v.foto_url
+        const sql = `SELECT a.*, v.nombre AS vendedor_nombre, v.iniciales, v.color, v.foto_url,
+                            vc.id AS cliente_registrado_por,
+                            vc.nombre AS cliente_registrado_por_nombre,
+                            vc.iniciales AS cliente_registrado_por_iniciales,
+                            vc.color AS cliente_registrado_por_color
                      FROM actividades a
                      JOIN vendedores v ON v.id = a.vendedor_id
+                     LEFT JOIN LATERAL (
+                        SELECT c.registrado_por
+                        FROM clientes c
+                        WHERE c.empresa_id = a.empresa_id
+                          AND (
+                            (COALESCE(a.cliente_ruc, '') <> '' AND c.ruc = a.cliente_ruc)
+                            OR (COALESCE(a.cliente_ruc, '') = '' AND c.nombre = a.cliente)
+                          )
+                        ORDER BY c.created_at DESC
+                        LIMIT 1
+                     ) cli ON true
+                     LEFT JOIN vendedores vc ON vc.id = cli.registrado_por
                      WHERE ${where.join(' AND ')}
                      ORDER BY a.created_at DESC`;
 

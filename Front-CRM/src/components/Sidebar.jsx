@@ -35,7 +35,7 @@ const external = [
     { href: ODOO_URL,   label: 'Odoo',         img: ODOO_ICON },
 ];
 
-export default function Sidebar({ collapsed, onToggle }) {
+export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
     const W = collapsed ? 62 : 210;
     const { user, logout, switchEmpresa } = useAuth();
     const { config } = useActividadesContext();
@@ -73,6 +73,48 @@ export default function Sidebar({ collapsed, onToggle }) {
     const links = user?.is_superadmin || user?.roles?.includes('Admin')
         ? [...BASE_LINKS.slice(0, 3), attendanceLink, ...BASE_LINKS.slice(3), ADMIN_LINK]
         : [...BASE_LINKS.slice(0, 3), attendanceLink, ...BASE_LINKS.slice(3)];
+
+    if (isMobile) {
+        return (
+            <>
+            <aside className="sidebar-dark" style={{
+                position: 'fixed', top: 0, left: 0, right: 0, height: 62, zIndex: 100,
+                background: 'var(--sidebar)', borderBottom: '1px solid rgba(255,255,255,0.08)',
+                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                overflowX: 'auto', overflowY: 'hidden',
+            }}>
+                <img src={logoIso} alt={appName} style={{ width: 34, height: 34, objectFit: 'contain', flexShrink: 0 }} />
+                <nav style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, overflowX: 'auto', paddingBottom: 2 }}>
+                    {links.map(l => (
+                        <NavLink
+                            key={l.to}
+                            to={l.to}
+                            end={l.to === '/'}
+                            title={l.label}
+                            className="nav-item"
+                            style={({ isActive }) => ({
+                                minWidth: 42, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                borderRadius: 9, color: isActive ? '#10b981' : '#8b9cbf',
+                                background: isActive ? 'rgba(16,185,129,0.13)' : 'transparent',
+                                border: isActive ? '1px solid rgba(16,185,129,0.30)' : '1px solid transparent',
+                                textDecoration: 'none', fontSize: 17, flexShrink: 0,
+                            })}
+                        >
+                            <span>{l.icon}</span>
+                        </NavLink>
+                    ))}
+                </nav>
+                {user && (
+                    <button onClick={() => setProfileOpen(true)} title={user.nombre}
+                        style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: user.color || '#10b981', color: '#fff', fontWeight: 800, flexShrink: 0 }}>
+                        {user.iniciales || user.nombre?.[0] || '?'}
+                    </button>
+                )}
+            </aside>
+            {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
+            </>
+        );
+    }
 
     return (
         <>
