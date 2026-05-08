@@ -85,7 +85,7 @@ export function ActividadesProvider({ children }) {
     }, []);
 
     useEffect(() => {
-        const onCreada      = (a)      => setActividades(prev => [a, ...prev]);
+        const onCreada      = (a)      => setActividades(prev => prev.some(x => x.id === a.id) ? prev.map(x => x.id === a.id ? { ...x, ...a } : x) : [a, ...prev]);
         const onActualizada = (a)      => setActividades(prev => prev.map(x => {
             if (x.id !== a.id) return x;
             if (x.estado === 'En Progreso' && a.estado === 'En Progreso')

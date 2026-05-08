@@ -38,7 +38,7 @@ function dateOrderValue(value, fallback) {
 }
 
 export default function Planificador() {
-    const { actividades, config } = useActividades();
+    const { actividades, setActividades, config } = useActividades();
     const { user } = useAuth();
     const puedeEliminar = user?.is_superadmin || user?.roles?.some(r => ['Admin','Gerencia'].includes(r));
     const puedeFiltrar  = puedeEliminar;
@@ -174,12 +174,16 @@ export default function Planificador() {
     };
     const sortArrow = (key) => sort.key === key ? (sort.dir === 'asc' ? '↑' : '↓') : '↕';
 
-    // No actualizamos estado manualmente — el socket broadcast lo hace para todos los clientes
+    // Refleja el guardado al instante; el socket mantiene sincronizados a los demas clientes.
     const handleSave = async (data) => {
         if (data.id && actividades.find(a => a.id === data.id)) {
-            await updateActividad(data.id, data);
+            const updated = await updateActividad(data.id, data);
+            setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
+            return updated;
         } else {
-            await createActividad(data);
+            const created = await createActividad(data);
+            setActividades(prev => prev.some(a => a.id === created.id) ? prev.map(a => a.id === created.id ? { ...a, ...created } : a) : [created, ...prev]);
+            return created;
         }
     };
 
@@ -189,7 +193,8 @@ export default function Planificador() {
     };
 
     const changeEstado = async (id, estado) => {
-        await updateActividad(id, { estado });
+        const updated = await updateActividad(id, { estado });
+        setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
     };
 
     const handleDrop = async (col) => {
@@ -199,7 +204,8 @@ export default function Planificador() {
         if (!id) return;
         const act = actividades.find(a => a.id === id);
         if (!act || act.estado === col) return;
-        await updateActividad(id, { estado: col });
+        const updated = await updateActividad(id, { estado: col });
+        setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
     };
 
     const totalMonto = filtered.reduce((s,a) => s + Number(a.monto), 0);
@@ -558,11 +564,15 @@ export default function Planificador() {
 
             <ComisionModal
                 open={calcModal.open}
-                actividad={calcModal.actividad}
+                actividad={actividades.find(a => a.id === calcModal.actividad?.id) || calcModal.actividad}
                 vendedor={vendedores.find(v => v.id === calcModal.actividad?.vendedor_id)}
                 moneda={moneda}
                 onClose={() => setCalcModal({ open:false, actividad:null })}
-                onSave={updated => setCalcModal(prev => ({ ...prev, actividad: { ...prev.actividad, ...updated } }))}
+                onSave={async data => {
+                    const updated = await handleSave(data);
+                    setCalcModal(prev => ({ ...prev, actividad: { ...prev.actividad, ...updated } }));
+                    return updated;
+                }}
             />
 
             {/* Modal confirmar eliminar */}

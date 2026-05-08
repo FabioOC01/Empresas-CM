@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useActividadesContext } from '../context/ActividadesContext';
 import { useAuth } from '../context/AuthContext';
@@ -97,6 +97,13 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const [saving,      setSaving]      = useState(false);
     const [saveMsg,     setSaveMsg]     = useState(null);
 
+    useEffect(() => {
+        if (!open || !actividad) return;
+        setCostoBase(parseFloat(actividad.costo_base) || 0);
+        setGastos(parseGastos(actividad.gastos_operativos).map(g => ({ nombre: g.nombre || '', monto: String(g.monto || '') })));
+        setSaveMsg(null);
+    }, [open, actividad?.id, actividad?.costo_base, actividad?.gastos_operativos]);
+
     const addGasto    = () => setGastos(g => [...g, { nombre:'', monto:'' }]);
     const removeGasto = i  => setGastos(g => g.filter((_, idx) => idx !== i));
     const setGasto    = (i, field, val) => setGastos(g => g.map((x, idx) => idx === i ? { ...x, [field]: val } : x));
@@ -118,12 +125,14 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const handleSave = async () => {
         setSaving(true); setSaveMsg(null);
         try {
-            const updated = await updateActividad(actividad.id, {
+            const payload = {
                 costo_base:        costoBase,
                 gastos_operativos: gastos.filter(g => g.nombre || parseFloat(g.monto) > 0),
-            });
+            };
+            const updated = onSave
+                ? await onSave({ id: actividad.id, ...payload })
+                : await updateActividad(actividad.id, payload);
             setSaveMsg({ type:'ok', text:'Costo guardado correctamente.' });
-            onSave?.(updated);
             setTimeout(() => setSaveMsg(null), 3000);
         } catch {
             setSaveMsg({ type:'err', text:'Error al guardar.' });
