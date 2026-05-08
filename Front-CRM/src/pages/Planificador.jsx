@@ -5,7 +5,7 @@ import useActividades from '../hooks/useActividades';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import useRolFilter from '../hooks/useRolFilter';
-import { filterActs, fmtUSD, parseGastos, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO, MESES } from '../utils/crm';
+import { filterActs, fmtUSD, totalGastosOperacion, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO, MESES } from '../utils/crm';
 import Avatar from '../components/Avatar';
 import { TipoBadge, PrioBadge } from '../components/Badge';
 import ActividadModal from '../components/ActividadModal';
@@ -56,11 +56,10 @@ export default function Planificador() {
 
     const miniCalc = (a) => {
         const fact = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
-        const costoBase = parseFloat(a.costo_base) || 0;
-        const gastos = parseGastos(a.gastos_operativos).reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
-        const rentabilidadBruta = fact - costoBase;
+        const gastos = totalGastosOperacion(a);
+        const rentabilidadBruta = fact - gastos;
         const sunat = rentabilidadBruta * tasa_sunat;
-        const rentabilidad = rentabilidadBruta - gastos - sunat;
+        const rentabilidad = rentabilidadBruta - sunat;
         const margen = fact > 0 ? (rentabilidad / fact) * 100 : 0;
         return { util: rentabilidad, margen };
     };

@@ -6,7 +6,7 @@ const renderActivePie = ({ cx, cy, innerRadius, outerRadius, startAngle, endAngl
 );
 import { getVendedores } from '../api/actividades';
 import useActividades from '../hooks/useActividades';
-import { filterActs, fmtUSD, fmt, calcDuration, parseGastos, MESES } from '../utils/crm';
+import { filterActs, fmtUSD, fmt, calcDuration, totalGastosOperacion, MESES } from '../utils/crm';
 import PeriodoPicker from '../components/PeriodoPicker';
 import Avatar from '../components/Avatar';
 import { useTheme } from '../context/ThemeContext';
@@ -92,11 +92,10 @@ export default function Dashboard() {
     const facturacionGlobal = ventasGanadas.reduce((s,a) => s + (parseFloat(a.precio_venta) || parseFloat(a.monto) || 0), 0);
     const rentabilidadGlobal = ventasGanadas.reduce((s,a) => {
         const fact     = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
-        const costo    = parseFloat(a.costo_base) || 0;
-        const gastos   = parseGastos(a.gastos_operativos).reduce((g, x) => g + (parseFloat(x.monto) || 0), 0);
-        const rentBruta = fact - costo;
+        const gastos   = totalGastosOperacion(a);
+        const rentBruta = fact - gastos;
         const sunat    = rentBruta * tasaSunatGlobal;
-        return s + (rentBruta - sunat - gastos);
+        return s + (rentBruta - sunat);
     }, 0);
     const metaGlobalRent = parseFloat(
         periodo === 'anual'      ? config?.meta_global_rentabilidad :
@@ -132,7 +131,7 @@ export default function Dashboard() {
         const fact = vVentas.reduce((s,a) => s + (parseFloat(a.precio_venta) || parseFloat(a.monto) || 0), 0);
         const rent = vVentas.reduce((s,a) => {
             const f = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
-            const c = parseFloat(a.costo_base) || 0;
+            const c = totalGastosOperacion(a);
             return s + (f - c);
         }, 0);
         const metaFact = parseFloat(

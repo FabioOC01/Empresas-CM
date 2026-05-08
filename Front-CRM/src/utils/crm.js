@@ -134,3 +134,10 @@ export function parseGastos(val) {
     if (typeof val === 'string') { try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; } }
     return [];
 }
+
+export function totalGastosOperacion(actividad) {
+    const gastos = parseGastos(actividad?.gastos_operativos)
+        .reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
+    const costoLegacy = parseFloat(actividad?.costo_base) || 0;
+    return gastos > 0 ? gastos : costoLegacy;
+}

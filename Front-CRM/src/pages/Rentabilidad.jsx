@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Avatar from '../components/Avatar';
 import { useTheme } from '../context/ThemeContext';
 import PeriodoPicker from '../components/PeriodoPicker';
-import { filterActs, parseGastos } from '../utils/crm';
+import { filterActs, totalGastosOperacion } from '../utils/crm';
 import useActividades from '../hooks/useActividades';
 import useSocket from '../hooks/useSocket';
 import useRolFilter from '../hooks/useRolFilter';
@@ -148,8 +148,8 @@ export default function Rentabilidad() {
         const map = {};
         ventas.forEach(a => {
             const fact       = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
-            const costoBase  = parseFloat(a.costo_base) || 0;
-            const gastosAct  = parseGastos(a.gastos_operativos).reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
+            const costoBase  = totalGastosOperacion(a);
+            const gastosAct  = 0;
             const rentabilidadBrutaAct = fact - costoBase;
             const sunatAct   = rentabilidadBrutaAct * tasa_sunat;
             const rentabilidadAct = rentabilidadBrutaAct - sunatAct - gastosAct;
