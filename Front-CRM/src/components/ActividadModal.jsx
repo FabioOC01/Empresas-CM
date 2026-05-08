@@ -38,6 +38,19 @@ function parseArr(val) {
     return [];
 }
 
+function gastosFromActividad(actividad) {
+    const gastos = parseArr(actividad?.gastos_operativos).map(g => ({
+        nombre: g.nombre || '',
+        monto: g.monto ?? '',
+        notas: g.notas || '',
+    }));
+    const legacyCosto = parseFloat(actividad?.costo_base) || 0;
+    if (!gastos.length && legacyCosto > 0) {
+        return [{ nombre:'Costo real', monto: legacyCosto, notas:'' }];
+    }
+    return gastos;
+}
+
 export default function ActividadModal({ open, onClose, onSave, actividad, vendedores }) {
     const tk = useTheme();
     const lbl    = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: tk.txt2, fontWeight: 600 };
@@ -111,7 +124,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 precio_venta:      actividad.precio_venta      ?? '',
                 costo_base:        actividad.costo_base        ?? '',
                 ajuste_interno:    actividad.ajuste_interno    ?? '',
-                gastos_operativos: parseArr(actividad.gastos_operativos),
+                gastos_operativos: gastosFromActividad(actividad),
                 archivos:          actividad.archivos          ?? [],
                 cliente_ruc:       actividad.cliente_ruc       ?? '',
                 cliente_email:     actividad.cliente_email     ?? '',
@@ -243,7 +256,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     }));
     const removeChkItem = (id) => set('checklist', (form.checklist || []).filter(it => it.id !== id));
 
-    const addGasto    = () => set('gastos_operativos', [...(form.gastos_operativos || []), { nombre: '', monto: '' }]);
+    const addGasto    = () => set('gastos_operativos', [...(form.gastos_operativos || []), { nombre: '', monto: '', notas: '' }]);
     const removeGasto = (i) => set('gastos_operativos', form.gastos_operativos.filter((_, idx) => idx !== i));
     const setGasto    = (i, field, val) => set('gastos_operativos', form.gastos_operativos.map((g, idx) => idx === i ? { ...g, [field]: val } : g));
 
@@ -265,11 +278,13 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
             nombre:           form.nombre || `${form.tipo} — ${form.cliente}`,
             monto:            parseFloat(form.monto)         || 0,
             precio_venta:     parseFloat(form.precio_venta)  || 0,
-            costo_base:       parseFloat(form.costo_base)    || 0,
+            costo_base:       0,
             ajuste_interno:   parseFloat(form.ajuste_interno) || 0,
-            gastos_operativos: (form.gastos_operativos || []).map(g => ({
-                nombre: g.nombre, monto: parseFloat(g.monto) || 0,
-            })),
+            gastos_operativos: (form.gastos_operativos || [])
+                .filter(g => g.nombre || g.notas || parseFloat(g.monto) > 0)
+                .map(g => ({
+                    nombre: g.nombre, monto: parseFloat(g.monto) || 0, notas: g.notas || '',
+                })),
             colaboradores: form.colaboradores || [],
             checklist:     checklistConTs.filter(it => it.texto?.trim()),
             id:      actividad?.id || Date.now(),
@@ -503,24 +518,21 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 </label>
                             </div>
 
-                            {/* Costo + Gastos (solo Venta) */}
-                            {form.tipo === 'Venta' && (
+                            {/* Gastos adicionales */}
+                            {TIPOS_CON_RESULTADO.includes(form.tipo) && (
                                 <div style={{ display: 'grid', gap: 12 }}>
-                                    <label style={lbl}>Costo Base
-                                        <input style={inp} type="number" min="0" step="0.01" placeholder="0.00"
-                                            value={form.costo_base} onChange={e => set('costo_base', e.target.value)} />
-                                    </label>
                                     <div>
-                                        <div style={{ ...lbl, marginBottom: 8 }}>Gastos Operativos</div>
+                                        <div style={{ ...lbl, marginBottom: 8 }}>Gastos</div>
                                         {(form.gastos_operativos || []).map((g, i) => (
-                                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 30px', gap: 6, marginBottom: 6 }}>
-                                                <input style={inp} placeholder="Concepto" value={g.nombre} onChange={e => setGasto(i, 'nombre', e.target.value)} />
+                                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 30px', gap: 6, marginBottom: 8 }}>
+                                                <input style={inp} placeholder="Producto o gasto" value={g.nombre} onChange={e => setGasto(i, 'nombre', e.target.value)} />
                                                 <input style={inp} type="number" min="0" step="0.01" placeholder="Monto" value={g.monto} onChange={e => setGasto(i, 'monto', e.target.value)} />
-                                                <button type="button" onClick={() => removeGasto(i)} style={{ background: '#e74c3c22', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#e74c3c', fontWeight: 700 }}>×</button>
+                                                <button type="button" onClick={() => removeGasto(i)} style={{ background: '#e74c3c22', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#e74c3c', fontWeight: 700 }}>x</button>
+                                                <textarea style={{ ...inp, gridColumn: '1 / -1', resize: 'vertical', minHeight: 52 }} placeholder="Notas del producto o gasto" value={g.notas || ''} onChange={e => setGasto(i, 'notas', e.target.value)} />
                                             </div>
                                         ))}
                                         <button type="button" onClick={addGasto} style={{ fontSize: 12, color: '#10b981', background: 'none', border: '1px dashed #10b981', borderRadius: 7, padding: '6px 14px', cursor: 'pointer' }}>
-                                            + Agregar gasto
+                                            + Agregar producto o gasto
                                         </button>
                                     </div>
                                 </div>

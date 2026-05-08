@@ -77,6 +77,19 @@ const USD2 = n => new Intl.NumberFormat('es-PE', {
     style:'currency', currency:'USD', minimumFractionDigits:2,
 }).format(n || 0);
 
+function normalizeGastos(gastosOperativos, costoBase = 0) {
+    const gastos = parseGastos(gastosOperativos).map(g => ({
+        nombre: g.nombre || '',
+        monto: String(g.monto ?? ''),
+        notas: g.notas || '',
+    }));
+    const legacyCosto = parseFloat(costoBase) || 0;
+    if (!gastos.length && legacyCosto > 0) {
+        return [{ nombre:'Costo real', monto:String(legacyCosto), notas:'' }];
+    }
+    return gastos;
+}
+
 export default function ComisionModal({ open, onClose, onSave, actividad, vendedor, moneda = 'USD' }) {
     const tk     = useTheme();
     const fmt$   = n => fmtUSD(n, moneda);
@@ -89,36 +102,33 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const cuota       = parseFloat(vendedor?.meta_mensual) || 0;
     const sunatPct    = parseFloat(config?.tasa_sunat) > 0 ? parseFloat(config.tasa_sunat) * 100 : 0;
 
-    const initCostoBase = parseFloat(actividad?.costo_base) || 0;
-    const initGastos    = parseGastos(actividad?.gastos_operativos).map(g => ({ nombre: g.nombre || '', monto: String(g.monto || '') }));
+    const initGastos    = normalizeGastos(actividad?.gastos_operativos, actividad?.costo_base);
 
-    const [costoBase,   setCostoBase]   = useState(initCostoBase);
     const [gastos,      setGastos]      = useState(initGastos);
     const [saving,      setSaving]      = useState(false);
     const [saveMsg,     setSaveMsg]     = useState(null);
 
     useEffect(() => {
         if (!open || !actividad) return;
-        setCostoBase(parseFloat(actividad.costo_base) || 0);
-        setGastos(parseGastos(actividad.gastos_operativos).map(g => ({ nombre: g.nombre || '', monto: String(g.monto || '') })));
+        setGastos(normalizeGastos(actividad.gastos_operativos, actividad.costo_base));
         setSaveMsg(null);
     }, [open, actividad?.id, actividad?.costo_base, actividad?.gastos_operativos]);
 
-    const addGasto    = () => setGastos(g => [...g, { nombre:'', monto:'' }]);
+    const addGasto    = () => setGastos(g => [...g, { nombre:'', monto:'', notas:'' }]);
     const removeGasto = i  => setGastos(g => g.filter((_, idx) => idx !== i));
     const setGasto    = (i, field, val) => setGastos(g => g.map((x, idx) => idx === i ? { ...x, [field]: val } : x));
 
     const pctBase = parseFloat(vendedor?.pct_comision_base) || 0.02;
     const pctBajo = parseFloat(vendedor?.pct_comision_bajo) || 0.07;
     const pctAlto = parseFloat(vendedor?.pct_comision_alto) || 0.08;
-    const rentabilidadBrutaPreview = facturacion - costoBase;
+    const gastosTotal = gastos.reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
+    const rentabilidadBrutaPreview = facturacion - gastosTotal;
 
     const calc = useMemo(() => {
-        const rentabilidadBruta = facturacion - costoBase;
+        const rentabilidadBruta = facturacion - gastosTotal;
         const sunatMonto  = rentabilidadBruta * (sunatPct / 100);
-        const gastosTotal = gastos.reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
-        return { ...calcComision(facturacion, costoBase, sunatMonto, gastosTotal, cuota, pctBase, pctBajo, pctAlto), sunatMonto, gastosTotal };
-    }, [facturacion, costoBase, sunatPct, gastos, cuota, pctBase, pctBajo, pctAlto]);
+        return { ...calcComision(facturacion, gastosTotal, sunatMonto, 0, cuota, pctBase, pctBajo, pctAlto), sunatMonto, gastosTotal };
+    }, [facturacion, gastosTotal, sunatPct, cuota, pctBase, pctBajo, pctAlto]);
 
     const ec = ESTADO_COLOR[calc.estado];
 
@@ -126,13 +136,15 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
         setSaving(true); setSaveMsg(null);
         try {
             const payload = {
-                costo_base:        costoBase,
-                gastos_operativos: gastos.filter(g => g.nombre || parseFloat(g.monto) > 0),
+                costo_base:        0,
+                gastos_operativos: gastos
+                    .filter(g => g.nombre || g.notas || parseFloat(g.monto) > 0)
+                    .map(g => ({ nombre:g.nombre, monto:parseFloat(g.monto) || 0, notas:g.notas || '' })),
             };
             const updated = onSave
                 ? await onSave({ id: actividad.id, ...payload })
                 : await updateActividad(actividad.id, payload);
-            setSaveMsg({ type:'ok', text:'Costo guardado correctamente.' });
+            setSaveMsg({ type:'ok', text:'Gastos guardados correctamente.' });
             setTimeout(() => setSaveMsg(null), 3000);
         } catch {
             setSaveMsg({ type:'err', text:'Error al guardar.' });
@@ -187,13 +199,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                         </Field>
 
                         <div style={{ borderTop:`1px solid ${tk.bdr}`, margin:'2px 0' }} />
-                        <div style={{ fontSize:12, fontWeight:700, color:tk.txt2, textTransform:'uppercase', letterSpacing:0.6 }}>Costos</div>
-
-                        {/* Costo real */}
-                        <Field label="Costo real">
-                            <input style={inp} type="number" min="0" step="0.01" placeholder="0.00"
-                                value={costoBase} onChange={e => setCostoBase(parseFloat(e.target.value) || 0)} />
-                        </Field>
+                        <div style={{ fontSize:12, fontWeight:700, color:tk.txt2, textTransform:'uppercase', letterSpacing:0.6 }}>Gastos adicionales</div>
 
                         {/* SUNAT — read-only */}
                         <Field label="SUNAT">
@@ -204,20 +210,22 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
 
                         {/* Gastos adicionales */}
                         <div>
-                            <div style={{ fontSize:12, color:tk.txt2, fontWeight:600, marginBottom:8 }}>Gastos adicionales</div>
+                            <div style={{ fontSize:12, color:tk.txt2, fontWeight:600, marginBottom:8 }}>Productos, costos o gastos de la cotizacion</div>
                             {gastos.map((g, i) => (
-                                <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 110px 28px', gap:6, marginBottom:6 }}>
-                                    <input style={inp} placeholder="Ej: Transporte, flete…" value={g.nombre}
+                                <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 110px 28px', gap:6, marginBottom:8 }}>
+                                    <input style={inp} placeholder="Producto o gasto" value={g.nombre}
                                         onChange={e => setGasto(i, 'nombre', e.target.value)} />
                                     <input style={inp} type="number" min="0" step="0.01" placeholder="Monto" value={g.monto}
                                         onChange={e => setGasto(i, 'monto', e.target.value)} />
                                     <button type="button" onClick={() => removeGasto(i)}
-                                        style={{ background:'#e74c3c18', border:'none', borderRadius:7, cursor:'pointer', color:'#e74c3c', fontWeight:700, fontSize:15 }}>×</button>
+                                        style={{ background:'#e74c3c18', border:'none', borderRadius:7, cursor:'pointer', color:'#e74c3c', fontWeight:700, fontSize:15 }}>x</button>
+                                    <textarea style={{ ...inp, gridColumn:'1 / -1', resize:'vertical', minHeight:52 }} placeholder="Notas del producto o gasto"
+                                        value={g.notas || ''} onChange={e => setGasto(i, 'notas', e.target.value)} />
                                 </div>
                             ))}
                             <button type="button" onClick={addGasto}
                                 style={{ fontSize:12, color:'#10b981', background:'none', border:'1px dashed #10b98180', borderRadius:7, padding:'5px 14px', cursor:'pointer', width:'100%' }}>
-                                + Agregar gasto
+                                + Agregar producto o gasto
                             </button>
                         </div>
 
@@ -225,7 +233,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                         <div style={{ borderTop:`1px solid ${tk.bdr}`, paddingTop:12, display:'flex', gap:10, alignItems:'center' }}>
                             <button onClick={handleSave} disabled={saving}
                                 style={{ padding:'9px 20px', background: saving ? '#a0b8e8' : '#27ae60', color:'#fff', border:'none', borderRadius:8, fontWeight:700, fontSize:13, cursor: saving ? 'default' : 'pointer' }}>
-                                {saving ? 'Guardando...' : 'Guardar costo real'}
+                                {saving ? 'Guardando...' : 'Guardar gastos'}
                             </button>
                             {saveMsg && (
                                 <span style={{ fontSize:12, fontWeight:600, color: saveMsg.type==='ok' ? '#27ae60' : '#e74c3c' }}>
@@ -250,15 +258,12 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             <div style={{ padding:'12px 16px', display:'grid', gap:8 }}>
                                 {/* Formula: facturacion - costo = rentabilidad bruta; luego SUNAT/gastos = rentabilidad neta. */}
                                 <ResRow label="Facturación real"                        value={USD2(facturacion)}             color={tk.txt} bold />
-                                <ResRow label="− Costo real"                            value={USD2(costoBase)}               color='#e74c3c' />
+                                <ResRow label="− Gastos adicionales"                    value={USD2(calc.gastosTotal)}        color='#e74c3c' />
                                 <ResRow label="= Rentabilidad Bruta"
                                     value={USD2(calc.rentabilidad_bruta)}
                                     color={calc.rentabilidad_bruta >= 0 ? '#27ae60' : '#e74c3c'} bold />
                                 {calc.sunatMonto > 0 && (
                                     <ResRow label={`− SUNAT (${sunatPct.toFixed(1)}%)`} value={USD2(calc.sunatMonto)}         color='#e74c3c' />
-                                )}
-                                {calc.gastosTotal > 0 && (
-                                    <ResRow label="− Gastos adicionales"                value={USD2(calc.gastosTotal)}        color='#e74c3c' />
                                 )}
                                 <div style={{ borderTop:`1px solid ${tk.bdr}`, margin:'2px 0' }} />
                                 <ResRow label="= Rentabilidad neta"

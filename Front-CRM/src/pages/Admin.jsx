@@ -561,7 +561,7 @@ export default function Admin() {
                         {/* SUNAT global */}
                         <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'22px 26px' }}>
                             <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:3 }}>SUNAT — tasa sobre Rentabilidad Bruta</div>
-                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se aplica sobre Facturación menos Costo real en la calculadora de comisiones.</div>
+                            <div style={{ fontSize:12, color:tk.txt3, marginBottom:16 }}>Se aplica sobre Facturación menos gastos adicionales en la calculadora de comisiones.</div>
                             <form onSubmit={handleSaveCfg} style={{ display:'flex', gap:14, alignItems:'flex-end', flexWrap:'wrap' }}>
                                 <label style={lbl}>Tasa sobre Rentabilidad Bruta (%)
                                     <input type="number" min="0" max="100" step="0.1" style={{ ...inp, width:140 }}

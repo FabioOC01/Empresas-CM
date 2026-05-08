@@ -380,7 +380,7 @@ export default function Rentabilidad() {
                                 <div style={{ padding:'20px', display:'grid', gap:14 }}>
                                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                                         <div style={{ background:tk.card2, borderRadius:10, padding:'12px 14px' }}>
-                                            <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Margen total</div>
+                                            <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Margen Promedio</div>
                                             <div style={{ fontSize:24, fontWeight:800, color:calc.margen_pct >= MARGEN_MINIMO ? '#10b981' : '#e74c3c' }}>{PCT(calc.margen_pct)}</div>
                                         </div>
                                         <div style={{ background:tk.card2, borderRadius:10, padding:'12px 14px' }}>
