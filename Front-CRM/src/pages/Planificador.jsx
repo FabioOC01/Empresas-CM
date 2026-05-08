@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getVendedores, createActividad, updateActividad, deleteActividad } from '../api/actividades';
 import useActividades from '../hooks/useActividades';
@@ -67,6 +67,9 @@ export default function Planificador() {
     const [searchParams] = useSearchParams();
     const [vendedores, setVendedores] = useState([]);
     const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 760);
+    const tableScrollRef = useRef(null);
+    const topScrollRef = useRef(null);
+    const syncingScroll = useRef(false);
     const [view, setView] = useState(searchParams.get('view') === 'kanban' ? 'kanban' : 'tabla');
     const [collapsedCols, setCollapsedCols] = useState(new Set(['Ganada','Perdida']));
     const toggleCol = (col) => setCollapsedCols(s => {
@@ -90,6 +93,12 @@ export default function Planificador() {
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
+    const syncHorizontalScroll = (source, target) => {
+        if (!source || !target || syncingScroll.current) return;
+        syncingScroll.current = true;
+        target.scrollLeft = source.scrollLeft;
+        requestAnimationFrame(() => { syncingScroll.current = false; });
+    };
 
     // Teclado: N = nueva actividad
     useEffect(() => {
@@ -276,7 +285,19 @@ export default function Planificador() {
 
             {/* Vista Tabla */}
             {view === 'tabla' && (
-                <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflowX:'auto', overflowY:'hidden' }}>
+                <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
+                    <div
+                        ref={topScrollRef}
+                        onScroll={e => syncHorizontalScroll(e.currentTarget, tableScrollRef.current)}
+                        style={{ overflowX:'auto', overflowY:'hidden', borderBottom:`1px solid ${tk.bdr}`, background:tk.card2 }}
+                    >
+                        <div style={{ width: isMobile ? 980 : Math.max(tableScrollRef.current?.scrollWidth || 0, tableScrollRef.current?.clientWidth || 0), height: 14 }} />
+                    </div>
+                    <div
+                        ref={tableScrollRef}
+                        onScroll={e => syncHorizontalScroll(e.currentTarget, topScrollRef.current)}
+                        style={{ overflowX:'auto', overflowY:'hidden' }}
+                    >
                     <table style={{ width:'100%', minWidth: isMobile ? 980 : 'auto', borderCollapse:'collapse', fontSize:13 }}>
                         <thead>
                             <tr style={{ borderBottom:`2px solid ${tk.bdr}`, background:tk.card2 }}>
@@ -408,6 +429,7 @@ export default function Planificador() {
                             </tr>
                         </tfoot>
                     </table>
+                    </div>
                 </div>
             )}
 
