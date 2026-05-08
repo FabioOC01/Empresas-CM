@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { getClientes, createCliente, updateCliente, lookupRuc } from '../api/actividades';
+import { getClientes, createCliente, updateCliente, lookupRuc, lookupDni } from '../api/actividades';
 import { useTheme } from '../context/ThemeContext';
 
 const EMPTY = { nombre: '', ruc: '', email: '', telefono: '', contacto: '' };
+
+const docLabel = (doc) => String(doc || '').replace(/\D/g, '').length === 8 ? 'DNI' : 'RUC';
 
 export default function Clientes() {
     const tk = useTheme();
@@ -15,7 +17,7 @@ export default function Clientes() {
     const [editing,   setEditing]   = useState(null); // cliente | 'new' | null
     const [form,      setForm]      = useState(EMPTY);
     const [saving,    setSaving]    = useState(false);
-    const [lookingRuc,setLookingRuc]= useState(false);
+    const [lookingDoc,setLookingDoc]= useState(false);
     const [msg,       setMsg]       = useState(null);
     const [sunatInfo, setSunatInfo] = useState(null);
 
@@ -36,7 +38,7 @@ export default function Clientes() {
         const q = buscar.toLowerCase();
         const matchesSearch =
             c.nombre.toLowerCase().includes(q) ||
-            c.ruc.includes(buscar) ||
+            String(c.ruc || '').includes(buscar) ||
             c.email.toLowerCase().includes(q);
         const matchesVendedor = !vendedorFiltro || c.registrado_por === vendedorFiltro;
         return matchesSearch && matchesVendedor;
@@ -51,24 +53,24 @@ export default function Clientes() {
         setSunatInfo(null);
     };
 
-    const handleLookupRuc = async () => {
-        const ruc = String(form.ruc || '').replace(/\D/g, '');
-        if (!/^\d{11}$/.test(ruc)) {
-            setMsg({ type: 'err', text: 'Ingresa un RUC válido de 11 dígitos.' });
+    const handleLookupDoc = async () => {
+        const doc = String(form.ruc || '').replace(/\D/g, '');
+        if (!/^\d{8}$/.test(doc) && !/^\d{11}$/.test(doc)) {
+            setMsg({ type: 'err', text: 'Ingresa un DNI de 8 digitos o RUC de 11 digitos.' });
             return;
         }
 
-        setLookingRuc(true);
+        setLookingDoc(true);
         setMsg(null);
         try {
-            const data = await lookupRuc(ruc);
-            setForm(f => ({ ...f, ruc: data.ruc || ruc, nombre: data.nombre || f.nombre }));
+            const data = doc.length === 8 ? await lookupDni(doc) : await lookupRuc(doc);
+            setForm(f => ({ ...f, ruc: data.ruc || data.dni || doc, nombre: data.nombre || f.nombre }));
             setSunatInfo(data);
         } catch (err) {
             setSunatInfo(null);
-            setMsg({ type: 'err', text: err.response?.data?.error || 'No se pudo consultar SUNAT. Intenta nuevamente.' });
+            setMsg({ type: 'err', text: err.response?.data?.error || 'No se pudo consultar el documento. Intenta nuevamente.' });
         } finally {
-            setLookingRuc(false);
+            setLookingDoc(false);
         }
     };
 
@@ -83,7 +85,7 @@ export default function Clientes() {
                     const exists = cs.some(c => c.id === created.id);
                     return exists ? cs.map(c => c.id === created.id ? { ...c, ...created } : c) : [created, ...cs];
                 });
-                setMsg({ type: 'ok', text: created.reused ? 'El RUC ya existía. Se abrió el cliente registrado.' : 'Cliente creado.' });
+                setMsg({ type: 'ok', text: created.reused ? 'El DNI o RUC ya existia. Se abrio el cliente registrado.' : 'Cliente creado.' });
                 setEditing(created);
             } else {
                 const updated = await updateCliente(editing.id, form);
@@ -116,7 +118,7 @@ export default function Clientes() {
                 <div style={{ padding: '10px 14px', borderBottom: `1px solid ${tk.bdr}` }}>
                     <input
                         style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: `1px solid ${tk.bdr}`, fontSize: 12, outline: 'none', boxSizing: 'border-box', background: tk.inp, color: tk.txt }}
-                        placeholder="Buscar por nombre, RUC o email..."
+                        placeholder="Buscar por nombre, DNI, RUC o email..."
                         value={buscar}
                         onChange={e => setBuscar(e.target.value)}
                     />
@@ -153,7 +155,7 @@ export default function Clientes() {
                             <div style={{ minWidth: 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: tk.txt, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nombre}</div>
                                 <div style={{ fontSize: 11, color: tk.txt2 }}>
-                                    {c.ruc ? `RUC: ${c.ruc}` : c.email || 'Sin contacto'}
+                                    {c.ruc ? `${docLabel(c.ruc)}: ${c.ruc}` : c.email || 'Sin contacto'}
                                 </div>
                             </div>
                         </button>
@@ -183,17 +185,17 @@ export default function Clientes() {
                         <label style={lbl}>Nombre *
                             <input style={inp} required value={form.nombre} onChange={e => set('nombre', e.target.value)} />
                         </label>
-                        <label style={lbl}>RUC
+                        <label style={lbl}>DNI o RUC
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                                <input style={inp} inputMode="numeric" maxLength={11} placeholder="20XXXXXXXXX" value={form.ruc} onChange={e => handleRucChange(e.target.value)} />
-                                <button type="button" disabled={lookingRuc} onClick={handleLookupRuc} style={{ padding: '9px 14px', background: lookingRuc ? '#a0b8e8' : '#1e88e5', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: lookingRuc ? 'default' : 'pointer' }}>
-                                    {lookingRuc ? 'Buscando...' : 'Buscar'}
+                                <input style={inp} inputMode="numeric" maxLength={11} placeholder="DNI 8 digitos o RUC 11 digitos" value={form.ruc} onChange={e => handleRucChange(e.target.value)} />
+                                <button type="button" disabled={lookingDoc || ![8, 11].includes(String(form.ruc || '').replace(/\D/g, '').length)} onClick={handleLookupDoc} style={{ padding: '9px 14px', background: lookingDoc || ![8, 11].includes(String(form.ruc || '').replace(/\D/g, '').length) ? '#a0b8e8' : '#1e88e5', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: lookingDoc || ![8, 11].includes(String(form.ruc || '').replace(/\D/g, '').length) ? 'default' : 'pointer' }}>
+                                    {lookingDoc ? 'Buscando...' : 'Buscar'}
                                 </button>
                             </div>
                         </label>
                         {sunatInfo && (
                             <div style={{ padding: '9px 12px', borderRadius: 7, fontSize: 12, background: tk.card2, border: `1px solid ${tk.bdr}`, color: tk.txt2 }}>
-                                SUNAT: <strong style={{ color: tk.txt }}>{sunatInfo.estado || 'Sin estado'} / {sunatInfo.condicion || 'Sin condición'}</strong>
+                                {sunatInfo.dni ? 'DNI' : 'SUNAT'}: <strong style={{ color: tk.txt }}>{sunatInfo.dni ? sunatInfo.nombre : `${sunatInfo.estado || 'Sin estado'} / ${sunatInfo.condicion || 'Sin condicion'}`}</strong>
                             </div>
                         )}
                         <label style={lbl}>Nombre de contacto

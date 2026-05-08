@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
-import { getClientes, createCliente, lookupRuc, uploadArchivoActividad, deleteArchivoActividad } from '../api/actividades';
+import { getClientes, createCliente, lookupRuc, lookupDni, uploadArchivoActividad, deleteArchivoActividad } from '../api/actividades';
 import { TIPOS, ESTADOS, PRIORIDADES, MESES, ROL_TIPOS, ROLES, TYPE_COLOR, TYPE_ICON, TIPOS_CON_RESULTADO, fmt as fmtDur } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
 
@@ -27,6 +27,8 @@ const EMPTY = {
     cliente_ruc: '', cliente_email: '', cliente_telefono: '',
     colaboradores: [], checklist: [],
 };
+
+const docLabel = (doc) => String(doc || '').replace(/\D/g, '').length === 8 ? 'DNI' : 'RUC';
 
 const MARKETING_TIPOS = new Set(['Publicidad','Redes','Video','P. Gráficas Externas','P. Gráficas Internas','Actividad','Evento','Piezas gráficas']);
 
@@ -64,7 +66,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const [clienteQuery,setClienteQuery]= useState('');
     const [formC,     setFormC]     = useState({ nombre:'', ruc:'', email:'', telefono:'' });
     const [savingC,   setSavingC]   = useState(false);
-    const [lookingRucC,setLookingRucC]= useState(false);
+    const [lookingDocC,setLookingDocC]= useState(false);
     const [sunatInfoC,setSunatInfoC]= useState(null);
     const [clienteMsg,setClienteMsg]= useState(null);
 
@@ -145,32 +147,33 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         setClienteMsg(null);
     };
 
-    const handleLookupClienteRuc = async () => {
-        const ruc = String(formC.ruc || clienteQuery || '').replace(/\D/g, '');
-        if (!/^\d{11}$/.test(ruc)) {
-            setClienteMsg({ type:'err', text:'Ingresa un RUC válido de 11 dígitos.' });
+    const handleLookupClienteDoc = async () => {
+        const doc = String(formC.ruc || clienteQuery || '').replace(/\D/g, '');
+        if (!/^\d{8}$/.test(doc) && !/^\d{11}$/.test(doc)) {
+            setClienteMsg({ type:'err', text:'Ingresa un DNI de 8 digitos o RUC de 11 digitos.' });
             return;
         }
 
-        setLookingRucC(true);
+        setLookingDocC(true);
         setClienteMsg(null);
         try {
-            const data = await lookupRuc(ruc);
-            setFormC(f => ({ ...f, ruc: data.ruc || ruc, nombre: data.nombre || f.nombre }));
-            setClienteQuery(data.nombre || ruc);
+            const data = doc.length === 8 ? await lookupDni(doc) : await lookupRuc(doc);
+            const documento = data.ruc || data.dni || doc;
+            setFormC(f => ({ ...f, ruc: documento, nombre: data.nombre || f.nombre }));
+            setClienteQuery(data.nombre || documento);
             setForm(f => ({
                 ...f,
-                cliente: data.nombre || ruc,
-                cliente_ruc: data.ruc || ruc,
-                ...(!actividad ? { nombre: `${f.tipo} — ${data.nombre || ruc}` } : {}),
+                cliente: data.nombre || documento,
+                cliente_ruc: documento,
+                ...(!actividad ? { nombre: `${f.tipo} — ${data.nombre || documento}` } : {}),
             }));
             setNuevoC(true);
             setSunatInfoC(data);
         } catch (err) {
             setSunatInfoC(null);
-            setClienteMsg({ type:'err', text: err.response?.data?.error || 'No se pudo consultar SUNAT. Intenta nuevamente.' });
+            setClienteMsg({ type:'err', text: err.response?.data?.error || 'No se pudo consultar el documento. Intenta nuevamente.' });
         } finally {
-            setLookingRucC(false);
+            setLookingDocC(false);
         }
     };
 
@@ -210,7 +213,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
             handleClienteChange(clientesFiltrados[0].nombre);
             return;
         }
-        if (clienteQueryRuc.length === 11) handleLookupClienteRuc();
+        if ([8, 11].includes(clienteQueryRuc.length)) handleLookupClienteDoc();
     };
 
     const handleTipoChange = (tipo) => {
@@ -378,16 +381,16 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                             <input
                                                 style={inp}
                                                 required
-                                                placeholder="Buscar por nombre o RUC..."
+                                                placeholder="Buscar por nombre, DNI o RUC..."
                                                 value={clienteQuery}
                                                 onChange={e => handleClienteSearchChange(e.target.value)}
                                                 onKeyDown={handleClienteSearchKeyDown}
                                                 onBlur={() => setTimeout(() => setClienteQuery(form.cliente || clienteQuery), 120)}
                                             />
-                                            <button type="button" disabled={lookingRucC || clienteQueryRuc.length !== 11} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteRuc}
-                                                title="Buscar RUC en SUNAT"
-                                                style={{ padding:'9px 12px', borderRadius:8, border:'none', background: lookingRucC || clienteQueryRuc.length !== 11 ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingRucC || clienteQueryRuc.length !== 11 ? 'default' : 'pointer' }}>
-                                                {lookingRucC ? '...' : 'SUNAT'}
+                                            <button type="button" disabled={lookingDocC || ![8, 11].includes(clienteQueryRuc.length)} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteDoc}
+                                                title="Buscar documento en Migo"
+                                                style={{ padding:'9px 12px', borderRadius:8, border:'none', background: lookingDocC || ![8, 11].includes(clienteQueryRuc.length) ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingDocC || ![8, 11].includes(clienteQueryRuc.length) ? 'default' : 'pointer' }}>
+                                                {lookingDocC ? '...' : 'Migo'}
                                             </button>
                                         </div>
                                         {clienteQuery.trim() && !clienteSeleccionadoExacto && clientesFiltrados.length > 0 && (
@@ -396,16 +399,16 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                     <button key={c.id} type="button" onMouseDown={e => e.preventDefault()} onClick={() => handleClienteChange(c.nombre)}
                                                         style={{ width:'100%', border:'none', background:'transparent', color:tk.txt, textAlign:'left', padding:'9px 11px', cursor:'pointer', display:'block' }}>
                                                         <div style={{ fontSize:12, fontWeight:700 }}>{c.nombre}</div>
-                                                        <div style={{ fontSize:10, color:tk.txt3 }}>{c.ruc ? `RUC: ${c.ruc}` : c.email || 'Sin contacto'}</div>
+                                                        <div style={{ fontSize:10, color:tk.txt3 }}>{c.ruc ? `${docLabel(c.ruc)}: ${c.ruc}` : c.email || 'Sin contacto'}</div>
                                                     </button>
                                                 ))}
                                             </div>
                                         )}
-                                        {clienteQueryRuc.length === 11 && !clienteSeleccionadoExacto && clientesFiltrados.length === 0 && (
+                                        {[8, 11].includes(clienteQueryRuc.length) && !clienteSeleccionadoExacto && clientesFiltrados.length === 0 && (
                                             <div style={{ position:'absolute', zIndex:20, top:'calc(100% + 4px)', left:0, right:0, background:tk.card, border:`1px solid ${tk.bdr}`, borderRadius:8, boxShadow:tk.shadow, overflow:'hidden' }}>
-                                                <button type="button" disabled={lookingRucC} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteRuc}
-                                                    style={{ width:'100%', border:'none', background:'transparent', color:tk.txt, textAlign:'left', padding:'10px 11px', cursor: lookingRucC ? 'default' : 'pointer', display:'block' }}>
-                                                    <div style={{ fontSize:12, fontWeight:700 }}>{lookingRucC ? 'Buscando en SUNAT...' : `Buscar RUC ${clienteQueryRuc} en SUNAT`}</div>
+                                                <button type="button" disabled={lookingDocC} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteDoc}
+                                                    style={{ width:'100%', border:'none', background:'transparent', color:tk.txt, textAlign:'left', padding:'10px 11px', cursor: lookingDocC ? 'default' : 'pointer', display:'block' }}>
+                                                    <div style={{ fontSize:12, fontWeight:700 }}>{lookingDocC ? 'Buscando en Migo...' : `Buscar ${docLabel(clienteQueryRuc)} ${clienteQueryRuc} en Migo`}</div>
                                                     <div style={{ fontSize:10, color:tk.txt3 }}>Si existe, se llenará el nuevo cliente para crearlo.</div>
                                                 </button>
                                             </div>
@@ -415,7 +418,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     {false && <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
                                         <option value="">— Seleccionar cliente —</option>
                                         {clientes.map(c => (
-                                            <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` · ${c.ruc}` : ''}</option>
+                                            <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` · ${docLabel(c.ruc)} ${c.ruc}` : ''}</option>
                                         ))}
                                     </select>}
                                     </>
@@ -426,18 +429,18 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                         <input style={inp} placeholder="Nombre *" required value={formC.nombre}
                                             onChange={e => setFormC(f => ({ ...f, nombre: e.target.value }))} />
                                         <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8 }}>
-                                            <input style={inp} inputMode="numeric" maxLength={11} placeholder="RUC" value={formC.ruc}
+                                            <input style={inp} inputMode="numeric" maxLength={11} placeholder="DNI o RUC" value={formC.ruc}
                                                 onChange={e => setClienteRuc(e.target.value)} />
-                                            <button type="button" disabled={lookingRucC} onClick={handleLookupClienteRuc}
-                                                style={{ padding:'8px 12px', borderRadius:8, border:'none', background: lookingRucC ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingRucC ? 'default' : 'pointer' }}>
-                                                {lookingRucC ? 'Buscando...' : 'Buscar'}
+                                            <button type="button" disabled={lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length)} onClick={handleLookupClienteDoc}
+                                                style={{ padding:'8px 12px', borderRadius:8, border:'none', background: lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length) ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length) ? 'default' : 'pointer' }}>
+                                                {lookingDocC ? 'Buscando...' : 'Buscar'}
                                             </button>
                                             <input style={inp} placeholder="Teléfono" value={formC.telefono}
                                                 onChange={e => setFormC(f => ({ ...f, telefono: e.target.value }))} />
                                         </div>
                                         {sunatInfoC && (
                                             <div style={{ padding:'8px 10px', borderRadius:8, background:tk.card, border:`1px solid ${tk.bdr}`, color:tk.txt2, fontSize:11 }}>
-                                                SUNAT: <strong style={{ color:tk.txt }}>{sunatInfoC.estado || 'Sin estado'} / {sunatInfoC.condicion || 'Sin condición'}</strong>
+                                                {sunatInfoC.dni ? 'DNI' : 'SUNAT'}: <strong style={{ color:tk.txt }}>{sunatInfoC.dni ? sunatInfoC.nombre : `${sunatInfoC.estado || 'Sin estado'} / ${sunatInfoC.condicion || 'Sin condicion'}`}</strong>
                                             </div>
                                         )}
                                         {clienteMsg && (
@@ -466,8 +469,10 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                         cliente_email: nuevo.email || '',
                                                         cliente_telefono: nuevo.telefono || '',
                                                     }));
-                                                    if (nuevo.reused) setClienteMsg({ type:'ok', text:'El RUC ya existía. Se seleccionó el cliente registrado.' });
+                                                    if (nuevo.reused) setClienteMsg({ type:'ok', text:'El DNI o RUC ya existia. Se selecciono el cliente registrado.' });
                                                     setNuevoC(false);
+                                                } catch (err) {
+                                                    setClienteMsg({ type:'err', text: err.response?.data?.error || 'Error al crear cliente.' });
                                                 } finally {
                                                     setSavingC(false);
                                                 }
@@ -734,3 +739,4 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 }
 
 const btnPri = { padding: '10px 24px', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
+
