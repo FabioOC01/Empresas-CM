@@ -52,6 +52,7 @@ export default function Planificador() {
     const moneda     = config?.moneda || 'USD';
     const tipos      = config?.tipos_actividad || TIPOS;
     const tasa_sunat = parseFloat(config?.tasa_sunat) || 0;
+    const tableMinWidth = 1180;
 
     const miniCalc = (a) => {
         const fact = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
@@ -291,14 +292,14 @@ export default function Planificador() {
                         onScroll={e => syncHorizontalScroll(e.currentTarget, tableScrollRef.current)}
                         style={{ overflowX:'auto', overflowY:'hidden', borderBottom:`1px solid ${tk.bdr}`, background:tk.card2 }}
                     >
-                        <div style={{ width: isMobile ? 980 : Math.max(tableScrollRef.current?.scrollWidth || 0, tableScrollRef.current?.clientWidth || 0), height: 14 }} />
+                        <div style={{ width: Math.max(tableMinWidth, tableScrollRef.current?.scrollWidth || 0, tableScrollRef.current?.clientWidth || 0), height: 14 }} />
                     </div>
                     <div
                         ref={tableScrollRef}
                         onScroll={e => syncHorizontalScroll(e.currentTarget, topScrollRef.current)}
                         style={{ overflowX:'auto', overflowY:'hidden' }}
                     >
-                    <table style={{ width:'100%', minWidth: isMobile ? 980 : 'auto', borderCollapse:'collapse', fontSize:13 }}>
+                    <table style={{ width:'100%', minWidth: tableMinWidth, borderCollapse:'collapse', fontSize:13 }}>
                         <thead>
                             <tr style={{ borderBottom:`2px solid ${tk.bdr}`, background:tk.card2 }}>
                                 {[
