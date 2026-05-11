@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
 import { getClientes, createCliente, lookupRuc, lookupDni, uploadArchivoActividad, deleteArchivoActividad } from '../api/actividades';
@@ -8,7 +8,7 @@ import { FileIcon, ImageIcon, PaperclipIcon } from './Icons';
 
 
 function fmtTS(ts) {
-    if (!ts) return 'â€”';
+    if (!ts) return '-';
     const d = new Date(ts);
     return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
         + ' ' + d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
@@ -31,7 +31,7 @@ const EMPTY = {
 
 const docLabel = (doc) => String(doc || '').replace(/\D/g, '').length === 8 ? 'DNI' : 'RUC';
 
-const MARKETING_TIPOS = new Set(['Publicidad','Redes','Video','P. GrÃ¡ficas Externas','P. GrÃ¡ficas Internas','Actividad','Evento','Piezas grÃ¡ficas']);
+const MARKETING_TIPOS = new Set(['Publicidad','Redes','Video','P. Graficas Externas','P. Graficas Internas','Actividad','Evento','Piezas graficas']);
 
 function parseArr(val) {
     if (Array.isArray(val)) return val;
@@ -192,7 +192,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 ...f,
                 cliente: data.nombre || documento,
                 cliente_ruc: documento,
-                ...(!actividad ? { nombre: `${f.tipo} â€” ${data.nombre || documento}` } : {}),
+                ...(!actividad ? { nombre: `${f.tipo} - ${data.nombre || documento}` } : {}),
             }));
             setNuevoC(true);
             setSunatInfoC(data);
@@ -217,7 +217,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 cliente_telefono: cliente.telefono || '',
             }));
         }
-        if (!actividad) set('nombre', `${form.tipo} â€” ${val}`);
+        if (!actividad) set('nombre', `${form.tipo} - ${val}`);
     };
     const handleClienteSearchChange = (val) => {
         setClienteQuery(val);
@@ -229,7 +229,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
             cliente_ruc: '',
             cliente_email: '',
             cliente_telefono: '',
-            ...(!actividad ? { nombre: `${f.tipo} â€” ${val}` } : {}),
+            ...(!actividad ? { nombre: `${f.tipo} - ${val}` } : {}),
         }));
     };
 
@@ -245,7 +245,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const handleTipoChange = (tipo) => {
         set('tipo', tipo);
-        if (!actividad && form.cliente) set('nombre', `${tipo} â€” ${form.cliente}`);
+        if (!actividad && form.cliente) set('nombre', `${tipo} - ${form.cliente}`);
         if (MARKETING_TIPOS.has(tipo)) setExpanded(true);
     };
     const handleFechaChange = (val) => {
@@ -285,7 +285,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         onSave({
             ...form,
             fecha_fin:        form.fecha_fin || null,
-            nombre:           form.nombre || `${form.tipo} â€” ${form.cliente}`,
+            nombre:           form.nombre || `${form.tipo} - ${form.cliente}`,
             monto:            parseFloat(form.monto)         || 0,
             precio_venta:     parseFloat(form.precio_venta)  || 0,
             costo_base:       0,
@@ -401,12 +401,12 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                             {actividad ? 'Editar actividad' : 'Nueva actividad'}
                         </div>
                         <div className="am-title">
-                            {form.nombre || (form.cliente ? `${form.tipo} â€” ${form.cliente}` : form.tipo)}
+                            {form.nombre || (form.cliente ? `${form.tipo} - ${form.cliente}` : form.tipo)}
                         </div>
                     </div>
                     <div style={{ display:'inline-flex', gap:6 }}>
                         <button type="button" onClick={() => setExpanded(x => !x)} className="am-gbtn">
-                            {expanded ? 'â–¾ Menos' : 'â–¸ MÃ¡s'}
+                            {expanded ? 'v Menos' : '> Mas'}
                         </button>
                         <button type="button" onClick={onClose} className="am-x" aria-label="Cerrar">
                             <svg viewBox="0 0 10 10" width="10" height="10"><path d="M2 2l6 6M8 2l-6 6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
@@ -422,7 +422,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                         alignItems: 'start',
                     }}>
 
-                        {/* â”€â”€ Columna izquierda â€” campos principales â”€â”€ */}
+                        {/*  Columna izquierda - campos principales  */}
                         <div style={{ display: 'grid', gap: 16 }}>
 
                             {/* Tipos */}
@@ -446,10 +446,10 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 </div>
                             </div>
 
-                            {/* Cliente o Ãrea (si Marketing) */}
+                            {/* Cliente o Area (si Marketing) */}
                             <div>
                                 <div style={{ ...lbl, flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-                                    <span>{esMarketing ? 'Ãrea *' : 'Cliente *'}</span>
+                                    <span>{esMarketing ? 'Area *' : 'Cliente *'}</span>
                                     {!esMarketing && (
                                         <button type="button" onClick={() => { setNuevoC(x => !x); resetNuevoCliente(); }}
                                             style={{ fontSize:11, fontWeight:700, padding:'2px 10px', borderRadius:6, border:`1px solid ${'#10b981'}`, background: nuevoC ? '#10b981' : '#10b98118', color: nuevoC ? '#fff' : '#10b981', cursor:'pointer' }}>
@@ -459,7 +459,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 </div>
                                 {esMarketing ? (
                                     <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
-                                        <option value="">â€” Seleccionar Ã¡rea â€”</option>
+                                        <option value="">- Seleccionar area -</option>
                                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
                                 ) : (
@@ -497,16 +497,16 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                 <button type="button" disabled={lookingDocC} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteDoc}
                                                     style={{ width:'100%', border:'none', background:'transparent', color:tk.txt, textAlign:'left', padding:'10px 11px', cursor: lookingDocC ? 'default' : 'pointer', display:'block' }}>
                                                     <div style={{ fontSize:12, fontWeight:700 }}>{lookingDocC ? 'Buscando en SUNAT...' : `Buscar ${docLabel(clienteQueryRuc)} ${clienteQueryRuc} en SUNAT`}</div>
-                                                    <div style={{ fontSize:10, color:tk.txt3 }}>Si existe, se llenarÃ¡ el nuevo cliente para crearlo.</div>
+                                                    <div style={{ fontSize:10, color:tk.txt3 }}>Si existe, se llenara el nuevo cliente para crearlo.</div>
                                                 </button>
                                             </div>
                                         )}
                                     </div>
                                     {/* Legacy select removed; client search above replaces it. */}
                                     {false && <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
-                                        <option value="">”Seleccionar cliente”</option>
+                                        <option value="">Seleccionar cliente</option>
                                         {clientes.map(c => (
-                                            <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` Â· ${docLabel(c.ruc)} ${c.ruc}` : ''}</option>
+                                            <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` - ${docLabel(c.ruc)} ${c.ruc}` : ''}</option>
                                         ))}
                                     </select>}
                                     </>
@@ -523,7 +523,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                 style={{ padding:'8px 12px', borderRadius:8, border:'none', background: lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length) ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length) ? 'default' : 'pointer' }}>
                                                 {lookingDocC ? 'Buscando...' : 'Buscar'}
                                             </button>
-                                            <input style={inp} placeholder="TelÃ©fono" value={formC.telefono}
+                                            <input style={inp} placeholder="Telefono" value={formC.telefono}
                                                 onChange={e => setFormC(f => ({ ...f, telefono: e.target.value }))} />
                                         </div>
                                         {sunatInfoC && (
@@ -566,7 +566,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                 }
                                             }}
                                             style={{ padding:'8px', borderRadius:8, border:'none', background:'#10b981', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', opacity: savingC ? 0.6 : 1 }}>
-                                            {savingC ? 'Guardandoâ€¦' : 'Crear cliente'}
+                                            {savingC ? 'Guardando...' : 'Crear cliente'}
                                         </button>
                                     </div>
                                 )}
@@ -578,7 +578,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     <select style={{ ...inp, background: tk.inp, color: puedeElegirVendedor ? tk.txt : tk.txt2 }}
                                         required value={form.vendedor_id} disabled={!puedeElegirVendedor}
                                         onChange={e => set('vendedor_id', e.target.value)}>
-                                        <option value="">â€” Seleccionar â€”</option>
+                                        <option value="">- Seleccionar -</option>
                                         {vendedoresFiltrados.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
                                     </select>
                                 </label>
@@ -591,10 +591,10 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 </label>
                             </div>
 
-                            {/* Botones â€” siempre en columna izquierda */}
+                            {/* Botones - siempre en columna izquierda */}
                             <div className="am-foot" style={{ margin: '14px -24px -20px', borderRadius: '0 0 12px 12px' }}>
                                 <div className="am-hint">
-                                    <kbd>Esc</kbd> para cerrar Â· <kbd>âŒ˜</kbd>+<kbd>Enter</kbd> para {actividad ? 'guardar' : 'crear'}
+                                    <kbd>Esc</kbd> para cerrar - <kbd>Ctrl</kbd>+<kbd>Enter</kbd> para {actividad ? 'guardar' : 'crear'}
                                 </div>
                                 <div style={{ display:'inline-flex', gap: 8 }}>
                                     <button type="button" onClick={onClose} className="am-cancel">Cancelar</button>
@@ -606,13 +606,13 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                             </div>
                         </div>
 
-                        {/* â”€â”€ Columna derecha â€” mÃ¡s opciones (solo cuando expandido) â”€â”€ */}
+                        {/*  Columna derecha - mas opciones (solo cuando expandido)  */}
                         {expanded && (
                             <div style={{ display: 'grid', gap: 16, borderLeft: isMobile ? 'none' : `1px solid ${tk.bdr}`, paddingLeft: isMobile ? 0 : 28, marginTop:isMobile ? 18 : 0 }}>
 
                                 {/* Nombre */}
                                 <label style={lbl}>Nombre
-                                    <input style={inp} placeholder={`${form.tipo} â€” ${form.cliente || '...'}`}
+                                    <input style={inp} placeholder={`${form.tipo} - ${form.cliente || '...'}`}
                                         value={form.nombre} onChange={e => set('nombre', e.target.value)} />
                                 </label>
 
@@ -649,7 +649,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                         })}
                                     </div>
                                     {TIPOS_CON_RESULTADO.includes(form.tipo) && (
-                                        <div style={{ fontSize: 10, color: tk.txt3, marginTop: 5 }}>Ganada â†’ aparece en Comisiones</div>
+                                        <div style={{ fontSize: 10, color: tk.txt3, marginTop: 5 }}>{'Ganada -> aparece en Comisiones'}</div>
                                     )}
                                 </div>
 
@@ -691,12 +691,12 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     <div style={{ ...lbl, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                                         <span>Checklist</span>
                                         {!soloChecklist && (
-                                            <button type="button" onClick={addChkItem} style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:6, border:'1px dashed #10b981', background:'#10b98118', color:'#10b981', cursor:'pointer' }}>+ Ãtem</button>
+                                            <button type="button" onClick={addChkItem} style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:6, border:'1px dashed #10b981', background:'#10b98118', color:'#10b981', cursor:'pointer' }}>+ Item</button>
                                         )}
                                     </div>
                                     <div style={{ display:'grid', gap:6, marginTop:6 }}>
                                         {(form.checklist || []).length === 0 && (
-                                            <div style={{ fontSize:11, color:tk.txt3 }}>Sin Ã­tems.</div>
+                                            <div style={{ fontSize:11, color:tk.txt3 }}>Sin items.</div>
                                         )}
                                         {(form.checklist || []).map(it => {
                                             const puedeMarcar = soloChecklist ? it.vendedor_id === user?.id : true;
@@ -712,15 +712,15 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                         onChange={e => updChkItem(it.id, { texto: e.target.value })} />
                                                     <select style={{ ...inp, padding:'5px 8px' }} value={it.vendedor_id || ''} disabled={soloChecklist}
                                                         onChange={e => updChkItem(it.id, { vendedor_id: e.target.value })}>
-                                                        <option value="">â€” Sin asignar â€”</option>
+                                                        <option value="">- Sin asignar -</option>
                                                         {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
                                                     </select>
                                                     <span title={created ? `Creado ${new Date(created).toLocaleString('es-PE')}` : 'Sin iniciar'}
                                                         style={{ fontFamily:'monospace', fontSize:11, textAlign:'center', color: it.hecho ? '#27ae60' : tk.txt2 }}>
-                                                        {created ? fmtDur(elapsed) : 'â€”'}
+                                                        {created ? fmtDur(elapsed) : '-'}
                                                     </span>
                                                     {!soloChecklist ? (
-                                                        <button type="button" onClick={() => removeChkItem(it.id)} style={{ background:'#e74c3c22', border:'none', borderRadius:6, cursor:'pointer', color:'#e74c3c', fontWeight:700 }}>Ã—</button>
+                                                        <button type="button" onClick={() => removeChkItem(it.id)} style={{ background:'#e74c3c22', border:'none', borderRadius:6, cursor:'pointer', color:'#e74c3c', fontWeight:700 }}>x</button>
                                                     ) : <span />}
                                                 </div>
                                             );
@@ -731,11 +731,11 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 {/* Notas */}
                                 <label style={lbl}>Notas
                                     <textarea style={{ ...inp, resize: 'vertical', minHeight: 72 }}
-                                        placeholder="Observaciones, acuerdos, prÃ³ximos pasos..."
+                                        placeholder="Observaciones, acuerdos, proximos pasos..."
                                         value={form.notas} onChange={e => set('notas', e.target.value)} />
                                 </label>
 
-                                {/* Adjuntos â€” solo actividades existentes */}
+                                {/* Adjuntos - solo actividades existentes */}
                                 <div>
                                     <div style={{ ...lbl, marginBottom: 8 }}>Archivos adjuntos</div>
                                     {actividad ? (
@@ -751,7 +751,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                     <button type="button" onClick={async () => {
                                                         await deleteArchivoActividad(actividad.id, a.url);
                                                         set('archivos', form.archivos.filter((_, idx) => idx !== i));
-                                                    }} style={{ background:'none', border:'none', cursor:'pointer', color:'#e74c3c', fontSize:14, flexShrink:0 }}>Ã—</button>
+                                                    }} style={{ background:'none', border:'none', cursor:'pointer', color:'#e74c3c', fontSize:14, flexShrink:0 }}>x</button>
                                                 </div>
                                             ))}
                                             <label style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'6px 14px', background:'#10b98120', color:'#10b981', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer', border:'1px dashed #10b98180', marginTop:4 }}>

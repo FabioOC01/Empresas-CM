@@ -279,7 +279,7 @@ export default function Planificador() {
                     --pln-amber-bg: #fdf3e0;
                     --pln-blue:     #2862c8;
                     --pln-blue-bg:  #e8f0fc;
-                    --pln-row-h:    46px;
+                    --pln-row-h:    40px;
                     --pln-radius:   10px;
                     color: var(--pln-ink);
                     font-family: Inter, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
@@ -574,7 +574,7 @@ export default function Planificador() {
                     display: flex; align-items: center; justify-content: space-between; gap: 6px;
                     position: relative;
                     width: 100%; height: 100%;
-                    padding: 0 12px;
+                    padding: 0 10px;
                     font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
                     background: transparent; border: none; cursor: pointer;
                 }
@@ -637,20 +637,20 @@ export default function Planificador() {
                 td.pln-c.first { padding-left: 18px; }
                 td.pln-c.first::before {
                     content: "";
-                    position: absolute; left: 0; top: 6px; bottom: 6px;
+                    position: absolute; left: 0; top: 5px; bottom: 5px;
                     width: 3px; border-radius: 0 2px 2px 0;
                     background: var(--pln-ink-4);
                 }
                 tr[data-pr="Alta"]  td.pln-c.first::before { background: var(--pln-red); }
                 tr[data-pr="Media"] td.pln-c.first::before { background: var(--pln-amber); }
                 tr[data-pr="Baja"]  td.pln-c.first::before { background: var(--pln-green); }
-                .pln-act { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+                .pln-act { display: flex; flex-direction: column; gap: 0; min-width: 0; line-height: 1.15; }
                 .pln-act .t1 {
                     font-weight: 500; color: var(--pln-ink);
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 }
                 .pln-act .t2 {
-                    font-size: 11.5px; color: var(--pln-ink-3);
+                    font-size: 10.5px; line-height: 1.1; color: var(--pln-ink-3);
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 }
 
@@ -1100,7 +1100,7 @@ export default function Planificador() {
             </div>
 
             {view === 'tabla' && (<>
-                <div className="pln-twrap has-meta" style={{ maxHeight: isMobile ? 'calc(100vh - 360px)' : 'calc(100vh - 320px)', overflowY: 'auto' }}>
+                <div className="pln-twrap has-meta" style={{ maxHeight: isMobile ? 434 : 438, overflowY: 'auto' }}>
                     <table className="pln-t">
                         <colgroup>
                             {COL_DEFS.map(c => <col key={c.label || 'acts'} style={{ width: c.width }} />)}
