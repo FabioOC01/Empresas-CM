@@ -126,6 +126,8 @@ export default function Admin() {
     const [cfgForm,   setCfgForm]   = useState(null);
     const [cfgSaving, setCfgSaving] = useState(false);
     const [cfgMsg,    setCfgMsg]    = useState(null);
+    const [productoSearch, setProductoSearch] = useState('');
+    const [productoMarcaFiltro, setProductoMarcaFiltro] = useState('');
 
     const [editingTasas, setEditingTasas] = useState({});
     const [savingTasas,  setSavingTasas]  = useState({});
@@ -279,6 +281,22 @@ export default function Admin() {
         ...f,
         productos_catalogo: (f.productos_catalogo || []).filter(p => p.id !== id),
     }));
+    const productosAdmin = cfgForm?.productos_catalogo || [];
+    const productoMarcas = [...new Set(productosAdmin
+        .map(p => String(p.marca || '').trim())
+        .filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'es'));
+    const productoQuery = productoSearch.trim().toLowerCase();
+    const productosFiltrados = productosAdmin.filter(p => {
+        const marca = String(p.marca || '').trim();
+        const matchesMarca = !productoMarcaFiltro || marca === productoMarcaFiltro;
+        const text = [p.nombre, p.marca, p.modelo, p.descripcion]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+        const matchesSearch = !productoQuery || text.includes(productoQuery);
+        return matchesMarca && matchesSearch;
+    });
 
     const handleSaveCfg = async (e) => {
         e.preventDefault();
@@ -882,11 +900,36 @@ export default function Admin() {
                                 <button type="button" onClick={addProducto} style={{ height:38, padding:'0 16px', background:'#10b981', color:'#fff', border:'none', borderRadius:7, fontSize:13, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>+ Agregar</button>
                             </div>
 
+                            <div style={{ display:'grid', gridTemplateColumns:'minmax(220px, 1fr) 220px auto', gap:10, alignItems:'end' }}>
+                                <label style={lbl}>Buscar producto
+                                    <input
+                                        style={inp}
+                                        placeholder="Marca, modelo, descripcion..."
+                                        value={productoSearch}
+                                        onChange={e => setProductoSearch(e.target.value)}
+                                    />
+                                </label>
+                                <label style={lbl}>Filtrar marca
+                                    <select style={inp} value={productoMarcaFiltro} onChange={e => setProductoMarcaFiltro(e.target.value)}>
+                                        <option value="">Todas las marcas</option>
+                                        {productoMarcas.map(marca => (
+                                            <option key={marca} value={marca}>{marca}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => { setProductoSearch(''); setProductoMarcaFiltro(''); }}
+                                    style={{ height:38, padding:'0 14px', border:`1px solid ${tk.bdr}`, borderRadius:7, background:tk.bg, color:tk.txt2, fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                                    Limpiar
+                                </button>
+                            </div>
+
                             <div style={{ overflowX:'auto', border:`1px solid ${tk.bdr}`, borderRadius:10 }}>
                                 <div style={{ display:'grid', gridTemplateColumns:'150px 150px minmax(220px,1fr) 110px 90px 56px', gap:8, padding:'9px 12px', background:tk.bg, borderBottom:`1px solid ${tk.bdr}`, minWidth:780 }}>
                                     {['Marca','Modelo','Descripcion','Costo unit.','Unid.',''].map(h => <span key={h} style={{ fontSize:11, fontWeight:700, color:tk.txt3, textTransform:'uppercase' }}>{h}</span>)}
                                 </div>
-                                {(cfgForm.productos_catalogo || []).map(p => (
+                                {productosFiltrados.map(p => (
                                     <div key={p.id} style={{ display:'grid', gridTemplateColumns:'150px 150px minmax(220px,1fr) 110px 90px 56px', gap:8, padding:'10px 12px', borderBottom:`1px solid ${tk.bdr}`, minWidth:780, alignItems:'center' }}>
                                         <input style={inp} value={p.marca || ''} onChange={e => updateProducto(p.id, 'marca', e.target.value)} />
                                         <input style={inp} value={p.modelo || ''} onChange={e => updateProducto(p.id, 'modelo', e.target.value)} />
@@ -898,6 +941,9 @@ export default function Admin() {
                                 ))}
                                 {!cfgForm.productos_catalogo?.length && (
                                     <div style={{ padding:'28px 12px', textAlign:'center', fontSize:13, color:tk.txt3 }}>Sin productos registrados.</div>
+                                )}
+                                {!!cfgForm.productos_catalogo?.length && !productosFiltrados.length && (
+                                    <div style={{ padding:'28px 12px', textAlign:'center', fontSize:13, color:tk.txt3 }}>No hay productos con esos filtros.</div>
                                 )}
                             </div>
                             {cfgMsg && <MsgBox msg={cfgMsg} />}

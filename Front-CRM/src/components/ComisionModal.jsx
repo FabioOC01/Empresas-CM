@@ -81,6 +81,7 @@ const productUnits = value => {
     const units = parseFloat(value);
     return Number.isFinite(units) && units > 0 ? units : 1;
 };
+const productUnitCost = line => parseFloat(line?.costo ?? line?.monto) || 0;
 const cleanProduct = (p = {}) => ({
     id: p.id || newProductId(),
     nombre: productName(p),
@@ -92,15 +93,28 @@ const cleanProduct = (p = {}) => ({
     origen: p.origen || 'admin',
 });
 
-function effectiveProductCost(line, facturacion) {
-    const unitCost = parseFloat(line?.costo ?? line?.monto) || 0;
-    const base = unitCost > 0 ? unitCost : Math.max(0, facturacion * 0.9);
+function zeroCostUnitEstimate(lines, facturacion) {
+    const knownCost = lines.reduce((sum, line) => {
+        const cost = productUnitCost(line);
+        return cost > 0 ? sum + (cost * productUnits(line?.unidad)) : sum;
+    }, 0);
+    const zeroUnits = lines.reduce((sum, line) => {
+        const cost = productUnitCost(line);
+        return cost > 0 ? sum : sum + productUnits(line?.unidad);
+    }, 0);
+    if (!zeroUnits) return 0;
+    return (Math.max(0, facturacion - knownCost) / zeroUnits) * 0.9;
+}
+
+function effectiveProductCost(line, facturacion, zeroUnitCost = null) {
+    const unitCost = productUnitCost(line);
+    const base = unitCost > 0 ? unitCost : Math.max(0, zeroUnitCost ?? facturacion * 0.9);
     return base * productUnits(line?.unidad);
 }
 
-function importCost(line, facturacion) {
+function importCost(line, facturacion, zeroUnitCost = null) {
     if (!line?.importacion) return 0;
-    return effectiveProductCost(line, facturacion) * 0.07;
+    return effectiveProductCost(line, facturacion, zeroUnitCost) * 0.07;
 }
 
 function productToLine(product, origen = 'catalogo') {
@@ -185,10 +199,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
         if (idx !== i) return x;
         const next = { ...x, [field]: val };
         if (field === 'unidad') next.unidad = productUnits(val);
-        if (['costo', 'unidad', 'importacion'].includes(field)) {
-            next.monto = effectiveProductCost(next, facturacion);
-            next.importacion_monto = importCost(next, facturacion);
-        }
+        if (['costo', 'unidad', 'importacion'].includes(field)) next.importacion_monto = 0;
         return next;
     }));
     const addProductLine = (product, origen = 'catalogo') => {
@@ -213,12 +224,16 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const pctBase = parseFloat(vendedor?.pct_comision_base) || 0.02;
     const pctBajo = parseFloat(vendedor?.pct_comision_bajo) || 0.07;
     const pctAlto = parseFloat(vendedor?.pct_comision_alto) || 0.08;
-    const gastosTotal = gastos.reduce((s, g) => s + effectiveProductCost(g, facturacion) + importCost(g, facturacion), 0);
+    const zeroUnitCost = zeroCostUnitEstimate(gastos, facturacion);
+    const importacionTotal = gastos.reduce((s, g) => s + importCost(g, facturacion, zeroUnitCost), 0);
+    const productosCostoCero = gastos.filter(g => productUnitCost(g) === 0);
+    const productosCostoCeroTotal = productosCostoCero.reduce((s, g) => s + effectiveProductCost(g, facturacion, zeroUnitCost), 0);
+    const gastosTotal = gastos.reduce((s, g) => s + effectiveProductCost(g, facturacion, zeroUnitCost) + importCost(g, facturacion, zeroUnitCost), 0);
     const rentabilidadBrutaPreview = facturacion - gastosTotal;
 
     const calc = useMemo(() => {
         const rentabilidadBruta = facturacion - gastosTotal;
-        const sunatMonto = rentabilidadBruta * (sunatPct / 100);
+        const sunatMonto = Math.max(0, rentabilidadBruta * (sunatPct / 100));
         return { ...calcComision(facturacion, gastosTotal, sunatMonto, 0, cuota, pctBase, pctBajo, pctAlto), sunatMonto, gastosTotal };
     }, [facturacion, gastosTotal, sunatPct, cuota, pctBase, pctBajo, pctAlto]);
 
@@ -232,8 +247,8 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                 gastos_operativos: gastos
                     .filter(g => g.nombre || g.modelo || g.descripcion || parseFloat(g.monto) > 0 || parseFloat(g.costo) > 0)
                     .map(g => {
-                        const costo = effectiveProductCost(g, facturacion);
-                        const imp = importCost(g, facturacion);
+                        const costo = effectiveProductCost(g, facturacion, zeroUnitCost);
+                        const imp = importCost(g, facturacion, zeroUnitCost);
                         return {
                             tipo_linea: 'producto',
                             producto_id: g.producto_id || '',
@@ -431,6 +446,24 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                 .cm-product-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
                 .cm-product-name { font-size: 13px; font-weight: 700; color: var(--cm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
                 .cm-product-sub { font-size: 11px; color: var(--cm-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                .cm-product-help {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 7px;
+                    margin: -2px 0 10px;
+                    color: var(--cm-muted);
+                    font-size: 11px;
+                }
+                .cm-product-help span {
+                    display: inline-flex;
+                    align-items: center;
+                    min-height: 24px;
+                    padding: 0 9px;
+                    border: 1px solid var(--cm-line);
+                    border-radius: 999px;
+                    background: var(--cm-panel);
+                }
+                .cm-product-help strong { color: var(--cm-green); font-weight: 700; }
                 .cm-import {
                     height: 36px;
                     display: inline-flex;
@@ -729,7 +762,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                         <div className="cm-field">
                             <label className="cm-label">SUNAT</label>
                             <ReadonlyBox
-                                value={sunatPct > 0 ? `${sunatPct.toFixed(1)}% = ${USD2(rentabilidadBrutaPreview * (sunatPct / 100))}` : '0% = USD 0.00'}
+                                value={sunatPct > 0 ? `${sunatPct.toFixed(1)}% = ${USD2(Math.max(0, rentabilidadBrutaPreview * (sunatPct / 100)))}` : '0% = USD 0.00'}
                                 hint="Configurado en Administracion"
                             />
                         </div>
@@ -790,16 +823,17 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                     <div className="cm-product-sub">
                                         {[g.marca, g.modelo, g.descripcion || g.notas].filter(Boolean).join(' - ')}
                                         {` - ${USD2(parseFloat(g.costo || g.monto) || 0)} x ${productUnits(g.unidad)}`}
-                                        {parseFloat(g.costo || g.monto) === 0 ? ' - margen 10%' : ''}
+                                        {productUnitCost(g) === 0 ? ` - costo 0: ${USD2(effectiveProductCost(g, facturacion, zeroUnitCost))}` : ''}
+                                        {g.importacion ? ` - imp. 7%: ${USD2(importCost(g, facturacion, zeroUnitCost))}` : ''}
                                     </div>
                                 </div>
                                 <input className="cm-input amount" type="number" min="0" step="0.01" placeholder="Costo unit." value={g.costo}
                                     onChange={e => setGasto(i, 'costo', e.target.value)} />
                                 <input className="cm-input amount" type="number" min="1" step="1" placeholder="Unid." value={productUnits(g.unidad)}
                                     onChange={e => setGasto(i, 'unidad', e.target.value)} />
-                                <label className="cm-import" title="Suma 7% del costo como importacion">
+                                <label className="cm-import" title="Importacion: suma 7% del costo calculado de esta linea">
                                     <input type="checkbox" checked={!!g.importacion} onChange={e => setGasto(i, 'importacion', e.target.checked)} />
-                                    Imp.
+                                    Imp. 7%
                                 </label>
                                 <button type="button" className="cm-remove" onClick={() => removeGasto(i)}>x</button>
                             </div>
@@ -830,6 +864,12 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             </div>
                             <CalcRow label="Facturacion real" value={USD2(facturacion)} />
                             <CalcRow label="- Gastos adicionales" value={USD2(calc.gastosTotal)} tone="red" />
+                            {productosCostoCeroTotal > 0 && (
+                                <CalcRow label="  Costo 0 (-10%)" value={USD2(productosCostoCeroTotal)} tone="red" />
+                            )}
+                            {importacionTotal > 0 && (
+                                <CalcRow label="  Importacion 7% " value={USD2(importacionTotal)} tone="red" />
+                            )}
                             <CalcRow label="= Rentabilidad Bruta" value={USD2(calc.rentabilidad_bruta)} tone={calc.rentabilidad_bruta >= 0 ? 'green' : 'red'} strong />
                             {calc.sunatMonto > 0 && (
                                 <CalcRow label={`- SUNAT (${sunatPct.toFixed(1)}%)`} value={USD2(calc.sunatMonto)} tone="red" />
