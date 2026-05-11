@@ -108,7 +108,7 @@ function zeroCostUnitEstimate(lines, facturacion) {
 
 function effectiveProductCost(line, facturacion, zeroUnitCost = null) {
     const unitCost = productUnitCost(line);
-    const base = unitCost > 0 ? unitCost : Math.max(0, zeroUnitCost ?? facturacion * 0.9);
+    const base = unitCost > 0 ? unitCost : Math.max(0, zeroUnitCost ?? 0);
     return base * productUnits(line?.unidad);
 }
 
@@ -226,6 +226,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const pctAlto = parseFloat(vendedor?.pct_comision_alto) || 0.08;
     const zeroUnitCost = zeroCostUnitEstimate(gastos, facturacion);
     const importacionTotal = gastos.reduce((s, g) => s + importCost(g, facturacion, zeroUnitCost), 0);
+    const hasImportacion = gastos.some(g => !!g.importacion);
     const productosCostoCero = gastos.filter(g => productUnitCost(g) === 0);
     const productosCostoCeroTotal = productosCostoCero.reduce((s, g) => s + effectiveProductCost(g, facturacion, zeroUnitCost), 0);
     const gastosTotal = gastos.reduce((s, g) => s + effectiveProductCost(g, facturacion, zeroUnitCost) + importCost(g, facturacion, zeroUnitCost), 0);
@@ -768,6 +769,11 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                         </div>
 
                         <div className="cm-products-title">Productos de la cotizacion</div>
+                        <div className="cm-product-help">
+                            <span><strong>Costo 0 (-10%)</strong>&nbsp;reserva 10% de margen del saldo</span>
+                            <span><strong>Imp. 7%</strong>&nbsp;aparece al marcar importacion</span>
+                            <span><strong>SUNAT</strong>&nbsp;solo se cobra si hay rentabilidad bruta positiva</span>
+                        </div>
                         <div className="cm-searchbox">
                             <div className="cm-searchrow">
                                 <input
@@ -823,7 +829,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                     <div className="cm-product-sub">
                                         {[g.marca, g.modelo, g.descripcion || g.notas].filter(Boolean).join(' - ')}
                                         {` - ${USD2(parseFloat(g.costo || g.monto) || 0)} x ${productUnits(g.unidad)}`}
-                                        {productUnitCost(g) === 0 ? ` - costo 0: ${USD2(effectiveProductCost(g, facturacion, zeroUnitCost))}` : ''}
+                                        {productUnitCost(g) === 0 ? ` - Costo 0 (-10%): ${USD2(effectiveProductCost(g, facturacion, zeroUnitCost))}` : ''}
                                         {g.importacion ? ` - imp. 7%: ${USD2(importCost(g, facturacion, zeroUnitCost))}` : ''}
                                     </div>
                                 </div>
@@ -867,12 +873,12 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             {productosCostoCeroTotal > 0 && (
                                 <CalcRow label="  Costo 0 (-10%)" value={USD2(productosCostoCeroTotal)} tone="red" />
                             )}
-                            {importacionTotal > 0 && (
-                                <CalcRow label="  Importacion 7% " value={USD2(importacionTotal)} tone="red" />
+                            {hasImportacion && (
+                                <CalcRow label="  Importacion 7%" value={USD2(importacionTotal)} tone={importacionTotal > 0 ? 'red' : undefined} />
                             )}
                             <CalcRow label="= Rentabilidad Bruta" value={USD2(calc.rentabilidad_bruta)} tone={calc.rentabilidad_bruta >= 0 ? 'green' : 'red'} strong />
-                            {calc.sunatMonto > 0 && (
-                                <CalcRow label={`- SUNAT (${sunatPct.toFixed(1)}%)`} value={USD2(calc.sunatMonto)} tone="red" />
+                            {sunatPct > 0 && (
+                                <CalcRow label={`- SUNAT (${sunatPct.toFixed(1)}%)`} value={USD2(calc.sunatMonto)} tone={calc.sunatMonto > 0 ? 'red' : undefined} />
                             )}
                             <div className="cm-rule" />
                             <CalcRow label="= Rentabilidad neta" value={USD2(calc.rentabilidad)} tone={calc.rentabilidad >= 0 ? 'green' : 'red'} strong />
