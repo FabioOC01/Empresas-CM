@@ -25,6 +25,7 @@ export const CONFIG_DEFAULT = {
         sedes: [],
     },
     moneda:          'USD',
+    productos_catalogo: [],
     tipos_actividad: ['Venta','Homologación','Visita','Propuesta','Seguimiento','Administrativa','Oportunidad','Cotización','Publicidad','Piezas gráficas','Despacho','Inventario','Facturación','Redes','Soporte'],
     pipeline_etapas: [
         { nombre:'Marketing',   tipos:['Publicidad','Redes','Piezas gráficas'] },

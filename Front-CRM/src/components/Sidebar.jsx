@@ -1,10 +1,10 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
 import { getEmpresas } from '../api/actividades';
 import ProfileModal from './ProfileModal';
-import { BuildingIcon, ChartIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, ClipboardIcon, DashboardIcon, PowerIcon, SettingsIcon, TeamIcon } from './Icons';
+import { BuildingIcon, ChartIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, ClipboardIcon, DashboardIcon, PowerIcon, SettingsIcon, TagIcon, TeamIcon } from './Icons';
 
 const DEFAULT_LOGO_FULL = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO.png';
 const DEFAULT_LOGO_ISO  = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO-SHORT.png';
@@ -30,6 +30,8 @@ const BASE_LINKS = [
 ];
 const ADMIN_LINK = { to: '/admin', label: 'Administración', icon: SettingsIcon };
 
+const PRODUCT_LINK = { to: '/admin?section=productos', label: 'Productos', icon: TagIcon, section: 'productos' };
+
 const external = [
     { href: RETAIL_URL, label: 'Vantio Leads', img: VANTIO_LEADS_ICON },
     { href: GLPI_URL,   label: 'GLPI',         img: GLPI_ICON },
@@ -46,6 +48,7 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
     const appName    = branding.app_name || 'Vantio';
     const subtitulo  = config?.nombre    || branding.subtitulo || 'CRM Empresas';
     const navigate = useNavigate();
+    const location = useLocation();
     const [empresas,    setEmpresas]    = useState([]);
     const [switching,   setSwitching]   = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
@@ -72,8 +75,14 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
         icon: ClockIcon,
     };
     const links = user?.is_superadmin || user?.roles?.includes('Admin')
-        ? [...BASE_LINKS.slice(0, 3), attendanceLink, ...BASE_LINKS.slice(3), ADMIN_LINK]
+        ? [...BASE_LINKS.slice(0, 3), attendanceLink, BASE_LINKS[3], PRODUCT_LINK, ...BASE_LINKS.slice(4), ADMIN_LINK]
         : [...BASE_LINKS.slice(0, 3), attendanceLink, ...BASE_LINKS.slice(3)];
+    const sectionParam = new URLSearchParams(location.search).get('section');
+    const linkActive = (l, isActive) => {
+        if (l.section) return location.pathname === '/admin' && sectionParam === l.section;
+        if (l.to === '/admin') return location.pathname === '/admin' && sectionParam !== 'productos';
+        return isActive;
+    };
 
     if (isMobile) {
         return (
@@ -96,13 +105,15 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                             end={l.to === '/'}
                             title={l.label}
                             className="nav-item"
-                            style={({ isActive }) => ({
+                            style={({ isActive }) => {
+                                const active = linkActive(l, isActive);
+                                return ({
                                 minWidth: 42, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                borderRadius: 9, color: isActive ? '#10b981' : '#8b9cbf',
-                                background: isActive ? 'rgba(16,185,129,0.13)' : 'transparent',
-                                border: isActive ? '1px solid rgba(16,185,129,0.30)' : '1px solid transparent',
+                                borderRadius: 9, color: active ? '#10b981' : '#8b9cbf',
+                                background: active ? 'rgba(16,185,129,0.13)' : 'transparent',
+                                border: active ? '1px solid rgba(16,185,129,0.30)' : '1px solid transparent',
                                 textDecoration: 'none', fontSize: 17, flexShrink: 0,
-                            })}
+                            });}}
                         >
                             <LinkIcon size={17} />
                         </NavLink>
@@ -154,19 +165,21 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                         end={l.to === '/'}
                         title={collapsed ? l.label : undefined}
                         className="nav-item"
-                        style={({ isActive }) => ({
+                        style={({ isActive }) => {
+                            const active = linkActive(l, isActive);
+                            return ({
                             display: 'flex', alignItems: 'center',
                             gap: collapsed ? 0 : 10,
                             justifyContent: collapsed ? 'center' : 'flex-start',
                             padding: collapsed ? '10px 0' : '9px 12px',
                             borderRadius: collapsed ? 0 : 8,
                             marginBottom: 4,
-                            color: isActive ? '#10b981' : '#8b9cbf',
-                            background: isActive ? 'rgba(16,185,129,0.13)' : 'transparent',
-                            border: isActive ? '1px solid rgba(16,185,129,0.30)' : '1px solid transparent',
+                            color: active ? '#10b981' : '#8b9cbf',
+                            background: active ? 'rgba(16,185,129,0.13)' : 'transparent',
+                            border: active ? '1px solid rgba(16,185,129,0.30)' : '1px solid transparent',
                             textDecoration: 'none', fontSize: 13, fontWeight: 600,
                             transition: 'all 0.15s',
-                        })}
+                        });}}
                     >
                         <span style={{ width: 18, height: 18, display: 'inline-grid', placeItems: 'center', flexShrink: 0 }}>
                             <LinkIcon size={16} />

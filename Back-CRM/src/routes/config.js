@@ -8,6 +8,7 @@ router.get('/', async (req, res) => {
         const { rows } = await pool.query(
             `SELECT nombre, horario_dias, tasa_sunat, tasa_comision, feriados,
                     moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
+                    productos_catalogo,
                     attendance_config, meta_global_rentabilidad, meta_global_facturacion,
                     meta_global_rentabilidad_mes,  meta_global_facturacion_mes,
                     meta_global_rentabilidad_trim, meta_global_facturacion_trim
@@ -30,9 +31,14 @@ router.put('/', async (req, res) => {
 
     const { horario_dias, tasa_sunat, tasa_comision, feriados,
             moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
+            productos_catalogo,
             attendance_config, meta_global_rentabilidad, meta_global_facturacion,
             meta_global_rentabilidad_mes,  meta_global_facturacion_mes,
             meta_global_rentabilidad_trim, meta_global_facturacion_trim } = req.body;
+    const canEditProducts = req.user?.is_superadmin || req.user?.roles?.includes('Admin');
+    if (productos_catalogo != null && !canEditProducts) {
+        return res.status(403).json({ error: 'Se requiere rol Admin para modificar productos' });
+    }
     try {
         const { rows } = await pool.query(
             `UPDATE empresas
@@ -45,16 +51,18 @@ router.put('/', async (req, res) => {
                  pipeline_etapas = COALESCE($7::jsonb, pipeline_etapas),
                  rol_tipos       = COALESCE($8::jsonb, rol_tipos),
                  branding        = COALESCE($9::jsonb, branding),
-                 attendance_config = COALESCE($10::jsonb, attendance_config),
-                 meta_global_rentabilidad = COALESCE($12, meta_global_rentabilidad),
-                 meta_global_facturacion  = COALESCE($13, meta_global_facturacion),
-                 meta_global_rentabilidad_mes  = COALESCE($14, meta_global_rentabilidad_mes),
-                 meta_global_facturacion_mes   = COALESCE($15, meta_global_facturacion_mes),
-                 meta_global_rentabilidad_trim = COALESCE($16, meta_global_rentabilidad_trim),
-                 meta_global_facturacion_trim  = COALESCE($17, meta_global_facturacion_trim)
-             WHERE id = $11
+                 productos_catalogo = COALESCE($10::jsonb, productos_catalogo),
+                 attendance_config = COALESCE($11::jsonb, attendance_config),
+                 meta_global_rentabilidad = COALESCE($13, meta_global_rentabilidad),
+                 meta_global_facturacion  = COALESCE($14, meta_global_facturacion),
+                 meta_global_rentabilidad_mes  = COALESCE($15, meta_global_rentabilidad_mes),
+                 meta_global_facturacion_mes   = COALESCE($16, meta_global_facturacion_mes),
+                 meta_global_rentabilidad_trim = COALESCE($17, meta_global_rentabilidad_trim),
+                 meta_global_facturacion_trim  = COALESCE($18, meta_global_facturacion_trim)
+             WHERE id = $12
              RETURNING horario_dias, tasa_sunat, tasa_comision, feriados,
                        moneda, tipos_actividad, pipeline_etapas, rol_tipos, branding,
+                       productos_catalogo,
                        attendance_config, meta_global_rentabilidad, meta_global_facturacion,
                        meta_global_rentabilidad_mes,  meta_global_facturacion_mes,
                        meta_global_rentabilidad_trim, meta_global_facturacion_trim`,
@@ -68,6 +76,7 @@ router.put('/', async (req, res) => {
                 pipeline_etapas != null ? JSON.stringify(pipeline_etapas) : null,
                 rol_tipos       != null ? JSON.stringify(rol_tipos)       : null,
                 branding        != null ? JSON.stringify(branding)        : null,
+                productos_catalogo != null ? JSON.stringify(productos_catalogo) : null,
                 attendance_config != null ? JSON.stringify(attendance_config) : null,
                 req.user.empresa_id,
                 meta_global_rentabilidad ?? null,

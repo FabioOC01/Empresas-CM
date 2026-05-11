@@ -439,6 +439,41 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 .am-md .am-seg button.on[data-s="Ganada"]       .pd { background: var(--g); }
                 .am-md .am-seg button.on[data-s="Perdida"]      { color: var(--red); box-shadow:0 0 0 1px #f0c6c1; }
                 .am-md .am-seg button.on[data-s="Perdida"]      .pd { background: var(--red); }
+                .am-md .am-form-scroll {
+                    flex:1;
+                    min-height:0;
+                    overflow-y:auto;
+                    overflow-x:hidden;
+                    scrollbar-gutter:stable;
+                    padding:20px 24px 24px;
+                }
+                .am-md .am-form-scroll::-webkit-scrollbar {
+                    width:10px;
+                }
+                .am-md .am-form-scroll::-webkit-scrollbar-track {
+                    background:transparent;
+                }
+                .am-md .am-form-scroll::-webkit-scrollbar-thumb {
+                    background:#c8c9c2;
+                    border:3px solid transparent;
+                    border-radius:999px;
+                    background-clip:content-box;
+                }
+                .am-md .am-form-scroll::-webkit-scrollbar-thumb:hover {
+                    background:#a9aba3;
+                    border:3px solid transparent;
+                    background-clip:content-box;
+                }
+                [data-theme="dark"] .am-md .am-form-scroll::-webkit-scrollbar-thumb {
+                    background:#53657d;
+                    border:3px solid transparent;
+                    background-clip:content-box;
+                }
+                [data-theme="dark"] .am-md .am-form-scroll::-webkit-scrollbar-thumb:hover {
+                    background:#71839c;
+                    border:3px solid transparent;
+                    background-clip:content-box;
+                }
                 .am-md .am-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; background:#fbfbf8; border-top:1px solid var(--ln); }
                 [data-theme="dark"] .am-md .am-foot { background: ${tk.card2}; border-top-color: ${tk.bdr}; }
                 .am-md .am-hint { font-size:11.5px; color: var(--ink3); }
@@ -479,7 +514,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px' }}>
+                <form className="am-form-scroll" onSubmit={handleSubmit}>
                     <div style={{
                         display: 'grid',
                         gridTemplateColumns: expanded && !isMobile ? '1fr 1fr' : '1fr',

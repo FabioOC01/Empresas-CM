@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useActividadesContext } from '../context/ActividadesContext';
-import { updateActividad } from '../api/actividades';
+import { useAuth } from '../context/AuthContext';
+import { updateActividad, updateConfig } from '../api/actividades';
 import { fmtUSD, parseGastos } from '../utils/crm';
 
 const COMISION_BASE = 'rentabilidad';
@@ -73,15 +74,73 @@ const USD2 = n => new Intl.NumberFormat('es-PE', {
     minimumFractionDigits: 2,
 }).format(n || 0);
 
+const productName = p => p?.nombre || [p?.marca, p?.modelo].filter(Boolean).join(' ') || p?.descripcion || 'Producto';
+const productText = p => [p?.marca, p?.modelo, p?.descripcion, p?.nombre].filter(Boolean).join(' ').toLowerCase();
+const newProductId = () => `prod_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const productUnits = value => {
+    const units = parseFloat(value);
+    return Number.isFinite(units) && units > 0 ? units : 1;
+};
+const cleanProduct = (p = {}) => ({
+    id: p.id || newProductId(),
+    nombre: productName(p),
+    marca: p.marca || '',
+    modelo: p.modelo || '',
+    descripcion: p.descripcion || '',
+    costo: parseFloat(p.costo) || 0,
+    unidad: productUnits(p.unidad),
+    origen: p.origen || 'admin',
+});
+
+function effectiveProductCost(line, facturacion) {
+    const unitCost = parseFloat(line?.costo ?? line?.monto) || 0;
+    const base = unitCost > 0 ? unitCost : Math.max(0, facturacion * 0.9);
+    return base * productUnits(line?.unidad);
+}
+
+function importCost(line, facturacion) {
+    if (!line?.importacion) return 0;
+    return effectiveProductCost(line, facturacion) * 0.07;
+}
+
+function productToLine(product, origen = 'catalogo') {
+    const p = cleanProduct(product);
+    return {
+        tipo_linea: 'producto',
+        producto_id: p.id,
+        nombre: productName(p),
+        marca: p.marca,
+        modelo: p.modelo,
+        descripcion: p.descripcion,
+        unidad: p.unidad,
+        costo: p.costo,
+        monto: p.costo * productUnits(p.unidad),
+        notas: p.descripcion,
+        importacion: false,
+        importacion_monto: 0,
+        origen,
+    };
+}
+
 function normalizeGastos(gastosOperativos, costoBase = 0) {
     const gastos = parseGastos(gastosOperativos).map(g => ({
-        nombre: g.nombre || '',
-        monto: String(g.monto ?? ''),
-        notas: g.notas || '',
+        tipo_linea: g.tipo_linea || 'producto',
+        producto_id: g.producto_id || '',
+        nombre: g.nombre || [g.marca, g.modelo].filter(Boolean).join(' ') || '',
+        marca: g.marca || '',
+        modelo: g.modelo || g.nombre || '',
+        descripcion: g.descripcion || g.notas || '',
+        unidad: productUnits(g.unidad),
+        costo: String(g.costo ?? g.monto ?? ''),
+        monto: String(g.monto ?? g.costo ?? ''),
+        notas: g.notas || g.descripcion || '',
+        importacion: !!g.importacion,
+        importacion_monto: parseFloat(g.importacion_monto) || 0,
+        origen: g.origen || (g.tipo_linea === 'producto' ? 'catalogo' : 'manual'),
     }));
     const legacyCosto = parseFloat(costoBase) || 0;
     if (!gastos.length && legacyCosto > 0) {
-        return [{ nombre: 'Costo real', monto: String(legacyCosto), notas: '' }];
+        return [{ tipo_linea:'producto', producto_id:'', nombre:'Costo real', marca:'', modelo:'Costo real', descripcion:'', unidad:1, costo:String(legacyCosto), monto:String(legacyCosto), notas:'', importacion:false, importacion_monto:0, origen:'manual' }];
     }
     return gastos;
 }
@@ -89,7 +148,9 @@ function normalizeGastos(gastosOperativos, costoBase = 0) {
 export default function ComisionModal({ open, onClose, onSave, actividad, vendedor, moneda = 'USD' }) {
     const tk = useTheme();
     const fmt$ = n => fmtUSD(n, moneda);
-    const { config } = useActividadesContext();
+    const { config, setConfig } = useActividadesContext();
+    const { user } = useAuth();
+    const canManageProducts = user?.is_superadmin || user?.roles?.includes('Admin');
 
     const facturacion = parseFloat(actividad?.precio_venta) || parseFloat(actividad?.monto) || 0;
     const cuota = parseFloat(vendedor?.meta_mensual) || 0;
@@ -99,30 +160,60 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const [gastos, setGastos] = useState(initGastos);
     const [saving, setSaving] = useState(false);
     const [saveMsg, setSaveMsg] = useState(null);
+    const [productQuery, setProductQuery] = useState('');
+    const [newProduct, setNewProduct] = useState(null);
+    const productosCatalogo = useMemo(
+        () => (config?.productos_catalogo || []).map(cleanProduct),
+        [config?.productos_catalogo]
+    );
+    const productMatches = useMemo(() => {
+        const q = productQuery.trim().toLowerCase();
+        if (!q) return productosCatalogo.slice(0, 6);
+        return productosCatalogo.filter(p => productText(p).includes(q)).slice(0, 6);
+    }, [productosCatalogo, productQuery]);
 
     useEffect(() => {
         if (!open || !actividad) return;
         setGastos(normalizeGastos(actividad.gastos_operativos, actividad.costo_base));
         setSaveMsg(null);
+        setProductQuery('');
+        setNewProduct(null);
     }, [open, actividad?.id, actividad?.costo_base, actividad?.gastos_operativos]);
 
-    useEffect(() => {
-        if (!open) return;
-        const onKey = (e) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [open, onClose]);
-
-    const addGasto = () => setGastos(g => [...g, { nombre: '', monto: '', notas: '' }]);
     const removeGasto = i => setGastos(g => g.filter((_, idx) => idx !== i));
-    const setGasto = (i, field, val) => setGastos(g => g.map((x, idx) => idx === i ? { ...x, [field]: val } : x));
+    const setGasto = (i, field, val) => setGastos(g => g.map((x, idx) => {
+        if (idx !== i) return x;
+        const next = { ...x, [field]: val };
+        if (field === 'unidad') next.unidad = productUnits(val);
+        if (['costo', 'unidad', 'importacion'].includes(field)) {
+            next.monto = effectiveProductCost(next, facturacion);
+            next.importacion_monto = importCost(next, facturacion);
+        }
+        return next;
+    }));
+    const addProductLine = (product, origen = 'catalogo') => {
+        const line = productToLine(product, origen);
+        setGastos(g => [...g, line]);
+        setProductQuery('');
+        setNewProduct(null);
+    };
+    const createProductFromCalculator = async () => {
+        if (!canManageProducts || !newProduct) return;
+        const product = cleanProduct({
+            ...newProduct,
+            nombre: [newProduct.marca, newProduct.modelo].filter(Boolean).join(' ') || newProduct.descripcion || productQuery,
+            origen: 'admin',
+        });
+        const productos = [...productosCatalogo, product];
+        const updated = await updateConfig({ productos_catalogo: productos });
+        setConfig(prev => ({ ...prev, ...updated }));
+        addProductLine(product, 'catalogo');
+    };
 
     const pctBase = parseFloat(vendedor?.pct_comision_base) || 0.02;
     const pctBajo = parseFloat(vendedor?.pct_comision_bajo) || 0.07;
     const pctAlto = parseFloat(vendedor?.pct_comision_alto) || 0.08;
-    const gastosTotal = gastos.reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
+    const gastosTotal = gastos.reduce((s, g) => s + effectiveProductCost(g, facturacion) + importCost(g, facturacion), 0);
     const rentabilidadBrutaPreview = facturacion - gastosTotal;
 
     const calc = useMemo(() => {
@@ -139,8 +230,26 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
             const payload = {
                 costo_base: 0,
                 gastos_operativos: gastos
-                    .filter(g => g.nombre || g.notas || parseFloat(g.monto) > 0)
-                    .map(g => ({ nombre: g.nombre, monto: parseFloat(g.monto) || 0, notas: g.notas || '' })),
+                    .filter(g => g.nombre || g.modelo || g.descripcion || parseFloat(g.monto) > 0 || parseFloat(g.costo) > 0)
+                    .map(g => {
+                        const costo = effectiveProductCost(g, facturacion);
+                        const imp = importCost(g, facturacion);
+                        return {
+                            tipo_linea: 'producto',
+                            producto_id: g.producto_id || '',
+                            nombre: g.nombre || [g.marca, g.modelo].filter(Boolean).join(' ') || g.descripcion || 'Producto',
+                            marca: g.marca || '',
+                            modelo: g.modelo || g.nombre || '',
+                            descripcion: g.descripcion || g.notas || '',
+                            unidad: productUnits(g.unidad),
+                            costo: parseFloat(g.costo ?? g.monto) || 0,
+                            monto: costo,
+                            notas: g.notas || g.descripcion || '',
+                            importacion: !!g.importacion,
+                            importacion_monto: imp,
+                            origen: g.origen || 'manual',
+                        };
+                    }),
             };
             if (onSave) await onSave({ id: actividad.id, ...payload });
             else await updateActividad(actividad.id, payload);
@@ -156,7 +265,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     if (!open || !actividad) return null;
 
     return (
-        <div className="cm-overlay" onClick={onClose}>
+        <div className="cm-overlay">
             <style>{`
                 .cm-overlay {
                     position: fixed;
@@ -314,9 +423,75 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                 [data-theme="dark"] .cm-products-title { color: var(--cm-muted); }
                 .cm-gasto {
                     display: grid;
-                    grid-template-columns: minmax(0, 1fr) 165px 34px;
+                    grid-template-columns: minmax(0, 1fr) 110px 70px 94px 34px;
                     gap: 8px;
                     margin-bottom: 8px;
+                    align-items: center;
+                }
+                .cm-product-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+                .cm-product-name { font-size: 13px; font-weight: 700; color: var(--cm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                .cm-product-sub { font-size: 11px; color: var(--cm-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                .cm-import {
+                    height: 36px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 5px;
+                    border: 1px solid var(--cm-line);
+                    border-radius: 7px;
+                    color: var(--cm-muted);
+                    background: var(--cm-panel);
+                    font-size: 12px;
+                    cursor: pointer;
+                    user-select: none;
+                }
+                .cm-import input { accent-color: var(--cm-green-2); }
+                .cm-searchbox { position: relative; margin-bottom: 10px; }
+                .cm-searchrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+                .cm-new-product {
+                    height: 36px;
+                    padding: 0 14px;
+                    border: 1px solid var(--cm-green-2);
+                    border-radius: 7px;
+                    background: rgba(0,150,107,.08);
+                    color: var(--cm-green);
+                    font-size: 13px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                .cm-suggest {
+                    position: absolute;
+                    z-index: 4;
+                    top: calc(100% + 4px);
+                    left: 0;
+                    right: 0;
+                    max-height: 210px;
+                    overflow: auto;
+                    background: var(--cm-panel);
+                    border: 1px solid var(--cm-line);
+                    border-radius: 8px;
+                    box-shadow: 0 12px 24px rgba(20,20,18,.12);
+                }
+                .cm-suggest button {
+                    width: 100%;
+                    border: 0;
+                    background: transparent;
+                    text-align: left;
+                    padding: 9px 11px;
+                    color: var(--cm-ink);
+                    cursor: pointer;
+                }
+                .cm-suggest button:hover { background: rgba(0,150,107,.08); }
+                .cm-create-product {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 8px;
+                    padding: 10px;
+                    margin: -2px 0 10px;
+                    border: 1px dashed var(--cm-green-2);
+                    border-radius: 8px;
+                    background: rgba(0,150,107,.06);
                 }
                 .cm-input {
                     width: 100%;
@@ -359,6 +534,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                     font-size: 14px;
                     font-weight: 700;
                 }
+                .cm-add-row { border-top: 1px solid var(--cm-line); padding-top: 8px; margin-top: 2px; }
                 .cm-save-gastos,
                 .cm-save-main {
                     height: 38px;
@@ -519,7 +695,8 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                     .cm-close-small { top: 18px; right: 16px; }
                     .cm-body { grid-template-columns: 1fr; }
                     .cm-col + .cm-col { border-left: 0; border-top: 1px solid var(--cm-line); }
-                    .cm-gasto { grid-template-columns: 1fr 118px 34px; }
+                    .cm-gasto { grid-template-columns: 1fr 92px 64px 82px 34px; }
+                    .cm-create-product { grid-template-columns: 1fr; }
                     .cm-foot { flex-direction: column; align-items: stretch; }
                     .cm-actions { width: 100%; }
                     .cm-close-foot, .cm-save-main { flex: 1; }
@@ -557,17 +734,81 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             />
                         </div>
 
-                        <div className="cm-products-title">Productos, costos o gastos de la cotizacion</div>
+                        <div className="cm-products-title">Productos de la cotizacion</div>
+                        <div className="cm-searchbox">
+                            <div className="cm-searchrow">
+                                <input
+                                    className="cm-input"
+                                    placeholder="Buscar producto por marca, modelo o descripcion..."
+                                    value={productQuery}
+                                    onChange={e => {
+                                        setProductQuery(e.target.value);
+                                        setNewProduct(null);
+                                    }}
+                                />
+                                {canManageProducts && (
+                                    <button type="button" className="cm-new-product" onClick={() => setNewProduct({ marca:'', modelo:productQuery, descripcion:'', costo:'', unidad:1 })}>
+                                        Nuevo
+                                    </button>
+                                )}
+                            </div>
+                            {productQuery.trim() && (
+                                <div className="cm-suggest">
+                                    {productMatches.map(p => (
+                                        <button key={p.id} type="button" onClick={() => addProductLine(p, 'catalogo')}>
+                                            <div style={{ fontWeight:700 }}>{productName(p)}</div>
+                                            <div style={{ fontSize:11, color:'var(--cm-muted)' }}>{p.descripcion || 'Sin descripcion'} - {USD2(p.costo)} x {productUnits(p.unidad)}</div>
+                                        </button>
+                                    ))}
+                                    {!productMatches.length && (
+                                        <div style={{ padding:'10px 11px', fontSize:12, color:'var(--cm-muted)' }}>
+                                            No hay productos con ese texto.
+                                        </div>
+                                    )}
+                                    {canManageProducts && (
+                                        <button type="button" onClick={() => setNewProduct({ marca:'', modelo:productQuery, descripcion:'', costo:'', unidad:1 })}>
+                                            + Crear producto nuevo
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {newProduct && (
+                            <div className="cm-create-product">
+                                <input className="cm-input" placeholder="Marca" value={newProduct.marca} onChange={e => setNewProduct(p => ({ ...p, marca:e.target.value }))} />
+                                <input className="cm-input" placeholder="Modelo" value={newProduct.modelo} onChange={e => setNewProduct(p => ({ ...p, modelo:e.target.value }))} />
+                                <input className="cm-input" placeholder="Descripcion" value={newProduct.descripcion} onChange={e => setNewProduct(p => ({ ...p, descripcion:e.target.value }))} />
+                                <input className="cm-input amount" type="number" min="0" step="0.01" placeholder="Costo unit." value={newProduct.costo} onChange={e => setNewProduct(p => ({ ...p, costo:e.target.value }))} />
+                                <input className="cm-input amount" type="number" min="1" step="1" placeholder="Unid." value={newProduct.unidad} onChange={e => setNewProduct(p => ({ ...p, unidad:productUnits(e.target.value) }))} />
+                                <button type="button" className="cm-add" onClick={createProductFromCalculator}>Guardar producto</button>
+                            </div>
+                        )}
                         {gastos.map((g, i) => (
                             <div key={i} className="cm-gasto">
-                                <input className="cm-input" placeholder="Producto o gasto" value={g.nombre}
-                                    onChange={e => setGasto(i, 'nombre', e.target.value)} />
-                                <input className="cm-input amount" type="number" min="0" step="0.01" placeholder="Monto" value={g.monto}
-                                    onChange={e => setGasto(i, 'monto', e.target.value)} />
+                                <div className="cm-product-main">
+                                    <div className="cm-product-name">{g.nombre || [g.marca, g.modelo].filter(Boolean).join(' ') || 'Producto'}</div>
+                                    <div className="cm-product-sub">
+                                        {[g.marca, g.modelo, g.descripcion || g.notas].filter(Boolean).join(' - ')}
+                                        {` - ${USD2(parseFloat(g.costo || g.monto) || 0)} x ${productUnits(g.unidad)}`}
+                                        {parseFloat(g.costo || g.monto) === 0 ? ' - margen 10%' : ''}
+                                    </div>
+                                </div>
+                                <input className="cm-input amount" type="number" min="0" step="0.01" placeholder="Costo unit." value={g.costo}
+                                    onChange={e => setGasto(i, 'costo', e.target.value)} />
+                                <input className="cm-input amount" type="number" min="1" step="1" placeholder="Unid." value={productUnits(g.unidad)}
+                                    onChange={e => setGasto(i, 'unidad', e.target.value)} />
+                                <label className="cm-import" title="Suma 7% del costo como importacion">
+                                    <input type="checkbox" checked={!!g.importacion} onChange={e => setGasto(i, 'importacion', e.target.checked)} />
+                                    Imp.
+                                </label>
                                 <button type="button" className="cm-remove" onClick={() => removeGasto(i)}>x</button>
                             </div>
                         ))}
-                        <button type="button" className="cm-add" onClick={addGasto}>+ Agregar producto o gasto</button>
+                        {!gastos.length && (
+                            <div className="cm-add-row" style={{ fontSize:12, color:'var(--cm-muted)' }}>
+                                Busca un producto para agregarlo al calculo.
+                            </div>
+                        )}
 
                         <button type="button" className="cm-save-gastos" onClick={handleSave} disabled={saving}>
                             {saving ? 'Guardando...' : 'Guardar gastos'}
@@ -597,9 +838,6 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             <CalcRow label="= Rentabilidad neta" value={USD2(calc.rentabilidad)} tone={calc.rentabilidad >= 0 ? 'green' : 'red'} strong />
                             <CalcRow label="Margen obtenido" value={`${calc.margen_pct.toFixed(2)}%`} tone={calc.margen_pct >= MARGEN_MINIMO ? 'green' : 'red'} strong />
                             <div className="cm-rule" />
-                            <CalcRow label="Cuota de Rentabilidad Bruta requerida" value={USD2(cuota)} />
-                            <CalcRow label={`Margen minimo comisionable (${MARGEN_MINIMO}%)`} value={`${MARGEN_MINIMO}%`} />
-                            <CalcRow label="Escala de comision" value="2% / 7% / 8%" />
                         </div>
 
                         <div className="cm-result-card" style={{ borderTopColor: calc.pct_comision > 0 ? '#2f6bd1' : '#8899aa' }}>
@@ -613,8 +851,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                     <div>base: {COMISION_BASE === 'facturacion' ? 'facturacion' : 'rentabilidad'}</div>
                                 </div>
                             </div>
-                            <CalcRow label="Base de calculo" value={USD2(calc.base_valor)} />
-                            <CalcRow label="Escala vigente" value="2%-14% = 2% - 15%-19% = 7% - 20%+ = 8%" />
+                            <CalcRow label="Escala vigente" value="2%-14% = 2%  - 15%-19% = 7% - 20%+ = 8%" />
                             <CalcRow label="Monto de comision" value={fmt$(calc.monto_comision)} tone={calc.monto_comision > 0 ? 'green' : undefined} strong />
                             <div className="cm-message">
                                 {calc.pct_comision > 0 ? 'Comision aplicada correctamente segun tramo vigente.' : calc.mensaje}
@@ -624,7 +861,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                 </div>
 
                 <div className="cm-foot">
-                    <div className="cm-esc"><kbd>Esc</kbd> para cerrar</div>
+                    <div className="cm-esc">Usa <kbd>x</kbd> o guardar para cerrar</div>
                     <div className="cm-actions">
                         <button type="button" className="cm-close-foot" onClick={onClose}>Cerrar</button>
                         <button type="button" className="cm-save-main" onClick={handleSave} disabled={saving}>

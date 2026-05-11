@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS actividades (
   fecha_fin         DATE
 );
 
+ALTER TABLE empresas
+  ADD COLUMN IF NOT EXISTS productos_catalogo JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 ALTER TABLE vendedores
   ADD COLUMN IF NOT EXISTS email TEXT UNIQUE,
   ADD COLUMN IF NOT EXISTS username TEXT,

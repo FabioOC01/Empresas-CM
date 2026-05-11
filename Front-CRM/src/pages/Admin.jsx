@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getVendedores, createVendedor, updateVendedor, updateVendedorMetas, updateConfig, uploadFotoVendedor, getAttendanceUnmapped } from '../api/actividades';
 import Avatar from '../components/Avatar';
 import { useActividadesContext, CONFIG_DEFAULT } from '../context/ActividadesContext';
@@ -41,6 +42,22 @@ const ATTENDANCE_DEFAULT = {
     sedes_text: '',
 };
 
+const productUnits = value => {
+    const units = parseFloat(value);
+    return Number.isFinite(units) && units > 0 ? units : 1;
+};
+
+const cleanProduct = (p = {}) => ({
+    id: p.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    nombre: p.nombre || [p.marca, p.modelo].filter(Boolean).join(' ') || p.descripcion || 'Producto',
+    marca: p.marca || '',
+    modelo: p.modelo || '',
+    descripcion: p.descripcion || '',
+    costo: parseFloat(p.costo) || 0,
+    unidad: productUnits(p.unidad),
+    origen: p.origen || 'admin',
+});
+
 function initCfgForm(config) {
     const attendance = { ...ATTENDANCE_DEFAULT, ...(config?.attendance_config || {}) };
     return {
@@ -56,6 +73,8 @@ function initCfgForm(config) {
         feriados:        [...(config?.feriados || [])],
         feriadoInput:    '',
         moneda:          config?.moneda || 'USD',
+        productos_catalogo: (config?.productos_catalogo || CONFIG_DEFAULT.productos_catalogo || []).map(cleanProduct),
+        productoInput:   { marca:'', modelo:'', descripcion:'', costo:'', unidad:1 },
         tipos_actividad: [...(config?.tipos_actividad || CONFIG_DEFAULT.tipos_actividad)],
         tipoInput:       '',
         pipeline_etapas: (config?.pipeline_etapas || CONFIG_DEFAULT.pipeline_etapas).map(e => ({ ...e, tipos: [...e.tipos] })),
@@ -87,6 +106,7 @@ export default function Admin() {
     const inp = { padding:'9px 11px', borderRadius:7, border:`1px solid ${tk.bdr}`, fontSize:13, outline:'none', width:'100%', boxSizing:'border-box', fontFamily:'inherit', background:tk.inp, color:tk.txt };
     const { config, setConfig, configLoaded } = useActividadesContext();
     const { user } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
     const esAdmin = user?.is_superadmin || user?.roles?.includes('Admin');
     const esGerencia = user?.roles?.includes('Gerencia');
     const esAdminGerencia = esAdmin || esGerencia;
@@ -133,6 +153,10 @@ export default function Admin() {
     useEffect(() => {
         if (configLoaded && !cfgForm) setCfgForm(initCfgForm(config));
     }, [configLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        const section = searchParams.get('section');
+        if (section && secciones.some(s => s.id === section)) setSeccion(section);
+    }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Secciones disponibles
     const secciones = esGerencia && !esAdmin ? [
@@ -147,6 +171,7 @@ export default function Admin() {
             { id: 'tasas',     label: 'Tasas',           icon: ChartIcon },
             { id: 'feriados',  label: 'Feriados',        icon: CalendarIcon },
             { id: 'moneda',    label: 'Moneda',          icon: CurrencyIcon },
+            { id: 'productos', label: 'Producto',        icon: TagIcon },
             { id: 'tipos',     label: 'Tipos actividad', icon: TagIcon },
             { id: 'pipeline',  label: 'Pipeline',        icon: PipelineIcon },
             { id: 'roltypes',  label: 'Permisos por rol',icon: LockIcon },
@@ -219,6 +244,42 @@ export default function Admin() {
     };
     const removeFeriado = (f) => setCfgForm(c => ({ ...c, feriados:c.feriados.filter(x => x !== f) }));
 
+    const setProductoInput = (campo, valor) => setCfgForm(f => ({
+        ...f,
+        productoInput: { ...(f.productoInput || {}), [campo]: valor },
+    }));
+    const addProducto = () => setCfgForm(f => {
+        const input = f.productoInput || {};
+        const nombre = [input.marca, input.modelo].filter(Boolean).join(' ') || input.descripcion;
+        if (!nombre?.trim()) return f;
+        const producto = cleanProduct({
+            ...input,
+            id: `prod_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            nombre,
+            origen: 'admin',
+        });
+        return {
+            ...f,
+            productos_catalogo: [...(f.productos_catalogo || []), producto],
+            productoInput: { marca:'', modelo:'', descripcion:'', costo:'', unidad:1 },
+        };
+    });
+    const updateProducto = (id, campo, valor) => setCfgForm(f => ({
+        ...f,
+        productos_catalogo: (f.productos_catalogo || []).map(p => {
+            if (p.id !== id) return p;
+            const next = { ...p, [campo]: campo === 'costo' ? valor : valor };
+            return {
+                ...next,
+                nombre: [next.marca, next.modelo].filter(Boolean).join(' ') || next.descripcion || next.nombre || 'Producto',
+            };
+        }),
+    }));
+    const removeProducto = (id) => setCfgForm(f => ({
+        ...f,
+        productos_catalogo: (f.productos_catalogo || []).filter(p => p.id !== id),
+    }));
+
     const handleSaveCfg = async (e) => {
         e.preventDefault();
         setCfgSaving(true); setCfgMsg(null);
@@ -248,6 +309,7 @@ export default function Admin() {
                         .filter(Boolean),
                 },
             };
+            if (esAdmin) payload.productos_catalogo = (cfgForm.productos_catalogo || []).map(cleanProduct);
             const updated = await updateConfig(payload);
             setConfig(prev => ({ ...prev, ...updated }));
             setCfgMsg({ type:'ok', text:'Configuración guardada.' });
@@ -392,7 +454,7 @@ export default function Admin() {
                 {secciones.map(s => {
                     const SectionIcon = s.icon;
                     return (
-                    <button key={s.id} onClick={() => { setSeccion(s.id); setEditing(null); setMsg(null); }} style={{
+                    <button key={s.id} onClick={() => { setSeccion(s.id); setSearchParams(s.id === 'vendedores' ? {} : { section:s.id }); setEditing(null); setMsg(null); }} style={{
                         display:'flex', alignItems:'center', gap:10, width:'100%',
                         padding:'13px 18px', border:'none', cursor:'pointer', textAlign:'left',
                         background: seccion===s.id ? (tk.isDark ? '#1a2744' : '#f0f5ff') : 'transparent',
@@ -796,6 +858,54 @@ export default function Admin() {
                 )}
 
                 {/* ── TIPOS DE ACTIVIDAD ── */}
+                {seccion === 'productos' && cfgForm && esAdmin && (
+                    <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'24px 28px' }}>
+                        <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:6 }}>Producto</div>
+                        <div style={{ fontSize:12, color:tk.txt3, marginBottom:18 }}>Catalogo global usado por la calculadora de comisiones.</div>
+                        <form onSubmit={handleSaveCfg} style={{ display:'grid', gap:18 }}>
+                            <div style={{ display:'grid', gridTemplateColumns:'repeat(5, minmax(120px, 1fr)) auto', gap:8, alignItems:'end' }}>
+                                <label style={lbl}>Marca
+                                    <input style={inp} value={cfgForm.productoInput?.marca || ''} onChange={e => setProductoInput('marca', e.target.value)} />
+                                </label>
+                                <label style={lbl}>Modelo
+                                    <input style={inp} value={cfgForm.productoInput?.modelo || ''} onChange={e => setProductoInput('modelo', e.target.value)} />
+                                </label>
+                                <label style={lbl}>Descripcion
+                                    <input style={inp} value={cfgForm.productoInput?.descripcion || ''} onChange={e => setProductoInput('descripcion', e.target.value)} />
+                                </label>
+                                <label style={lbl}>Costo
+                                    <input type="number" min="0" step="0.01" style={inp} value={cfgForm.productoInput?.costo || ''} onChange={e => setProductoInput('costo', e.target.value)} />
+                                </label>
+                                <label style={lbl}>Unid.
+                                    <input type="number" min="1" step="1" style={inp} value={productUnits(cfgForm.productoInput?.unidad)} onChange={e => setProductoInput('unidad', productUnits(e.target.value))} />
+                                </label>
+                                <button type="button" onClick={addProducto} style={{ height:38, padding:'0 16px', background:'#10b981', color:'#fff', border:'none', borderRadius:7, fontSize:13, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>+ Agregar</button>
+                            </div>
+
+                            <div style={{ overflowX:'auto', border:`1px solid ${tk.bdr}`, borderRadius:10 }}>
+                                <div style={{ display:'grid', gridTemplateColumns:'150px 150px minmax(220px,1fr) 110px 90px 56px', gap:8, padding:'9px 12px', background:tk.bg, borderBottom:`1px solid ${tk.bdr}`, minWidth:780 }}>
+                                    {['Marca','Modelo','Descripcion','Costo unit.','Unid.',''].map(h => <span key={h} style={{ fontSize:11, fontWeight:700, color:tk.txt3, textTransform:'uppercase' }}>{h}</span>)}
+                                </div>
+                                {(cfgForm.productos_catalogo || []).map(p => (
+                                    <div key={p.id} style={{ display:'grid', gridTemplateColumns:'150px 150px minmax(220px,1fr) 110px 90px 56px', gap:8, padding:'10px 12px', borderBottom:`1px solid ${tk.bdr}`, minWidth:780, alignItems:'center' }}>
+                                        <input style={inp} value={p.marca || ''} onChange={e => updateProducto(p.id, 'marca', e.target.value)} />
+                                        <input style={inp} value={p.modelo || ''} onChange={e => updateProducto(p.id, 'modelo', e.target.value)} />
+                                        <input style={inp} value={p.descripcion || ''} onChange={e => updateProducto(p.id, 'descripcion', e.target.value)} />
+                                        <input type="number" min="0" step="0.01" style={inp} value={p.costo ?? 0} onChange={e => updateProducto(p.id, 'costo', e.target.value)} />
+                                        <input type="number" min="1" step="1" style={inp} value={productUnits(p.unidad)} onChange={e => updateProducto(p.id, 'unidad', productUnits(e.target.value))} />
+                                        <button type="button" onClick={() => removeProducto(p.id)} style={{ width:34, height:34, border:'none', borderRadius:7, background:'#e74c3c18', color:'#e74c3c', cursor:'pointer', fontWeight:800 }}>x</button>
+                                    </div>
+                                ))}
+                                {!cfgForm.productos_catalogo?.length && (
+                                    <div style={{ padding:'28px 12px', textAlign:'center', fontSize:13, color:tk.txt3 }}>Sin productos registrados.</div>
+                                )}
+                            </div>
+                            {cfgMsg && <MsgBox msg={cfgMsg} />}
+                            <div><button type="submit" disabled={cfgSaving} style={btnGuardar(cfgSaving)}>{cfgSaving?'Guardando...':'Guardar productos'}</button></div>
+                        </form>
+                    </div>
+                )}
+
                 {seccion === 'tipos' && cfgForm && (
                     <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'24px 28px' }}>
                         <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:6 }}>Tipos de actividad</div>
