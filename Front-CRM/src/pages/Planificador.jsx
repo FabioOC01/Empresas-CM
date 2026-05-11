@@ -300,6 +300,11 @@ export default function Planificador() {
                     --pln-ink-4: ${tk.txt3};
                     --pln-hover: ${tk.card2};
                     --pln-surface-2: ${tk.card2};
+                    --pln-green-bg: rgba(16,185,129,.13);
+                    --pln-green-line: rgba(16,185,129,.38);
+                    --pln-green-2: #34d399;
+                    --pln-amber: #f6ad55;
+                    --pln-blue: #7aa2ff;
                 }
                 .pln-root *, .pln-root *::before, .pln-root *::after { box-sizing: border-box; }
 
@@ -332,6 +337,30 @@ export default function Planificador() {
                 .pln-tab.is-on { background: var(--pln-ink); color: #fff; }
                 .pln-tab.is-on .pln-tab-dot { background: var(--pln-green); }
                 .pln-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pln-ink-4); }
+                [data-theme="dark"] .pln-tabs {
+                    background: rgba(15, 23, 42, .72);
+                    border-color: rgba(92, 115, 146, .32);
+                }
+                [data-theme="dark"] .pln-tab {
+                    color: #a9b8ce;
+                }
+                [data-theme="dark"] .pln-tab:hover {
+                    background: rgba(148, 163, 184, .10);
+                    color: #e5edf8;
+                }
+                [data-theme="dark"] .pln-tab.is-on {
+                    background: rgba(16, 185, 129, .18);
+                    color: #ecfdf5;
+                    box-shadow: 0 0 0 1px rgba(52, 211, 153, .42) inset;
+                }
+                [data-theme="dark"] .pln-tab-dot {
+                    background: #71829a;
+                    box-shadow: 0 0 0 2px rgba(148, 163, 184, .10);
+                }
+                [data-theme="dark"] .pln-tab.is-on .pln-tab-dot {
+                    background: #34d399;
+                    box-shadow: 0 0 0 2px rgba(52, 211, 153, .18);
+                }
 
                 /* ============ KPIs ============ */
                 .pln-kpis {
@@ -464,6 +493,26 @@ export default function Planificador() {
                     color: var(--pln-green-2);
                     box-shadow: 0 0 0 1px var(--pln-green-line), 0 1px 2px rgba(0,0,0,.04);
                 }
+                [data-theme="dark"] .pln-filters {
+                    background: #111c2d;
+                    border-color: rgba(92, 115, 146, .32);
+                }
+                [data-theme="dark"] .pln-qpills {
+                    background: rgba(2, 6, 23, .38);
+                    border-color: rgba(92, 115, 146, .28);
+                }
+                [data-theme="dark"] .pln-qpill {
+                    color: #8fa2bc;
+                }
+                [data-theme="dark"] .pln-qpill:hover {
+                    background: rgba(148, 163, 184, .10);
+                    color: #e5edf8;
+                }
+                [data-theme="dark"] .pln-qpill.is-on {
+                    background: rgba(16, 185, 129, .16);
+                    color: #6ee7b7;
+                    box-shadow: 0 0 0 1px rgba(52, 211, 153, .45);
+                }
                 .pln-search {
                     position: relative;
                     flex: 1 1 240px;
@@ -487,9 +536,26 @@ export default function Planificador() {
                     border-color: var(--pln-green);
                     box-shadow: 0 0 0 3px rgba(7,150,105,.12);
                 }
+                [data-theme="dark"] .pln-search input {
+                    background: #0b1322;
+                    border-color: rgba(92, 115, 146, .28);
+                    color: #dbe5f2;
+                }
+                [data-theme="dark"] .pln-search input::placeholder {
+                    color: #8193ad;
+                    opacity: 1;
+                }
+                [data-theme="dark"] .pln-search input:focus {
+                    background: #0f1a2b;
+                    border-color: rgba(52, 211, 153, .62);
+                    box-shadow: 0 0 0 3px rgba(16, 185, 129, .16);
+                }
                 .pln-search .pln-si {
                     position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
                     color: var(--pln-ink-3); pointer-events: none;
+                }
+                [data-theme="dark"] .pln-search .pln-si {
+                    color: #6f83a0;
                 }
                 .pln-search .pln-sx {
                     position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
@@ -526,6 +592,27 @@ export default function Planificador() {
                     position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
                     color: var(--pln-ink-3); pointer-events: none;
                 }
+                [data-theme="dark"] .pln-sel select {
+                    background: #0b1322;
+                    border-color: rgba(92, 115, 146, .28);
+                    color: #9fb0c7;
+                }
+                [data-theme="dark"] .pln-sel select:hover {
+                    border-color: rgba(124, 145, 172, .48);
+                    color: #dbe5f2;
+                }
+                [data-theme="dark"] .pln-sel.has-val select {
+                    background: #111c2d;
+                    border-color: rgba(52, 211, 153, .36);
+                    color: #e5edf8;
+                }
+                [data-theme="dark"] .pln-sel select:focus {
+                    border-color: rgba(52, 211, 153, .62);
+                    box-shadow: 0 0 0 3px rgba(16, 185, 129, .16);
+                }
+                [data-theme="dark"] .pln-sel .pln-car {
+                    color: #8296b0;
+                }
                 .pln-clear {
                     appearance: none;
                     height: 30px; padding: 0 10px;
@@ -537,6 +624,16 @@ export default function Planificador() {
                 }
                 .pln-clear.on { cursor: pointer; color: var(--pln-ink-2); }
                 .pln-clear.on:hover { color: var(--pln-ink); background: var(--pln-hover); }
+                [data-theme="dark"] .pln-clear {
+                    color: #7f91ab;
+                }
+                [data-theme="dark"] .pln-clear.on {
+                    color: #b9c8db;
+                }
+                [data-theme="dark"] .pln-clear.on:hover {
+                    background: rgba(148, 163, 184, .10);
+                    color: #eef5ff;
+                }
 
                 /* ============ TABLE ============ */
                 .pln-twrap {
@@ -570,6 +667,19 @@ export default function Planificador() {
                 th.pln-h + th.pln-h { border-left: 1px solid var(--pln-line-2); }
                 th.pln-h.sorted { background: var(--pln-green-bg); color: var(--pln-green-2); }
                 th.pln-h-right { text-align: right; }
+                [data-theme="dark"] th.pln-h {
+                    background: #162236;
+                    color: #9fb0c7;
+                    font-weight: 600;
+                    border-bottom-color: rgba(92, 115, 146, .34);
+                }
+                [data-theme="dark"] th.pln-h + th.pln-h {
+                    border-left-color: rgba(92, 115, 146, .24);
+                }
+                [data-theme="dark"] th.pln-h.sorted {
+                    background: rgba(16, 185, 129, .13);
+                    color: #6ee7b7;
+                }
 
                 .pln-hbtn {
                     display: flex; align-items: center; justify-content: space-between; gap: 6px;
@@ -581,6 +691,12 @@ export default function Planificador() {
                 }
                 .pln-hbtn:hover { background: var(--pln-hover); }
                 th.pln-h.sorted .pln-hbtn:hover { background: #def4e8; }
+                [data-theme="dark"] .pln-hbtn:hover {
+                    background: rgba(148, 163, 184, .10);
+                }
+                [data-theme="dark"] th.pln-h.sorted .pln-hbtn:hover {
+                    background: rgba(16, 185, 129, .18);
+                }
                 .pln-hbtn .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                 .pln-hbtn .ind {
                     opacity: 0; color: var(--pln-ink-3);
@@ -646,17 +762,29 @@ export default function Planificador() {
                 tr[data-pr="Media"] td.pln-c.first::before { background: var(--pln-amber); }
                 tr[data-pr="Baja"]  td.pln-c.first::before { background: var(--pln-green); }
                 .pln-act { display: flex; flex-direction: column; gap: 1px; min-width: 0; max-width: 100%; line-height: 1.1; }
+                .pln-act-row {
+                    display: grid;
+                    grid-template-columns: minmax(0, 1fr) auto;
+                    align-items: center;
+                    gap: 8px;
+                    min-width: 0;
+                    max-width: 100%;
+                }
                 .pln-act .t1 {
-                    font-weight: 500; color: var(--pln-ink);
+                    font-weight: 600; color: var(--pln-ink);
                     display: block; min-width: 0; max-width: 100%;
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 }
                 .pln-act .t2 {
                     display: block; min-width: 0; max-width: 100%;
-                    font-size: 10px; line-height: 1.05; color: var(--pln-ink-3);
+                    font-size: 10.5px; line-height: 1.05; color: var(--pln-ink-2);
                     font-weight: 400;
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 }
+                [data-theme="dark"] .pln-act .t1 { color: #d8e0ea; font-weight: 600; }
+                [data-theme="dark"] .pln-act .t2 { color: #8da0ba; }
+                [data-theme="dark"] .pln-ven .name { color: #c7d2e2; }
+                [data-theme="dark"] .pln-mon.pos { color: #10b981; }
 
                 .pln-ven { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
                 .pln-ven .name {
@@ -732,14 +860,26 @@ export default function Planificador() {
                     background: var(--pln-green-bg);
                     color: var(--pln-green-2);
                     cursor: pointer;
-                    font-size: 11px;
-                    font-weight: 700;
+                    font-size: 11.5px;
+                    font-weight: 800;
                     white-space: nowrap;
+                    box-shadow: 0 0 0 1px rgba(7,150,105,.06), 0 1px 2px rgba(7,150,105,.10);
+                }
+                [data-theme="dark"] .pln-calc-left {
+                    background: rgba(16,185,129,.14);
+                    border-color: rgba(52,211,153,.45);
+                    color: #6ee7b7;
+                    box-shadow: none;
                 }
                 .pln-calc-left:hover {
                     background: var(--pln-green-2);
                     border-color: var(--pln-green-2);
                     color: #fff;
+                }
+                [data-theme="dark"] .pln-calc-left:hover {
+                    background: #059669;
+                    border-color: #10b981;
+                    color: #ecfdf5;
                 }
                 .pln-calc-left svg { width: 12px; height: 12px; }
 
@@ -749,6 +889,9 @@ export default function Planificador() {
                     border-radius: 4px;
                     font-size: 11.5px; font-weight: 500;
                     cursor: pointer; position: relative;
+                }
+                [data-theme="dark"] .pln-estado-wrap {
+                    filter: saturate(.9) brightness(.92);
                 }
                 .pln-estado-wrap .pln-estado-dot { width: 5px; height: 5px; border-radius: 50%; flex: none; }
                 .pln-estado-wrap select {
@@ -1143,13 +1286,20 @@ export default function Planificador() {
                                 const vencida = finDate && finDate < new Date() && a.estado !== 'Completado' && a.estado !== 'Ganada';
                                 const ganadaCalc = a.estado === 'Ganada' ? miniCalc(a) : null;
                                 const montoNum = Number(a.monto) || 0;
-                                const estTone = {
+                                const estTones = tk.isDark ? {
+                                    'Pendiente':   { fg:'#cbd5e1', bg:'rgba(148,163,184,.15)', dot:'#94a3b8' },
+                                    'En Progreso': { fg:'#93c5fd', bg:'rgba(37,99,235,.18)', dot:'#60a5fa' },
+                                    'Completado':  { fg:'#86efac', bg:'rgba(16,185,129,.16)', dot:'#34d399' },
+                                    'Ganada':      { fg:'#86efac', bg:'rgba(16,185,129,.16)', dot:'#34d399' },
+                                    'Perdida':     { fg:'#fca5a5', bg:'rgba(239,68,68,.16)', dot:'#f87171' },
+                                } : {
                                     'Pendiente':   { fg:'#5b5d57', bg:'#efeeea', dot:'#5b5d57' },
                                     'En Progreso': { fg:'#2862c8', bg:'#e8f0fc', dot:'#2862c8' },
                                     'Completado':  { fg:'#036b4c', bg:'#ecfdf5', dot:'#079669' },
                                     'Ganada':      { fg:'#036b4c', bg:'#ecfdf5', dot:'#079669' },
                                     'Perdida':     { fg:'#c0392b', bg:'#fdecec', dot:'#c0392b' },
-                                }[a.estado] || { fg:'#5b5d57', bg:'#efeeea', dot:'#5b5d57' };
+                                };
+                                const estTone = estTones[a.estado] || estTones.Pendiente;
                                 const estadoOpts = TIPOS_CON_RESULTADO.includes(a.tipo)
                                     ? ['Pendiente','En Progreso','Completado','Ganada','Perdida']
                                     : ESTADOS;
@@ -1163,7 +1313,7 @@ export default function Planificador() {
                                     >
                                         <td className="pln-c first">
                                             <div className="pln-act">
-                                                <span style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                                                <span className="pln-act-row">
                                                     <span className="t1" title={a.nombre}>{a.nombre}</span>
                                                     {ganadaCalc && (
                                                         <button
@@ -1171,7 +1321,7 @@ export default function Planificador() {
                                                             className="pln-calc-left"
                                                             onClick={e => { e.stopPropagation(); setCalcModal({ open:true, actividad:a }); }}
                                                             title="Ver comisión">
-                                                            <IcoCash /><span>Calcular</span>
+                                                            <IcoCash />
                                                         </button>
                                                     )}
                                                 </span>
@@ -1306,7 +1456,7 @@ export default function Planificador() {
                                                                     className="pln-calc-left"
                                                                     onClick={e => { e.stopPropagation(); setCalcModal({ open:true, actividad:a }); }}
                                                                     title="Ver comisión">
-                                                                    <IcoCash /><span>Calcular</span>
+                                                                       <IcoCash/>
                                                                 </button>
                                                             )}
                                                             <TipoBadge tipo={a.tipo} />

@@ -114,7 +114,6 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     useEffect(() => {
         if (!open) return;
         const onKey = (e) => {
-            if (e.key === 'Escape') { onClose(); return; }
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                 e.preventDefault();
                 const formEl = document.querySelector('.am-md form');
@@ -123,7 +122,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [open, onClose]);
+    }, [open]);
 
     useEffect(() => {
         if (!open) return;
@@ -308,7 +307,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         : ESTADOS;
 
     return (
-        <div onClick={onClose} className="am-ovl" style={{
+        <div className="am-ovl" style={{
             position: 'fixed', inset: 0, background: 'rgba(20,20,18,0.42)', backdropFilter: 'blur(2px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24,
         }}>
@@ -335,15 +334,81 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 .am-md .am-x { appearance:none; width:30px; height:30px; background:#fff; border:1px solid var(--ln3); color: var(--ink2); border-radius:7px; cursor:pointer; display:inline-grid; place-items:center; }
                 .am-md .am-x:hover { background: var(--hover); color: var(--ink); }
                 .am-md .am-tchip {
-                    appearance:none; display:inline-flex; align-items:center; gap:6px;
-                    height:30px; padding:0 10px;
-                    font:inherit; font-size:12px; font-weight:500; color: var(--type-color, var(--ink2));
-                    background:var(--type-bg, #fff); border:1px solid var(--type-border, var(--ln)); border-radius:7px;
-                    cursor:pointer; text-align:left;
-                    transition: border-color .1s, background .1s, color .1s, box-shadow .1s;
+                    appearance:none;
+                    display:grid;
+                    grid-template-columns:auto minmax(0, 1fr) auto;
+                    align-items:center;
+                    gap:8px;
+                    min-height:34px;
+                    padding:0 10px;
+                    font:inherit;
+                    font-size:12px;
+                    font-weight:500;
+                    color: var(--ink2);
+                    background:#fff;
+                    border:1px solid var(--ln);
+                    border-radius:8px;
+                    cursor:pointer;
+                    text-align:left;
+                    box-shadow: 0 1px 2px rgba(20,20,18,.035);
+                    transition: border-color .12s, background .12s, color .12s, box-shadow .12s, transform .08s;
                 }
-                .am-md .am-tchip:hover { border-color: var(--type-color, var(--ln3)); filter: saturate(1.05); }
-                .am-md .am-tchip.on { color: var(--type-color, var(--g2)); background: var(--type-bg, var(--gbg)); border-color: var(--type-color, var(--g)); box-shadow: 0 0 0 3px var(--type-ring, rgba(7,150,105,.10)); }
+                [data-theme="dark"] .am-md .am-tchip {
+                    background: rgba(15,23,42,.54);
+                    border-color: rgba(92,115,146,.34);
+                    color: #c7d2e2;
+                    box-shadow: none;
+                }
+                .am-md .am-tchip:hover {
+                    color: var(--ink);
+                    border-color: var(--type-color, var(--ln3));
+                    background: var(--type-soft, var(--hover));
+                    transform: translateY(-1px);
+                }
+                [data-theme="dark"] .am-md .am-tchip:hover {
+                    color: #eef5ff;
+                    background: var(--type-soft, rgba(148,163,184,.10));
+                }
+                .am-md .am-tchip.on {
+                    color: var(--type-color, var(--g2));
+                    background: linear-gradient(180deg, #fff 0%, var(--type-soft, var(--gbg)) 100%);
+                    border-color: var(--type-color, var(--g));
+                    box-shadow: 0 0 0 3px var(--type-ring, rgba(7,150,105,.10)), 0 3px 8px rgba(20,20,18,.05);
+                }
+                [data-theme="dark"] .am-md .am-tchip.on {
+                    color: #f8fbff;
+                    background: linear-gradient(180deg, rgba(30,41,59,.76) 0%, var(--type-soft, rgba(16,185,129,.16)) 100%);
+                    box-shadow: 0 0 0 1px var(--type-color, var(--g)) inset, 0 0 0 3px var(--type-ring, rgba(16,185,129,.12));
+                }
+                .am-md .am-tchip-mark {
+                    width:8px;
+                    height:8px;
+                    border-radius:999px;
+                    background: var(--type-color, var(--g));
+                    box-shadow: 0 0 0 3px var(--type-soft, rgba(7,150,105,.10));
+                }
+                .am-md .am-tchip-label {
+                    min-width:0;
+                    overflow:hidden;
+                    text-overflow:ellipsis;
+                    white-space:nowrap;
+                }
+                .am-md .am-tchip-check {
+                    width:16px;
+                    height:16px;
+                    display:grid;
+                    place-items:center;
+                    border-radius:999px;
+                    color:#fff;
+                    background: var(--type-color, var(--g));
+                    opacity:0;
+                    transform: scale(.82);
+                    transition: opacity .12s, transform .12s;
+                }
+                .am-md .am-tchip.on .am-tchip-check {
+                    opacity:1;
+                    transform: scale(1);
+                }
                 .am-md .am-seg {
                     display:grid; grid-auto-flow:column; grid-auto-columns:1fr;
                     background: var(--bg); border:1px solid var(--ln);
@@ -428,18 +493,23 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                             {/* Tipos */}
                             <div>
                                 <div style={lbl}>Tipo de actividad</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(108px, 1fr))', gap: 6, marginTop: 6 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))', gap: 8, marginTop: 8 }}>
                                     {tiposDisponibles.map(t => {
                                         const tc = getTypeColor(t);
                                         const active = form.tipo === t;
                                         return (
                                             <button key={t} type="button" onClick={() => handleTipoChange(t)} className={`am-tchip ${active ? 'on' : ''}`} style={{
                                                 '--type-color': tc.color,
-                                                '--type-bg': tk.isDark ? `${tc.color}${active ? '36' : '20'}` : tc.bg,
-                                                '--type-border': `${tc.color}${active ? '' : tk.isDark ? '66' : '44'}`,
+                                                '--type-soft': tk.isDark ? `${tc.color}${active ? '28' : '18'}` : `${tc.color}${active ? '14' : '0d'}`,
                                                 '--type-ring': `${tc.color}22`,
                                             }}>
-                                                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t}</span>
+                                                <span className="am-tchip-mark" />
+                                                <span className="am-tchip-label">{t}</span>
+                                                <span className="am-tchip-check" aria-hidden="true">
+                                                    <svg viewBox="0 0 12 12" width="10" height="10">
+                                                        <path d="M3 6.1l2 2L9.2 3.8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                </span>
                                             </button>
                                         );
                                     })}
@@ -594,10 +664,9 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                             {/* Botones - siempre en columna izquierda */}
                             <div className="am-foot" style={{ margin: '14px -24px -20px', borderRadius: '0 0 12px 12px' }}>
                                 <div className="am-hint">
-                                    <kbd>Esc</kbd> para cerrar - <kbd>Ctrl</kbd>+<kbd>Enter</kbd> para {actividad ? 'guardar' : 'crear'}
+                                    <kbd>Ctrl</kbd>+<kbd>Enter</kbd> para {actividad ? 'guardar' : 'crear'}
                                 </div>
                                 <div style={{ display:'inline-flex', gap: 8 }}>
-                                    <button type="button" onClick={onClose} className="am-cancel">Cancelar</button>
                                     <button type="submit" className="am-create">
                                         <svg viewBox="0 0 10 10" width="10" height="10"><path d="M5 1.5v7M1.5 5h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
                                         {actividad ? 'Guardar cambios' : 'Crear actividad'}
