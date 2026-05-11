@@ -279,7 +279,7 @@ export default function Planificador() {
                     --pln-amber-bg: #fdf3e0;
                     --pln-blue:     #2862c8;
                     --pln-blue-bg:  #e8f0fc;
-                    --pln-row-h:    40px;
+                    --pln-row-h:    36px;
                     --pln-radius:   10px;
                     color: var(--pln-ink);
                     font-family: Inter, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
@@ -549,6 +549,7 @@ export default function Planificador() {
                 table.pln-t {
                     width: 100%;
                     min-width: 1320px;
+                    table-layout: fixed;
                     border-collapse: separate;
                     border-spacing: 0;
                     font-variant-numeric: tabular-nums;
@@ -627,7 +628,7 @@ export default function Planificador() {
                     border-bottom: 1px solid var(--pln-line-2);
                     vertical-align: middle;
                     color: var(--pln-ink);
-                    font-size: 13px;
+                    font-size: 12.5px;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -644,13 +645,16 @@ export default function Planificador() {
                 tr[data-pr="Alta"]  td.pln-c.first::before { background: var(--pln-red); }
                 tr[data-pr="Media"] td.pln-c.first::before { background: var(--pln-amber); }
                 tr[data-pr="Baja"]  td.pln-c.first::before { background: var(--pln-green); }
-                .pln-act { display: flex; flex-direction: column; gap: 0; min-width: 0; line-height: 1.15; }
+                .pln-act { display: flex; flex-direction: column; gap: 0; min-width: 0; max-width: 100%; line-height: 1.1; }
                 .pln-act .t1 {
                     font-weight: 500; color: var(--pln-ink);
+                    display: block; min-width: 0; max-width: 100%;
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 }
                 .pln-act .t2 {
-                    font-size: 10.5px; line-height: 1.1; color: var(--pln-ink-3);
+                    display: inline; min-width: 0; max-width: 100%;
+                    font-size: 11px; line-height: 1.05; color: var(--pln-ink-3);
+                    font-weight: 400;
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 }
 
@@ -1100,7 +1104,7 @@ export default function Planificador() {
             </div>
 
             {view === 'tabla' && (<>
-                <div className="pln-twrap has-meta" style={{ maxHeight: isMobile ? 434 : 438, overflowY: 'auto' }}>
+                <div className="pln-twrap has-meta" style={{ height: isMobile ? 'calc(100vh - 300px)' : 'calc(100vh - 260px)', minHeight: 438, overflowY: 'auto' }}>
                     <table className="pln-t">
                         <colgroup>
                             {COL_DEFS.map(c => <col key={c.label || 'acts'} style={{ width: c.width }} />)}
@@ -1160,7 +1164,9 @@ export default function Planificador() {
                                         <td className="pln-c first">
                                             <div className="pln-act">
                                                 <span style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
-                                                    <span className="t1" title={a.nombre}>{a.nombre}</span>
+                                                    <span className="t1" title={a.notas ? `${a.nombre} - ${a.notas}` : a.nombre}>
+                                                        {a.nombre}{a.notas && <span className="t2"> - {a.notas}</span>}
+                                                    </span>
                                                     {ganadaCalc && (
                                                         <button
                                                             type="button"
@@ -1171,7 +1177,6 @@ export default function Planificador() {
                                                         </button>
                                                     )}
                                                 </span>
-                                                {a.notas && <span className="t2" title={a.notas}>{a.notas}</span>}
                                             </div>
                                         </td>
                                         <td className="pln-c"><TipoBadge tipo={a.tipo} /></td>
