@@ -1,4 +1,5 @@
 import { useTheme } from '../context/ThemeContext';
+import { MoonIcon, SunIcon } from './Icons';
 
 export default function PageHeader({ title, subtitle, actions, showThemeToggle = true }) {
     const tk = useTheme();
@@ -15,9 +16,8 @@ export default function PageHeader({ title, subtitle, actions, showThemeToggle =
                         className="icon-btn"
                         onClick={tk.toggleDark}
                         title={tk.isDark ? 'Modo claro' : 'Modo oscuro'}
-                        style={{ fontSize: 16 }}
                     >
-                        {tk.isDark ? '☀' : '☾'}
+                        {tk.isDark ? <SunIcon size={16} /> : <MoonIcon size={16} />}
                     </button>
                 )}
             </div>

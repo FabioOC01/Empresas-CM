@@ -5,15 +5,45 @@ import useActividades from '../hooks/useActividades';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import useRolFilter from '../hooks/useRolFilter';
-import { filterActs, fmtUSD, totalGastosOperacion, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO, MESES } from '../utils/crm';
+import { filterActs, fmtUSD, totalGastosOperacion, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO, MESES, getTypeColor } from '../utils/crm';
 import Avatar from '../components/Avatar';
-import { TipoBadge, PrioBadge } from '../components/Badge';
+import { TipoBadge, PrioBadge, EstadoBadge } from '../components/Badge';
 import ActividadModal from '../components/ActividadModal';
 import ComisionModal from '../components/ComisionModal';
-import PeriodoPicker from '../components/PeriodoPicker';
 
 const KANBAN_COLS = ['Pendiente','En Progreso','Completado','Ganada','Perdida'];
-const COL_COLOR = { 'Pendiente':'#e67e22','En Progreso':'#10b981','Completado':'#27ae60','Ganada':'#2e7d32','Perdida':'#e74c3c' };
+const COL_PIP    = { 'Pendiente':'#8a93a3','En Progreso':'#2862c8','Completado':'#079669','Ganada':'#036b4c','Perdida':'#c0392b' };
+const MES_TO_Q   = { Enero:1,Febrero:1,Marzo:1,Abril:2,Mayo:2,Junio:2,Julio:3,Agosto:3,Septiembre:3,Octubre:4,Noviembre:4,Diciembre:4 };
+const MES_SHORT  = { Enero:'Ene',Febrero:'Feb',Marzo:'Mar',Abril:'Abr',Mayo:'May',Junio:'Jun',Julio:'Jul',Agosto:'Ago',Septiembre:'Sep',Octubre:'Oct',Noviembre:'Nov',Diciembre:'Dic' };
+const SORT_LABELS = {
+    text: { asc: 'A → Z',        desc: 'Z → A' },
+    num:  { asc: 'Menor a mayor', desc: 'Mayor a menor' },
+    date: { asc: 'Más antiguo',   desc: 'Más reciente' },
+};
+const COL_DEFS = [
+    { label: 'Actividad', key: 'actividad', type: 'text', width: 260 },
+    { label: 'Tipo',      key: 'tipo',      type: 'text', width: 140 },
+    { label: 'Vendedor',  key: 'vendedor',  type: 'text', width: 180 },
+    { label: 'Cliente',   key: 'cliente',   type: 'text', width: 210 },
+    { label: 'Monto',     key: 'monto',     type: 'num',  width: 130, align: 'right' },
+    { label: 'Prioridad', key: 'prioridad', type: 'text', width: 115 },
+    { label: 'Estado',    key: 'estado',    type: 'text', width: 150 },
+    { label: 'Mes',       key: 'mes',       type: 'text', width: 90 },
+    { label: 'Inicio',    key: 'fecha',     type: 'date', width: 120 },
+    { label: 'Fin est.',  key: 'fecha_fin', type: 'date', width: 120 },
+    { label: '',          key: null,        type: null,   width: 110 },
+];
+
+const IcoSearch = (p) => (<svg viewBox="0 0 16 16" width="14" height="14" {...p}><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.4"/><path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>);
+const IcoX      = (p) => (<svg viewBox="0 0 10 10" width="9" height="9" {...p}><path d="M2 2l6 6M8 2l-6 6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>);
+const IcoCaret  = (p) => (<svg viewBox="0 0 10 10" width="9" height="9" {...p}><path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+const IcoUp     = (p) => (<svg viewBox="0 0 10 10" width="9" height="9" {...p}><path d="M5 8V2M2.5 4.5L5 2l2.5 2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+const IcoDown   = (p) => (<svg viewBox="0 0 10 10" width="9" height="9" {...p}><path d="M5 2v6M2.5 5.5L5 8l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+const IcoCal    = (p) => (<svg viewBox="0 0 14 14" width="11" height="11" {...p}><rect x="2" y="3" width="10" height="9" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2"/><path d="M2 6h10M5 2v2M9 2v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>);
+const IcoPlus   = (p) => (<svg viewBox="0 0 10 10" width="10" height="10" {...p}><path d="M5 1.5v7M1.5 5h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>);
+const IcoEdit   = (p) => (<svg viewBox="0 0 14 14" width="13" height="13" {...p}><path d="M10.3 2.4l1.3 1.3-7.6 7.6-2 .7.7-2z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>);
+const IcoTrash  = (p) => (<svg viewBox="0 0 14 14" width="13" height="13" {...p}><path d="M3 4h8M5.5 4V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1M4 4l.5 7a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1L10 4" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+const IcoCash   = (p) => (<svg viewBox="0 0 14 14" width="13" height="13" {...p}><rect x="1.5" y="3.5" width="11" height="7" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2"/><circle cx="7" cy="7" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.2"/></svg>);
 
 function parseArr(val) {
     if (Array.isArray(val)) return val;
@@ -27,7 +57,10 @@ function fmtDateShort(value) {
     if (!value) return null;
     const d = new Date(String(value).slice(0, 10) + 'T12:00:00');
     if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' });
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yy = String(d.getFullYear()).slice(2);
+    return { dd, mm, yy, day: `${dd}/${mm}`, year: yy };
 }
 
 function dateOrderValue(value, fallback) {
@@ -37,22 +70,44 @@ function dateOrderValue(value, fallback) {
     return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
+function SortMenu({ col, sort, onPick, onClose, align = 'left' }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+        document.addEventListener('mousedown', onDoc);
+        return () => document.removeEventListener('mousedown', onDoc);
+    }, [onClose]);
+    const labels = SORT_LABELS[col.type] || SORT_LABELS.text;
+    const active = sort.key === col.key ? sort.dir : null;
+    return (
+        <div ref={ref} role="menu" className="pln-menu" style={{ [align]: 8 }}>
+            <button className={`pln-mi ${active === 'asc' ? 'is-on' : ''}`} onClick={() => { onPick('asc'); onClose(); }}>
+                <IcoUp /><span>{labels.asc}</span>
+            </button>
+            <button className={`pln-mi ${active === 'desc' ? 'is-on' : ''}`} onClick={() => { onPick('desc'); onClose(); }}>
+                <IcoDown /><span>{labels.desc}</span>
+            </button>
+            {active && (
+                <>
+                    <div className="pln-msep" />
+                    <button className="pln-mi pln-mi-muted" onClick={() => { onPick(null); onClose(); }}>
+                        <IcoX /><span>Quitar orden</span>
+                    </button>
+                </>
+            )}
+        </div>
+    );
+}
+
 export default function Planificador() {
     const { actividades, setActividades, config } = useActividades();
     const { user } = useAuth();
     const puedeEliminar = user?.is_superadmin || user?.roles?.some(r => ['Admin','Gerencia'].includes(r));
     const puedeFiltrar  = puedeEliminar;
     const tk = useTheme();
-    const sel    = { padding:'7px 10px', borderRadius:7, border:`1px solid ${tk.bdr}`, fontSize:13, background:tk.card, color:tk.txt };
-    const td     = { padding:'10px 10px', color:tk.txt };
-    const th     = { padding:'8px 10px', textAlign:'left', color:tk.txt2, fontWeight:700, fontSize:11, whiteSpace:'nowrap' };
-    const iconBtn = { padding:'4px 6px', border:`1px solid ${tk.bdr}`, borderRadius:6, background:tk.card, cursor:'pointer', fontSize:13 };
-    const btnPri  = { padding:'9px 20px', background:'#10b981', color:'#fff', border:'none', borderRadius:8, fontWeight:600, cursor:'pointer', fontSize:13 };
-    const btnSec  = { padding:'9px 20px', background:tk.card2, color:tk.txt, border:'none', borderRadius:8, fontWeight:600, cursor:'pointer', fontSize:13 };
     const moneda     = config?.moneda || 'USD';
     const tipos      = config?.tipos_actividad || TIPOS;
     const tasa_sunat = parseFloat(config?.tasa_sunat) || 0;
-    const tableMinWidth = 1180;
 
     const miniCalc = (a) => {
         const fact = parseFloat(a.precio_venta) || parseFloat(a.monto) || 0;
@@ -63,13 +118,11 @@ export default function Planificador() {
         const margen = fact > 0 ? (rentabilidad / fact) * 100 : 0;
         return { util: rentabilidad, margen };
     };
-    const vendedorForzado = useRolFilter(); // null = ve todo, string = solo su id
+
+    const vendedorForzado = useRolFilter();
     const [searchParams] = useSearchParams();
     const [vendedores, setVendedores] = useState([]);
     const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 760);
-    const tableScrollRef = useRef(null);
-    const topScrollRef = useRef(null);
-    const syncingScroll = useRef(false);
     const [view, setView] = useState(searchParams.get('view') === 'kanban' ? 'kanban' : 'tabla');
     const [collapsedCols, setCollapsedCols] = useState(new Set(['Ganada','Perdida']));
     const toggleCol = (col) => setCollapsedCols(s => {
@@ -78,29 +131,23 @@ export default function Planificador() {
         return n;
     });
     const [modal, setModal] = useState({ open: false, actividad: null });
-    const [confirmId,  setConfirmId]  = useState(null);
-    const [calcModal,  setCalcModal]  = useState({ open:false, actividad:null });
+    const [confirmId, setConfirmId] = useState(null);
+    const [calcModal, setCalcModal] = useState({ open:false, actividad:null });
     const MES_ACTUAL = MESES[new Date().getMonth()];
     const Q_ACTUAL = String(Math.floor(new Date().getMonth() / 3) + 1);
     const DEFAULT_FILTERS = { vendedorId:'', trimestre: Q_ACTUAL, mes:'', tipo:'', estado:'', prioridad:'', buscar:'' };
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
     const [sort, setSort] = useState({ key:'fecha', dir:'desc' });
+    const [openMenu, setOpenMenu] = useState(null);
     const [dragId, setDragId] = useState(null);
     const [dragOverCol, setDragOverCol] = useState(null);
+
     useEffect(() => { getVendedores().then(setVendedores); }, []);
     useEffect(() => {
         const onResize = () => setIsMobile(window.innerWidth <= 760);
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
-    const syncHorizontalScroll = (source, target) => {
-        if (!source || !target || syncingScroll.current) return;
-        syncingScroll.current = true;
-        target.scrollLeft = source.scrollLeft;
-        requestAnimationFrame(() => { syncingScroll.current = false; });
-    };
-
-    // Teclado: N = nueva actividad
     useEffect(() => {
         const handler = (e) => {
             if (e.key === 'n' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))
@@ -123,7 +170,6 @@ export default function Planificador() {
         prioridad:  filters.prioridad  || undefined,
     });
 
-    // Si el filtro de mes es el mes actual, también arrastrar actividades En Progreso de meses anteriores
     let filtered = baseFiltered;
     if (filters.mes === MES_ACTUAL) {
         const idxActual = MESES.indexOf(MES_ACTUAL);
@@ -155,6 +201,7 @@ export default function Planificador() {
         return dateOrderValue(a.fecha, a.created_at);
     };
     filtered = [...filtered].sort((a, b) => {
+        if (!sort.key) return 0;
         const av = sortValue(a, sort.key);
         const bv = sortValue(b, sort.key);
         const cmp = typeof av === 'number' && typeof bv === 'number'
@@ -162,18 +209,8 @@ export default function Planificador() {
             : String(av).localeCompare(String(bv), 'es', { sensitivity:'base' });
         return sort.dir === 'asc' ? cmp : -cmp;
     });
-
     const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
-    const toggleSort = (key) => {
-        setSort(cur => {
-            if (cur.key === key) return { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' };
-            const dir = ['monto','fecha','fecha_fin'].includes(key) ? 'desc' : 'asc';
-            return { key, dir };
-        });
-    };
-    const sortArrow = (key) => sort.key === key ? (sort.dir === 'asc' ? '↑' : '↓') : '↕';
 
-    // Refleja el guardado al instante; el socket mantiene sincronizados a los demas clientes.
     const handleSave = async (data) => {
         if (data.id && actividades.find(a => a.id === data.id)) {
             const updated = await updateActividad(data.id, data);
@@ -207,131 +244,888 @@ export default function Planificador() {
         setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
     };
 
-    const totalMonto = filtered.reduce((s,a) => s + Number(a.monto), 0);
+    const newWithEstado = (estado) => setModal({ open:true, actividad: { estado } });
+
+    const totalMonto = filtered.reduce((s,a) => s + Number(a.monto || 0), 0);
+    const completedCount = filtered.filter(a => a.estado === 'Completado' || a.estado === 'Ganada').length;
+    const progressCount  = filtered.filter(a => a.estado === 'En Progreso').length;
+    const pendingCount   = filtered.filter(a => a.estado === 'Pendiente').length;
+    const highPriorityCount = filtered.filter(a => a.prioridad === 'Alta' && a.estado !== 'Completado' && a.estado !== 'Ganada').length;
+    const hasActiveFilters = filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre !== Q_ACTUAL || filters.mes;
+    const sortedColLabel = sort.key ? (COL_DEFS.find(c => c.key === sort.key)?.label || sort.key) : '';
 
     return (
-        <div>
-            {/* Header + Mini stats en una sola fila */}
-            <div style={{ display:'flex', alignItems:isMobile ? 'stretch' : 'center', marginBottom:20, gap:10, flexDirection:isMobile ? 'column' : 'row' }}>
-                {/* Vista */}
-                <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                    {['tabla','kanban'].map(v => (
-                        <button key={v} onClick={() => setView(v)} style={{
-                            padding:'7px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:13, fontWeight:600,
-                            background: view === v ? '#10b981' : tk.card2, color: view === v ? '#fff' : tk.txt,
-                        }}>{v === 'tabla' ? '📋 Tabla' : '🗂 Kanban'}</button>
+        <div className="pln-root">
+            <style>{`
+                .pln-root {
+                    --pln-bg:       #f7f7f5;
+                    --pln-surface:  #ffffff;
+                    --pln-surface-2:#fbfbf8;
+                    --pln-line:     #ebebe7;
+                    --pln-line-2:   #f1f1ed;
+                    --pln-line-3:   #e3e3df;
+                    --pln-ink:      #161614;
+                    --pln-ink-2:    #4a4a45;
+                    --pln-ink-3:    #8a8a82;
+                    --pln-ink-4:    #b6b6ad;
+                    --pln-hover:    #f6f6f3;
+                    --pln-green:    #079669;
+                    --pln-green-2:  #036b4c;
+                    --pln-green-bg: #ecfdf5;
+                    --pln-green-line:#bfe9d6;
+                    --pln-red:      #c0392b;
+                    --pln-red-bg:   #fdecec;
+                    --pln-amber:    #b8740a;
+                    --pln-amber-bg: #fdf3e0;
+                    --pln-blue:     #2862c8;
+                    --pln-blue-bg:  #e8f0fc;
+                    --pln-row-h:    46px;
+                    --pln-radius:   10px;
+                    color: var(--pln-ink);
+                    font-family: Inter, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+                    font-size: 13px;
+                    line-height: 1.4;
+                    min-width: 0;
+                }
+                [data-theme="dark"] .pln-root {
+                    --pln-bg: ${tk.bg};
+                    --pln-surface: ${tk.card};
+                    --pln-surface-2: ${tk.card2};
+                    --pln-line: ${tk.bdr};
+                    --pln-line-2: ${tk.bdr};
+                    --pln-line-3: ${tk.bdr};
+                    --pln-ink: ${tk.txt};
+                    --pln-ink-2: ${tk.txt2};
+                    --pln-ink-3: ${tk.txt3};
+                    --pln-ink-4: ${tk.txt3};
+                    --pln-hover: ${tk.card2};
+                    --pln-surface-2: ${tk.card2};
+                }
+                .pln-root *, .pln-root *::before, .pln-root *::after { box-sizing: border-box; }
+
+                /* ============ TOP ============ */
+                .pln-top {
+                    display: grid;
+                    grid-template-columns: auto 1fr auto;
+                    gap: 18px;
+                    align-items: center;
+                    margin-bottom: 14px;
+                }
+                .pln-tabs {
+                    display: inline-flex;
+                    padding: 3px;
+                    background: var(--pln-surface);
+                    border: 1px solid var(--pln-line);
+                    border-radius: 8px;
+                    gap: 2px;
+                }
+                .pln-tab {
+                    appearance: none; border: none; background: transparent;
+                    font: inherit; font-size: 12.5px; font-weight: 500;
+                    color: var(--pln-ink-2);
+                    height: 28px; padding: 0 12px;
+                    display: inline-flex; align-items: center; gap: 6px;
+                    border-radius: 6px; cursor: pointer;
+                    transition: background .12s, color .12s;
+                }
+                .pln-tab:hover { color: var(--pln-ink); }
+                .pln-tab.is-on { background: var(--pln-ink); color: #fff; }
+                .pln-tab.is-on .pln-tab-dot { background: var(--pln-green); }
+                .pln-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pln-ink-4); }
+
+                /* ============ KPIs ============ */
+                .pln-kpis {
+                    display: grid;
+                    grid-template-columns: repeat(5, minmax(0, 1fr));
+                    gap: 0;
+                    background: var(--pln-surface);
+                    border: 1px solid var(--pln-line);
+                    border-radius: var(--pln-radius);
+                    overflow: hidden;
+                }
+                .pln-kpi {
+                    padding: 10px 16px;
+                    display: flex; flex-direction: column; gap: 2px;
+                    position: relative; min-width: 0;
+                }
+                .pln-kpi + .pln-kpi::before {
+                    content: "";
+                    position: absolute; left: 0; top: 14px; bottom: 14px;
+                    width: 1px; background: var(--pln-line);
+                }
+                .pln-kpi-label {
+                    font-size: 11px; font-weight: 500;
+                    color: var(--pln-ink-3);
+                    text-transform: uppercase; letter-spacing: .04em;
+                    display: flex; align-items: center; gap: 6px;
+                    white-space: nowrap;
+                    overflow: hidden; text-overflow: ellipsis;
+                }
+                .pln-kpi-label::before {
+                    content: ""; width: 6px; height: 6px; border-radius: 50%;
+                    background: var(--pln-ink-4); flex: none;
+                }
+                .pln-kpi[data-tone="green"] .pln-kpi-label::before { background: var(--pln-green); }
+                .pln-kpi[data-tone="blue"]  .pln-kpi-label::before { background: var(--pln-blue); }
+                .pln-kpi[data-tone="red"]   .pln-kpi-label::before { background: var(--pln-red); }
+                .pln-kpi[data-tone="amber"] .pln-kpi-label::before { background: var(--pln-amber); }
+                .pln-kpi-val {
+                    font-size: 19px; font-weight: 600;
+                    color: var(--pln-ink); letter-spacing: -.01em;
+                    font-variant-numeric: tabular-nums;
+                    line-height: 1.2; white-space: nowrap;
+                    overflow: hidden; text-overflow: ellipsis;
+                }
+                .pln-kpi-val .unit {
+                    font-size: 11px; font-weight: 500;
+                    color: var(--pln-ink-3); margin-right: 3px;
+                    letter-spacing: .02em;
+                }
+                .pln-kpi-sub { font-size: 11.5px; color: var(--pln-ink-3); font-variant-numeric: tabular-nums; }
+
+                /* ============ PRIMARY ============ */
+                .pln-primary {
+                    appearance: none;
+                    position: relative;
+                    border: 1px solid #036445;
+                    background: linear-gradient(180deg, #0aaa78 0%, #058256 100%);
+                    color: #fff;
+                    font: inherit; font-size: 13px; font-weight: 600;
+                    letter-spacing: -.005em;
+                    height: 38px; padding: 0 16px 0 14px;
+                    border-radius: 9px;
+                    cursor: pointer;
+                    display: inline-flex; align-items: center; gap: 8px;
+                    box-shadow:
+                      0 1px 0 rgba(255,255,255,.18) inset,
+                      0 -1px 0 rgba(0,0,0,.12) inset,
+                      0 1px 2px rgba(3,107,76,.25),
+                      0 6px 14px -4px rgba(7,150,105,.45);
+                    transition: transform .08s, box-shadow .15s, filter .15s;
+                    overflow: hidden; white-space: nowrap; flex-shrink: 0;
+                }
+                .pln-primary::before {
+                    content: "";
+                    position: absolute; inset: 0;
+                    background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.22) 50%, transparent 70%);
+                    transform: translateX(-130%);
+                    transition: transform .55s ease;
+                    pointer-events: none;
+                }
+                .pln-primary:hover { filter: brightness(1.04); box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 -1px 0 rgba(0,0,0,.12) inset, 0 1px 2px rgba(3,107,76,.3), 0 10px 20px -4px rgba(7,150,105,.55); }
+                .pln-primary:hover::before { transform: translateX(130%); }
+                .pln-primary:active { transform: translateY(1px); }
+                .pln-primary .pln-pico {
+                    width: 18px; height: 18px;
+                    display: inline-grid; place-items: center;
+                    background: rgba(255,255,255,.16);
+                    border-radius: 5px;
+                    box-shadow: 0 0 0 1px rgba(255,255,255,.22) inset;
+                }
+                .pln-primary .pln-kbd {
+                    display: inline-grid; place-items: center;
+                    margin-left: 4px;
+                    height: 18px; min-width: 18px; padding: 0 4px;
+                    font-size: 10.5px; font-weight: 600;
+                    color: rgba(255,255,255,.78);
+                    background: rgba(0,0,0,.18);
+                    border: 1px solid rgba(255,255,255,.18);
+                    border-radius: 4px;
+                    letter-spacing: .02em;
+                }
+
+                /* ============ FILTERS ============ */
+                .pln-filters {
+                    display: flex; align-items: center; gap: 8px;
+                    padding: 8px;
+                    background: var(--pln-surface);
+                    border: 1px solid var(--pln-line);
+                    border-radius: var(--pln-radius) var(--pln-radius) 0 0;
+                    border-bottom: none;
+                    flex-wrap: wrap;
+                }
+                .pln-qpills {
+                    display: inline-flex;
+                    background: var(--pln-bg);
+                    border: 1px solid var(--pln-line);
+                    border-radius: 7px;
+                    padding: 2px;
+                }
+                .pln-qpill {
+                    appearance: none; border: none; background: transparent;
+                    font: inherit; font-size: 12px; font-weight: 500;
+                    color: var(--pln-ink-3);
+                    height: 24px; min-width: 32px; padding: 0 8px;
+                    border-radius: 5px; cursor: pointer;
+                }
+                .pln-qpill:hover { color: var(--pln-ink); }
+                .pln-qpill.is-on {
+                    background: var(--pln-surface);
+                    color: var(--pln-green-2);
+                    box-shadow: 0 0 0 1px var(--pln-green-line), 0 1px 2px rgba(0,0,0,.04);
+                }
+                .pln-search {
+                    position: relative;
+                    flex: 1 1 240px;
+                    max-width: 320px;
+                    min-width: 200px;
+                }
+                .pln-search input {
+                    width: 100%; height: 30px;
+                    padding: 0 28px 0 30px;
+                    font: inherit; font-size: 12.5px;
+                    color: var(--pln-ink);
+                    background: var(--pln-bg);
+                    border: 1px solid var(--pln-line);
+                    border-radius: 7px;
+                    outline: none;
+                    transition: border-color .12s, box-shadow .12s, background .12s;
+                }
+                .pln-search input::placeholder { color: var(--pln-ink-3); }
+                .pln-search input:focus {
+                    background: var(--pln-surface);
+                    border-color: var(--pln-green);
+                    box-shadow: 0 0 0 3px rgba(7,150,105,.12);
+                }
+                .pln-search .pln-si {
+                    position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+                    color: var(--pln-ink-3); pointer-events: none;
+                }
+                .pln-search .pln-sx {
+                    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+                    width: 18px; height: 18px;
+                    border: none; background: transparent;
+                    color: var(--pln-ink-3); border-radius: 4px;
+                    display: grid; place-items: center; cursor: pointer;
+                }
+                .pln-search .pln-sx:hover { background: var(--pln-hover); color: var(--pln-ink); }
+                .pln-filt-group {
+                    margin-left: auto;
+                    display: inline-flex; gap: 6px; align-items: center;
+                    flex-wrap: wrap;
+                }
+                .pln-sel { position: relative; }
+                .pln-sel select {
+                    appearance: none;
+                    height: 30px; padding: 0 26px 0 11px;
+                    font: inherit; font-size: 12.5px; font-weight: 500;
+                    color: var(--pln-ink-3);
+                    background: var(--pln-bg);
+                    border: 1px solid var(--pln-line);
+                    border-radius: 7px;
+                    cursor: pointer; outline: none;
+                }
+                .pln-sel select:hover { border-color: var(--pln-line-3); }
+                .pln-sel.has-val select {
+                    color: var(--pln-ink);
+                    background: var(--pln-surface);
+                    border-color: var(--pln-ink-4);
+                }
+                .pln-sel select:focus { border-color: var(--pln-green); box-shadow: 0 0 0 3px rgba(7,150,105,.12); }
+                .pln-sel .pln-car {
+                    position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+                    color: var(--pln-ink-3); pointer-events: none;
+                }
+                .pln-clear {
+                    appearance: none;
+                    height: 30px; padding: 0 10px;
+                    font: inherit; font-size: 12.5px; font-weight: 500;
+                    color: var(--pln-ink-3);
+                    background: transparent; border: 1px solid transparent;
+                    border-radius: 7px;
+                    cursor: not-allowed;
+                }
+                .pln-clear.on { cursor: pointer; color: var(--pln-ink-2); }
+                .pln-clear.on:hover { color: var(--pln-ink); background: var(--pln-hover); }
+
+                /* ============ TABLE ============ */
+                .pln-twrap {
+                    overflow-x: auto;
+                    background: var(--pln-surface);
+                    border: 1px solid var(--pln-line);
+                    border-radius: 0;
+                }
+                .pln-twrap.has-meta { border-bottom: none; }
+                table.pln-t {
+                    width: 100%;
+                    min-width: 1320px;
+                    border-collapse: separate;
+                    border-spacing: 0;
+                    font-variant-numeric: tabular-nums;
+                }
+                th.pln-h {
+                    position: sticky; top: 0; z-index: 3;
+                    background: var(--pln-surface-2);
+                    border-bottom: 1px solid var(--pln-line);
+                    text-align: left;
+                    padding: 0;
+                    height: 34px;
+                    font-weight: 500;
+                    font-size: 11.5px;
+                    letter-spacing: .04em;
+                    color: var(--pln-ink-3);
+                    text-transform: uppercase;
+                }
+                th.pln-h + th.pln-h { border-left: 1px solid var(--pln-line-2); }
+                th.pln-h.sorted { background: var(--pln-green-bg); color: var(--pln-green-2); }
+                th.pln-h-right { text-align: right; }
+
+                .pln-hbtn {
+                    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+                    position: relative;
+                    width: 100%; height: 100%;
+                    padding: 0 12px;
+                    font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
+                    background: transparent; border: none; cursor: pointer;
+                }
+                .pln-hbtn:hover { background: var(--pln-hover); }
+                th.pln-h.sorted .pln-hbtn:hover { background: #def4e8; }
+                .pln-hbtn .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .pln-hbtn .ind {
+                    opacity: 0; color: var(--pln-ink-3);
+                    transition: opacity .12s; display: grid; place-items: center;
+                }
+                th.pln-h:hover .ind, th.pln-h.sorted .ind { opacity: 1; }
+                th.pln-h.sorted .ind { color: var(--pln-green-2); }
+                th.pln-h-right .pln-hbtn { flex-direction: row-reverse; }
+
+                /* sort menu */
+                .pln-menu {
+                    position: absolute; top: 100%;
+                    margin-top: 2px;
+                    min-width: 180px;
+                    background: var(--pln-surface);
+                    border: 1px solid var(--pln-line-3);
+                    border-radius: 8px;
+                    box-shadow: 0 8px 24px rgba(20,20,18,.10), 0 1px 2px rgba(20,20,18,.06);
+                    padding: 4px;
+                    z-index: 30;
+                }
+                .pln-mi {
+                    display: flex; align-items: center; gap: 8px;
+                    width: 100%;
+                    padding: 7px 9px;
+                    background: transparent; border: none;
+                    font: inherit; font-size: 12.5px; color: var(--pln-ink);
+                    text-align: left; text-transform: none; letter-spacing: 0;
+                    border-radius: 5px; cursor: pointer;
+                }
+                .pln-mi:hover { background: var(--pln-hover); }
+                .pln-mi svg { color: var(--pln-ink-3); }
+                .pln-mi.is-on { background: var(--pln-green-bg); color: var(--pln-green-2); }
+                .pln-mi.is-on svg { color: var(--pln-green-2); }
+                .pln-mi-muted { color: var(--pln-ink-3); }
+                .pln-msep { height: 1px; background: var(--pln-line-2); margin: 4px 2px; }
+
+                /* rows */
+                tr.pln-r { transition: background .08s; cursor: pointer; }
+                tr.pln-r:hover { background: var(--pln-hover); }
+                tr.pln-r:hover .pln-acts { opacity: 1; }
+                td.pln-c {
+                    padding: 0 12px;
+                    height: var(--pln-row-h);
+                    border-bottom: 1px solid var(--pln-line-2);
+                    vertical-align: middle;
+                    color: var(--pln-ink);
+                    font-size: 13px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    position: relative;
+                }
+                td.pln-c.right { text-align: right; }
+                td.pln-c.first { padding-left: 18px; }
+                td.pln-c.first::before {
+                    content: "";
+                    position: absolute; left: 0; top: 6px; bottom: 6px;
+                    width: 3px; border-radius: 0 2px 2px 0;
+                    background: var(--pln-ink-4);
+                }
+                tr[data-pr="Alta"]  td.pln-c.first::before { background: var(--pln-red); }
+                tr[data-pr="Media"] td.pln-c.first::before { background: var(--pln-amber); }
+                tr[data-pr="Baja"]  td.pln-c.first::before { background: var(--pln-green); }
+                .pln-act { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+                .pln-act .t1 {
+                    font-weight: 500; color: var(--pln-ink);
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                }
+                .pln-act .t2 {
+                    font-size: 11.5px; color: var(--pln-ink-3);
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                }
+
+                .pln-ven { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+                .pln-ven .name {
+                    font-size: 12.5px; color: var(--pln-ink);
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                }
+                .pln-stack { display: inline-flex; align-items: center; flex: none; }
+                .pln-stack > * { margin-left: -7px; box-shadow: 0 0 0 1.5px var(--pln-surface), 0 0 0 2px var(--pln-line-3); border-radius: 50%; }
+                .pln-stack > *:first-child { margin-left: 0; }
+
+                .pln-mon {
+                    font-weight: 600;
+                    font-variant-numeric: tabular-nums;
+                    color: var(--pln-ink);
+                    font-size: 12.5px;
+                    letter-spacing: -.005em;
+                }
+                .pln-mon.zero { color: var(--pln-ink-3); font-weight: 500; }
+                .pln-mon.pos  { color: var(--pln-green-2); }
+                .pln-mon .cur { color: var(--pln-ink-3); font-weight: 500; font-size: 11px; margin-right: 3px; }
+
+                .pln-mes { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--pln-ink-2); font-weight: 500; }
+                .pln-mes .q {
+                    font-size: 10px; font-weight: 600; color: var(--pln-ink-3);
+                    padding: 1px 4px; background: var(--pln-line-2);
+                    border-radius: 3px; letter-spacing: .04em;
+                }
+                .pln-dt { display: inline-flex; align-items: center; gap: 5px; color: var(--pln-ink-2); font-variant-numeric: tabular-nums; font-size: 12px; }
+                .pln-dt svg { color: var(--pln-ink-4); }
+                .pln-dt .day { color: var(--pln-ink); font-weight: 500; }
+                .pln-dt .y { color: var(--pln-ink-3); }
+                .pln-dt.overdue { color: var(--pln-red); }
+                .pln-dt.overdue .day { color: var(--pln-red); }
+                .pln-dt.overdue svg { color: var(--pln-red); }
+                td.pln-c.dash { color: var(--pln-ink-4); }
+
+                .pln-acts {
+                    display: inline-flex; gap: 2px;
+                    opacity: 1; transition: opacity .12s;
+                    justify-content: flex-end; width: 100%;
+                }
+                .pln-ra {
+                    width: 26px; height: 26px;
+                    display: inline-grid; place-items: center;
+                    background: transparent;
+                    border: 1px solid transparent;
+                    border-radius: 6px;
+                    color: var(--pln-ink-3);
+                    cursor: pointer;
+                }
+                .pln-ra:hover { background: var(--pln-surface); border-color: var(--pln-line-3); color: var(--pln-ink); }
+                .pln-ra.danger:hover { color: var(--pln-red); border-color: #f0c6c1; background: #fdf3f2; }
+                .pln-ra.win {
+                    width: auto;
+                    padding: 0 8px;
+                    gap: 5px;
+                    display: inline-flex;
+                    background: var(--pln-green-bg);
+                    border-color: var(--pln-green-line);
+                    color: var(--pln-green-2);
+                    font-size: 11px;
+                    font-weight: 700;
+                }
+                .pln-ra.win:hover { color: #fff; border-color: var(--pln-green-2); background: var(--pln-green-2); }
+                .pln-calc-left {
+                    height: 22px;
+                    padding: 0 8px;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 5px;
+                    border: 1px solid var(--pln-green-line);
+                    border-radius: 999px;
+                    background: var(--pln-green-bg);
+                    color: var(--pln-green-2);
+                    cursor: pointer;
+                    font-size: 11px;
+                    font-weight: 700;
+                    white-space: nowrap;
+                }
+                .pln-calc-left:hover {
+                    background: var(--pln-green-2);
+                    border-color: var(--pln-green-2);
+                    color: #fff;
+                }
+                .pln-calc-left svg { width: 12px; height: 12px; }
+
+                .pln-estado-wrap {
+                    display: inline-flex; align-items: center; gap: 5px;
+                    height: 22px; padding: 0 8px 0 8px;
+                    border-radius: 4px;
+                    font-size: 11.5px; font-weight: 500;
+                    cursor: pointer; position: relative;
+                }
+                .pln-estado-wrap .pln-estado-dot { width: 5px; height: 5px; border-radius: 50%; flex: none; }
+                .pln-estado-wrap select {
+                    appearance: none; background: transparent; border: 0; outline: 0;
+                    font: inherit; font-size: 11.5px; font-weight: 500;
+                    color: inherit; cursor: pointer; padding: 0 14px 0 0;
+                    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+                    background-position: calc(100% - 8px) 50%, calc(100% - 4px) 50%;
+                    background-size: 4px 4px;
+                    background-repeat: no-repeat;
+                    opacity: .85;
+                }
+
+                .pln-meta {
+                    display: flex; align-items: center; gap: 10px;
+                    padding: 8px 12px;
+                    font-size: 12px;
+                    color: var(--pln-ink-3);
+                    background: var(--pln-surface-2);
+                    border-left: 1px solid var(--pln-line);
+                    border-right: 1px solid var(--pln-line);
+                    border-bottom: 1px solid var(--pln-line);
+                    border-radius: 0 0 var(--pln-radius) var(--pln-radius);
+                    flex-wrap: wrap;
+                }
+                .pln-meta b { color: var(--pln-ink); font-weight: 600; }
+                .pln-meta .dot { width: 3px; height: 3px; background: var(--pln-ink-4); border-radius: 50%; flex: none; }
+                .pln-meta-tag {
+                    display: inline-flex; align-items: center; gap: 6px;
+                    padding: 2px 8px;
+                    background: var(--pln-green-bg);
+                    color: var(--pln-green-2);
+                    border-radius: 4px;
+                    font-weight: 500;
+                }
+                .pln-meta-tag button {
+                    border: none; background: transparent; color: inherit;
+                    width: 14px; height: 14px; cursor: pointer; border-radius: 2px;
+                    display: grid; place-items: center;
+                }
+                .pln-meta-tag button:hover { background: rgba(3,107,76,.12); }
+
+                .pln-empty {
+                    text-align: center;
+                    padding: 38px 12px;
+                    color: var(--pln-ink-4);
+                    font-size: 12.5px;
+                }
+
+                /* ============ KANBAN ============ */
+                .pln-kbn-wrap {
+                    background: var(--pln-surface);
+                    border: 1px solid var(--pln-line);
+                    border-radius: 0 0 var(--pln-radius) var(--pln-radius);
+                    overflow-x: auto;
+                }
+                .pln-kbn {
+                    display: grid;
+                    grid-auto-flow: column;
+                    grid-auto-columns: minmax(260px, 1fr);
+                    gap: 12px;
+                    padding: 14px;
+                    min-height: 480px;
+                }
+                .pln-kcol {
+                    display: flex; flex-direction: column;
+                    background: var(--pln-surface-2);
+                    border: 1px solid var(--pln-line);
+                    border-radius: 10px;
+                    min-height: 200px;
+                    max-height: calc(100vh - 280px);
+                }
+                .pln-kcol.over {
+                    border-color: var(--pln-green-line);
+                    box-shadow: 0 0 0 3px rgba(7,150,105,.10);
+                }
+                .pln-kcol.collapsed {
+                    grid-auto-columns: 44px;
+                    min-width: 44px;
+                    max-width: 44px;
+                    cursor: pointer;
+                }
+                .pln-kcol-h {
+                    display: flex; align-items: center; gap: 8px;
+                    padding: 11px 12px 10px;
+                    border-bottom: 1px solid var(--pln-line);
+                    background: var(--pln-surface-2);
+                    border-radius: 10px 10px 0 0;
+                    position: sticky; top: 0; z-index: 1;
+                }
+                .pln-kcol.collapsed .pln-kcol-h {
+                    flex-direction: column;
+                    gap: 10px;
+                    padding: 12px 0;
+                    border-bottom: none;
+                    border-radius: 10px;
+                    height: 100%;
+                }
+                .pln-kcol-pip {
+                    width: 8px; height: 8px; border-radius: 50%; flex: none;
+                    box-shadow: 0 0 0 3px rgba(0,0,0,.04);
+                }
+                .pln-kcol-title {
+                    font-size: 12.5px; font-weight: 600;
+                    color: var(--pln-ink); letter-spacing: -.005em;
+                }
+                .pln-kcol.collapsed .pln-kcol-title {
+                    writing-mode: vertical-rl;
+                    transform: rotate(180deg);
+                    letter-spacing: 0.5px;
+                }
+                .pln-kcol-count {
+                    font-size: 11px; font-weight: 600;
+                    color: var(--pln-ink-3);
+                    background: var(--pln-surface);
+                    border: 1px solid var(--pln-line-3);
+                    border-radius: 10px;
+                    padding: 1px 7px;
+                    min-width: 20px; text-align: center;
+                    font-variant-numeric: tabular-nums;
+                }
+                .pln-kcol-sum {
+                    margin-left: auto;
+                    font-size: 11px;
+                    color: var(--pln-ink-3);
+                    font-variant-numeric: tabular-nums;
+                    font-weight: 500;
+                }
+                .pln-kcol-sum b { color: var(--pln-ink-2); font-weight: 600; }
+                .pln-kcol-add {
+                    appearance: none; border: none; background: transparent;
+                    width: 22px; height: 22px;
+                    border-radius: 5px;
+                    color: var(--pln-ink-3);
+                    display: grid; place-items: center;
+                    cursor: pointer;
+                }
+                .pln-kcol-add:hover { background: rgba(0,0,0,.06); color: var(--pln-ink); }
+                .pln-kcol-list {
+                    display: flex; flex-direction: column; gap: 8px;
+                    padding: 10px;
+                    overflow-y: auto;
+                    flex: 1;
+                }
+                .pln-kcol-list::-webkit-scrollbar { width: 6px; }
+                .pln-kcol-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); border-radius: 3px; }
+                .pln-kcard {
+                    background: var(--pln-surface);
+                    border: 1px solid var(--pln-line);
+                    border-radius: 8px;
+                    padding: 10px 11px 11px;
+                    display: flex; flex-direction: column; gap: 8px;
+                    box-shadow: 0 1px 0 rgba(0,0,0,.02);
+                    cursor: grab;
+                    transition: box-shadow .12s, transform .08s, border-color .12s;
+                    position: relative;
+                }
+                .pln-kcard::before {
+                    content: "";
+                    position: absolute; left: 0; top: 10px; bottom: 10px;
+                    width: 3px; border-radius: 0 2px 2px 0;
+                    background: var(--type-color, var(--pln-ink-4));
+                }
+                .pln-kcard:hover {
+                    border-color: var(--pln-line-3);
+                    box-shadow: 0 4px 14px -2px rgba(20,20,18,.08), 0 1px 2px rgba(20,20,18,.05);
+                    transform: translateY(-1px);
+                }
+                .pln-kcard:hover .pln-kcard-acts { opacity: 1; }
+                .pln-kcard.dragging { opacity: .4; }
+                .pln-kcard-top {
+                    display: flex; align-items: flex-start; justify-content: space-between;
+                    gap: 8px;
+                }
+                .pln-kcard-acts {
+                    display: inline-flex; gap: 1px;
+                    opacity: 0; transition: opacity .12s;
+                }
+                .pln-kcard-acts .pln-ra { width: 22px; height: 22px; padding: 0; }
+                .pln-kcard-acts .pln-ra svg { width: 11px; height: 11px; }
+                .pln-kcard-acts .pln-ra.win span { display: none; }
+                .pln-kcard-title {
+                    font-size: 13px; font-weight: 600;
+                    color: var(--pln-ink); letter-spacing: -.005em;
+                    line-height: 1.35;
+                    overflow: hidden;
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    word-break: break-word;
+                }
+                .pln-kcard-cli {
+                    font-size: 11.5px;
+                    color: var(--pln-ink-3);
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                    display: flex; align-items: center; gap: 5px;
+                }
+                .pln-kcard-cli .cli-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--pln-ink-4); flex: none; }
+                .pln-kcard-mid { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+                .pln-kcard-monto {
+                    font-size: 12.5px; font-weight: 700;
+                    color: var(--pln-ink); font-variant-numeric: tabular-nums;
+                    letter-spacing: -.005em;
+                }
+                .pln-kcard-monto.zero { color: var(--pln-ink-3); font-weight: 500; }
+                .pln-kcard-monto.pos { color: var(--pln-green-2); }
+                .pln-kcard-monto .cur { color: var(--pln-ink-3); font-size: 10.5px; font-weight: 500; margin-right: 2px; }
+                .pln-kcard-margin {
+                    font-size: 10.5px;
+                    background: var(--pln-green-bg);
+                    color: var(--pln-green-2);
+                    padding: 1px 5px;
+                    border-radius: 3px;
+                    font-weight: 600;
+                }
+                .pln-kcard-bot {
+                    display: flex; align-items: center; justify-content: space-between;
+                    gap: 8px;
+                    border-top: 1px dashed var(--pln-line-2);
+                    padding-top: 8px;
+                }
+                .pln-kcard-when {
+                    display: inline-flex; align-items: center; gap: 5px;
+                    font-size: 11px;
+                    color: var(--pln-ink-3);
+                    font-variant-numeric: tabular-nums;
+                }
+                .pln-kcard-when svg { color: var(--pln-ink-4); }
+                .pln-kcard-when.overdue { color: var(--pln-red); }
+                .pln-kcard-when.overdue svg { color: var(--pln-red); }
+                .pln-kbn-empty {
+                    padding: 24px 10px;
+                    text-align: center;
+                    font-size: 11.5px;
+                    color: var(--pln-ink-4);
+                    border: 1px dashed var(--pln-line-3);
+                    border-radius: 7px;
+                    background: rgba(255,255,255,.5);
+                }
+
+                /* responsive */
+                @media (max-width: 1100px) {
+                    .pln-top { grid-template-columns: 1fr; }
+                    .pln-tabs { width: 100%; }
+                    .pln-tab { flex: 1; justify-content: center; }
+                    .pln-kpis { grid-template-columns: repeat(2, 1fr); }
+                    .pln-primary { width: 100%; justify-content: center; }
+                }
+                @media (max-width: 720px) {
+                    .pln-filt-group { width: 100%; margin-left: 0; }
+                    .pln-search { max-width: none; }
+                }
+            `}</style>
+
+            <div className="pln-top">
+                <div className="pln-tabs" role="tablist" aria-label="Vista del planificador">
+                    {[['tabla', 'Tabla'], ['kanban', 'Kanban']].map(([v, label]) => (
+                        <button key={v} type="button" role="tab" aria-selected={view === v}
+                                className={`pln-tab ${view === v ? 'is-on' : ''}`}
+                                onClick={() => setView(v)}>
+                            <span className="pln-tab-dot" />
+                            <span>{label}</span>
+                        </button>
                     ))}
                 </div>
 
-                {/* Stats centrados */}
-                <div style={{ display:'flex', gap:8, flex:1, justifyContent:isMobile ? 'flex-start' : 'center', flexWrap:'wrap' }}>
+                <div className="pln-kpis">
                     {[
-                        ['Total', filtered.length, '#10b981'],
-                        ['Monto', fmtUSD(totalMonto, moneda), '#27ae60'],
-                        ['Completadas', filtered.filter(a=>a.estado==='Completado').length, '#8e44ad'],
-                        ['En Progreso', filtered.filter(a=>a.estado==='En Progreso').length, '#e67e22'],
-                        ['Alta prioridad', filtered.filter(a=>a.prioridad==='Alta'&&a.estado!=='Completado').length, '#e74c3c'],
-                    ].map(([label, val, color]) => (
-                        <div key={label} style={{ background:tk.card, borderRadius:8, padding:'8px 18px', boxShadow:tk.shadow, borderLeft:`3px solid ${color}` }}>
-                            <div style={{ fontSize:10, color:tk.txt2, fontWeight:600 }}>{label}</div>
-                            <div style={{ fontSize:16, fontWeight:700, color:tk.txt }}>{val}</div>
+                        { label: 'Total',         val: filtered.length,        tone: 'green' },
+                        { label: 'En progreso',   val: progressCount,          tone: 'blue'  },
+                        { label: 'Pendientes',    val: pendingCount,           tone: 'amber' },
+                        { label: 'Completadas',   val: completedCount,         tone: 'green' },
+                        { label: 'Alta prio',     val: highPriorityCount,      tone: 'red',  sub: hasActiveFilters ? 'filtros activos' : null },
+                    ].map(k => (
+                        <div key={k.label} className="pln-kpi" data-tone={k.tone}>
+                            <div className="pln-kpi-label">{k.label}</div>
+                            <div className="pln-kpi-val">{k.val}</div>
+                            {k.sub && <div className="pln-kpi-sub">{k.sub}</div>}
                         </div>
                     ))}
                 </div>
 
-                {/* Nueva actividad */}
-                <button onClick={() => setModal({ open:true, actividad:null })} style={{ ...btnPri, flexShrink:0, width:isMobile ? '100%' : 'auto' }}>+ Nueva actividad</button>
+                <button type="button" onClick={() => setModal({ open:true, actividad:null })} className="pln-primary">
+                    <span className="pln-pico"><IcoPlus /></span>
+                    <span>Nueva actividad</span>
+                    <span className="pln-kbd">N</span>
+                </button>
             </div>
 
-            {/* Filtros */}
-            <style>{`@keyframes qPulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0.55);} 70% { transform: scale(1.08); box-shadow: 0 0 0 12px rgba(16,185,129,0);} 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0);} }`}</style>
-            <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap', alignItems:'center' }}>
-                <PeriodoPicker
-                    trim={filters.trimestre} mes={filters.mes}
-                    onTrim={t => setF('trimestre', t)} onMes={m => setF('mes', m)}
-                />
-                <input placeholder="Buscar actividad, cliente, vendedor..." style={{ ...sel, minWidth:isMobile ? '100%' : 250, flex:isMobile ? '1 1 100%' : '0 1 auto' }}
-                    value={filters.buscar} onChange={e => setF('buscar', e.target.value)} />
-                <div style={{ flex:1, display:'flex', justifyContent:isMobile ? 'flex-start' : 'center', gap:5, transform:isMobile ? 'none' : 'translateX(-50px)', overflowX:'auto' }}>
-                    {['1','2','3','4'].map(q => {
-                        const activo = q === Q_ACTUAL;
-                        return (
-                            <span key={q} style={{
-                                background: activo ? '#10b981' : tk.card2,
-                                color: activo ? '#fff' : tk.txt2,
-                                padding:'6px 14px', borderRadius:20,
-                                fontWeight:800, fontSize: activo ? 14 : 12, letterSpacing:1,
-                                opacity: activo ? 1 : 0.6,
-                                animation: activo ? 'qPulse 1.8s ease-in-out infinite' : 'none',
-                            }}>Q{q}</span>
-                        );
-                    })}
+            <div className="pln-filters">
+                <div className="pln-qpills" aria-label="Trimestre">
+                    {['1','2','3','4'].map(q => (
+                        <button key={q} type="button"
+                                className={`pln-qpill ${filters.trimestre === q ? 'is-on' : ''}`}
+                                onClick={() => setF('trimestre', q)}>Q{q}</button>
+                    ))}
                 </div>
-                {puedeFiltrar && (
-                    <>
-                        {[
-                            ...(!vendedorForzado ? [['vendedorId', [['','Vendedor'],...vendedores.map(v=>[v.id,v.nombre])]]] : []),
-                            ['tipo',       [['','Tipo'],...tipos.map(t=>[t,t])]],
-                            ['estado',     [['','Estado'],...TODOS_ESTADOS.map(e=>[e,e])]],
-                            ['prioridad',  [['','Prioridad'],...PRIORIDADES.map(p=>[p,p])]],
-                        ].map(([key, opts]) => (
-                            <select key={key} style={sel} value={filters[key]} onChange={e => setF(key, e.target.value)}>
-                                {opts.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                <div className="pln-search">
+                    <span className="pln-si"><IcoSearch /></span>
+                    <input placeholder="Buscar actividad, cliente, vendedor…"
+                           value={filters.buscar}
+                           onChange={e => setF('buscar', e.target.value)} />
+                    {filters.buscar && (
+                        <button className="pln-sx" onClick={() => setF('buscar', '')} aria-label="Limpiar búsqueda"><IcoX /></button>
+                    )}
+                </div>
+                <div className="pln-filt-group">
+                    <div className={`pln-sel ${filters.mes ? 'has-val' : ''}`}>
+                        <select value={filters.mes} onChange={e => setF('mes', e.target.value)}>
+                            {[['','Mes'], ...MESES.map(m => [m, m])].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                        <span className="pln-car"><IcoCaret /></span>
+                    </div>
+                    {puedeFiltrar && (<>
+                        {!vendedorForzado && (
+                            <div className={`pln-sel ${filters.vendedorId ? 'has-val' : ''}`}>
+                                <select value={filters.vendedorId} onChange={e => setF('vendedorId', e.target.value)}>
+                                    <option value="">Vendedor</option>
+                                    {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                                </select>
+                                <span className="pln-car"><IcoCaret /></span>
+                            </div>
+                        )}
+                        <div className={`pln-sel ${filters.tipo ? 'has-val' : ''}`}>
+                            <select value={filters.tipo} onChange={e => setF('tipo', e.target.value)}>
+                                <option value="">Tipo</option>
+                                {tipos.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
-                        ))}
-                        {(filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre !== Q_ACTUAL || filters.mes) &&
-                            <button onClick={() => setFilters(DEFAULT_FILTERS)}
-                                style={{ padding:'7px 12px', borderRadius:7, border:`1px solid ${tk.bdr}`, background:tk.card, cursor:'pointer', fontSize:12, color:'#e74c3c' }}>
-                                Limpiar
-                            </button>
-                        }
-                    </>
-                )}
+                            <span className="pln-car"><IcoCaret /></span>
+                        </div>
+                        <div className={`pln-sel ${filters.estado ? 'has-val' : ''}`}>
+                            <select value={filters.estado} onChange={e => setF('estado', e.target.value)}>
+                                <option value="">Estado</option>
+                                {TODOS_ESTADOS.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <span className="pln-car"><IcoCaret /></span>
+                        </div>
+                        <div className={`pln-sel ${filters.prioridad ? 'has-val' : ''}`}>
+                            <select value={filters.prioridad} onChange={e => setF('prioridad', e.target.value)}>
+                                <option value="">Prioridad</option>
+                                {PRIORIDADES.map(p => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                            <span className="pln-car"><IcoCaret /></span>
+                        </div>
+                    </>)}
+                    <button type="button"
+                            className={`pln-clear ${hasActiveFilters ? 'on' : ''}`}
+                            onClick={() => hasActiveFilters && setFilters(DEFAULT_FILTERS)}
+                            disabled={!hasActiveFilters}>
+                        Limpiar
+                    </button>
+                </div>
             </div>
 
-            {/* Vista Tabla */}
-            {view === 'tabla' && (
-                <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
-                    <div
-                        ref={topScrollRef}
-                        onScroll={e => syncHorizontalScroll(e.currentTarget, tableScrollRef.current)}
-                        style={{ overflowX:'auto', overflowY:'hidden', borderBottom:`1px solid ${tk.bdr}`, background:tk.card2 }}
-                    >
-                        <div style={{ width: Math.max(tableMinWidth, tableScrollRef.current?.scrollWidth || 0, tableScrollRef.current?.clientWidth || 0), height: 14 }} />
-                    </div>
-                    <div
-                        ref={tableScrollRef}
-                        onScroll={e => syncHorizontalScroll(e.currentTarget, topScrollRef.current)}
-                        style={{ overflowX:'auto', overflowY:'hidden' }}
-                    >
-                    <table style={{ width:'100%', minWidth: tableMinWidth, borderCollapse:'collapse', fontSize:13 }}>
+            {view === 'tabla' && (<>
+                <div className="pln-twrap has-meta" style={{ maxHeight: isMobile ? 'calc(100vh - 360px)' : 'calc(100vh - 320px)', overflowY: 'auto' }}>
+                    <table className="pln-t">
+                        <colgroup>
+                            {COL_DEFS.map(c => <col key={c.label || 'acts'} style={{ width: c.width }} />)}
+                        </colgroup>
                         <thead>
-                            <tr style={{ borderBottom:`2px solid ${tk.bdr}`, background:tk.card2 }}>
-                                {[
-                                    ['', null],
-                                    ['Actividad', 'actividad'],
-                                    ['Tipo', 'tipo'],
-                                    ['Vendedor', 'vendedor'],
-                                    ['Cliente', 'cliente'],
-                                    ['Monto', 'monto'],
-                                    ['Prioridad', 'prioridad'],
-                                    ['Estado', 'estado'],
-                                    ['Mes', 'mes'],
-                                    ['Fecha de inicio', 'fecha'],
-                                    ['Fin estimado', 'fecha_fin'],
-                                    ['', null],
-                                ].map(([h, key], i) =>
-                                    <th key={i} style={th}>
-                                        {key ? (
-                                            <button type="button" onClick={() => toggleSort(key)}
-                                                title="Ordenar"
-                                                style={{ display:'inline-flex', alignItems:'center', gap:5, border:'none', background:'transparent', color:tk.txt2, fontWeight:700, fontSize:11, padding:0, cursor:'pointer' }}>
-                                                <span>{h}</span>
-                                                <span style={{ color:sort.key === key ? '#10b981' : tk.txt3, fontSize:11 }}>{sortArrow(key)}</span>
+                            <tr>
+                                {COL_DEFS.map(col => {
+                                    if (!col.key) return <th key="acts" className="pln-h pln-h-right" style={{ padding:'0 12px' }}>{col.label}</th>;
+                                    const isSorted = sort.key === col.key;
+                                    const align = col.align === 'right';
+                                    return (
+                                        <th key={col.key} className={`pln-h ${isSorted ? 'sorted' : ''} ${align ? 'pln-h-right' : ''}`}>
+                                            <button className="pln-hbtn" onClick={() => setOpenMenu(openMenu === col.key ? null : col.key)}>
+                                                <span className="lbl">{col.label}</span>
+                                                <span className="ind">{isSorted ? (sort.dir === 'asc' ? <IcoUp /> : <IcoDown />) : <IcoCaret />}</span>
                                             </button>
-                                        ) : h}
-                                    </th>
-                                )}
+                                            {openMenu === col.key && (
+                                                <SortMenu col={col} sort={sort}
+                                                          align={align ? 'right' : 'left'}
+                                                          onPick={(d) => setSort(d ? { key: col.key, dir: d } : { key: null, dir: null })}
+                                                          onClose={() => setOpenMenu(null)} />
+                                            )}
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
                         <tbody>
@@ -340,219 +1134,219 @@ export default function Planificador() {
                                 const _cols = parseArr(a.colaboradores).filter(id => id !== a.vendedor_id);
                                 const colabsT = _cols.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
                                 const inicio = fmtDateShort(a.fecha);
-                                const finEst = a.fecha_fin ? new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00') : null;
+                                const finObj = fmtDateShort(a.fecha_fin);
+                                const finDate = a.fecha_fin ? new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00') : null;
+                                const vencida = finDate && finDate < new Date() && a.estado !== 'Completado' && a.estado !== 'Ganada';
+                                const ganadaCalc = a.estado === 'Ganada' ? miniCalc(a) : null;
+                                const montoNum = Number(a.monto) || 0;
+                                const estTone = {
+                                    'Pendiente':   { fg:'#5b5d57', bg:'#efeeea', dot:'#5b5d57' },
+                                    'En Progreso': { fg:'#2862c8', bg:'#e8f0fc', dot:'#2862c8' },
+                                    'Completado':  { fg:'#036b4c', bg:'#ecfdf5', dot:'#079669' },
+                                    'Ganada':      { fg:'#036b4c', bg:'#ecfdf5', dot:'#079669' },
+                                    'Perdida':     { fg:'#c0392b', bg:'#fdecec', dot:'#c0392b' },
+                                }[a.estado] || { fg:'#5b5d57', bg:'#efeeea', dot:'#5b5d57' };
+                                const estadoOpts = TIPOS_CON_RESULTADO.includes(a.tipo)
+                                    ? ['Pendiente','En Progreso','Completado','Ganada','Perdida']
+                                    : ESTADOS;
                                 return (
-                                    <tr key={a.id} style={{ borderBottom:`1px solid ${tk.bdr}` }}>
-                                        <td style={{ padding:'0 0 0 4px', width:4 }}>
-                                            <div style={{ width:3, height:36, borderRadius:2, background: COL_COLOR[a.estado] || '#ccc' }} />
-                                        </td>
-                                        <td style={td}>
-                            <div style={{ fontWeight:600 }}>{a.nombre}</div>
-                            {a.estado === 'Ganada' && (() => { const { util, margen } = miniCalc(a); return (
-                                <div style={{ display:'flex', gap:6, marginTop:3 }}>
-                                    <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, fontWeight:700, background:'#27ae6018', color:'#27ae60' }}>
-                                        {fmtUSD(util, moneda)}
-                                    </span>
-                                    <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, fontWeight:700, background: margen >= 15 ? '#10b98118' : '#e74c3c18', color: margen >= 15 ? '#10b981' : '#e74c3c' }}>
-                                        {margen.toFixed(1)}% margen
-                                    </span>
-                                </div>
-                            ); })()}
-                            <div style={{ fontSize:11, color:tk.txt3 }}>{a.notas}</div>
-                        </td>
-                                        <td style={td}><TipoBadge tipo={a.tipo} /></td>
-                                        <td style={td}>
-                                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                                                <div style={{ display:'flex' }}>
-                                                    <div style={{ position:'relative', zIndex: colabsT.length + 1 }}><Avatar vendedor={v} /></div>
-                                                    {colabsT.map((c, idx) => (
-                                                        <div key={c.id} title={c.nombre} style={{ marginLeft:-8, position:'relative', zIndex: colabsT.length - idx, border:`2px solid ${tk.card}`, borderRadius:'50%' }}>
-                                                            <Avatar vendedor={c} />
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <span>{v?.nombre}{colabsT.length ? ` +${colabsT.length}` : ''}</span>
+                                    <tr
+                                        key={a.id}
+                                        className="pln-r"
+                                        data-pr={a.prioridad}
+                                        onClick={() => setModal({ open:true, actividad:a })}
+                                        title="Click para editar"
+                                    >
+                                        <td className="pln-c first">
+                                            <div className="pln-act">
+                                                <span style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                                                    <span className="t1" title={a.nombre}>{a.nombre}</span>
+                                                    {ganadaCalc && (
+                                                        <button
+                                                            type="button"
+                                                            className="pln-calc-left"
+                                                            onClick={e => { e.stopPropagation(); setCalcModal({ open:true, actividad:a }); }}
+                                                            title="Ver comisión">
+                                                            <IcoCash /><span>Calcular</span>
+                                                        </button>
+                                                    )}
+                                                </span>
+                                                {a.notas && <span className="t2" title={a.notas}>{a.notas}</span>}
                                             </div>
                                         </td>
-                                        <td style={td}>
-                                            <div>{a.cliente}</div>
-                                            {a.cliente_registrado_por_nombre && (
-                                                <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:3, fontSize:10, color:tk.txt3 }}>
-                                                    {a.cliente_registrado_por_iniciales && (
-                                                        <span style={{ width:16, height:16, borderRadius:'50%', background:a.cliente_registrado_por_color || '#10b981', color:'#fff', fontSize:8, fontWeight:800, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
-                                                            {a.cliente_registrado_por_iniciales}
-                                                        </span>
-                                                    )}
-                                                    <span>Cliente de {a.cliente_registrado_por_nombre}</span>
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td style={{ ...td, fontWeight:700, color:'#10b981' }}>{fmtUSD(a.monto, moneda)}</td>
-                                        <td style={td}><PrioBadge prioridad={a.prioridad} /></td>
-                                        <td style={td}>
-                                            <select value={a.estado} onChange={e => changeEstado(a.id, e.target.value)}
-                                                style={{ border:`1px solid ${tk.bdr}`, borderRadius:6, padding:'4px 8px', fontSize:12, background:tk.card, color:tk.txt, cursor:'pointer' }}>
-                                                {(TIPOS_CON_RESULTADO.includes(a.tipo)
-                                                    ? ['Pendiente','En Progreso','Completado','Ganada','Perdida']
-                                                    : ESTADOS
-                                                ).map(e => <option key={e}>{e}</option>)}
-                                            </select>
-                                        </td>
-                                        <td style={td}>{a.mes}</td>
-                                        <td style={td}>
-                                            {inicio ? (
-                                                <span style={{ fontSize:12, color: tk.txt2 }}>{inicio}</span>
-                                            ) : <span style={{ color: tk.txt3 }}>—</span>}
-                                        </td>
-                                        <td style={td}>
-                                            {finEst ? (
-                                                <span style={{ fontSize:12, color: finEst < new Date() && a.estado !== 'Completado' ? '#e74c3c' : tk.txt2 }}>
-                                                    {finEst.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' })}
+                                        <td className="pln-c"><TipoBadge tipo={a.tipo} /></td>
+                                        <td className="pln-c">
+                                            <div className="pln-ven">
+                                                <span className="pln-stack">
+                                                    {v && <Avatar vendedor={v} />}
+                                                    {colabsT.map(c => <span key={c.id} title={c.nombre}><Avatar vendedor={c} /></span>)}
                                                 </span>
-                                            ) : <span style={{ color: tk.txt3 }}>—</span>}
+                                                <span className="name">{v?.nombre || 'Sin vendedor'}{colabsT.length ? ` +${colabsT.length}` : ''}</span>
+                                            </div>
                                         </td>
-                                        <td style={td}>
-                                            <div style={{ display:'flex', gap:4 }}>
-                                                <button onClick={() => setModal({ open:true, actividad:a })} style={iconBtn} title="Editar">✏️</button>
-                                                {puedeEliminar && (
-                                                    <button onClick={() => setConfirmId(a.id)} style={iconBtn} title="Eliminar">🗑</button>
-                                                )}
-                                                {a.estado === 'Ganada' && (
-                                                    <button onClick={() => setCalcModal({ open:true, actividad:a })} style={{ ...iconBtn, color:'#27ae60', borderColor:'#27ae6044' }} title="Ver comisión">🧮</button>
-                                                )}
+                                        <td className="pln-c" title={a.cliente || ''}>
+                                            {a.cliente
+                                                ? <div className="pln-act"><span className="t1">{a.cliente}</span>{a.cliente_registrado_por_nombre && <span className="t2">de {a.cliente_registrado_por_nombre}</span>}</div>
+                                                : <span style={{ color: 'var(--pln-ink-4)' }}>—</span>}
+                                        </td>
+                                        <td className="pln-c right">
+                                            <span className={`pln-mon ${montoNum > 0 ? 'pos' : 'zero'}`}>
+                                                <span className="cur">{moneda}</span>{fmtUSD(montoNum, moneda).replace(/^[^\d-]+/, '')}
+                                            </span>
+                                        </td>
+                                        <td className="pln-c"><PrioBadge prioridad={a.prioridad} /></td>
+                                        <td className="pln-c">
+                                            <span className="pln-estado-wrap" style={{ background: estTone.bg, color: estTone.fg }} onClick={e => e.stopPropagation()}>
+                                                <span className="pln-estado-dot" style={{ background: estTone.dot }} />
+                                                <select value={a.estado} onChange={e => changeEstado(a.id, e.target.value)}>
+                                                    {estadoOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                                                </select>
+                                            </span>
+                                        </td>
+                                        <td className="pln-c">
+                                            {a.mes ? (
+                                                <span className="pln-mes">
+                                                    {MES_SHORT[a.mes] || a.mes}
+                                                    <span className="q">Q{MES_TO_Q[a.mes] || '·'}</span>
+                                                </span>
+                                            ) : <span style={{ color: 'var(--pln-ink-4)' }}>—</span>}
+                                        </td>
+                                        <td className={`pln-c ${!inicio ? 'dash' : ''}`}>
+                                            {inicio ? (
+                                                <span className="pln-dt"><IcoCal /><span className="day">{inicio.day}</span><span className="y">/{inicio.year}</span></span>
+                                            ) : '—'}
+                                        </td>
+                                        <td className={`pln-c ${!finObj ? 'dash' : ''}`}>
+                                            {finObj ? (
+                                                <span className={`pln-dt ${vencida ? 'overdue' : ''}`}><IcoCal /><span className="day">{finObj.day}</span><span className="y">/{finObj.year}</span></span>
+                                            ) : '—'}
+                                        </td>
+                                        <td className="pln-c" style={{ textAlign:'right' }}>
+                                            <div className="pln-acts" onClick={e => e.stopPropagation()}>
+                                                <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>
+                                                {puedeEliminar && <button className="pln-ra danger" onClick={() => setConfirmId(a.id)} title="Eliminar"><IcoTrash /></button>}
                                             </div>
                                         </td>
                                     </tr>
                                 );
                             })}
-                            {!filtered.length && <tr><td colSpan={12} style={{ padding:32, textAlign:'center', color:'#aaa' }}>Sin actividades</td></tr>}
+                            {!filtered.length && (
+                                <tr><td colSpan={COL_DEFS.length} className="pln-empty">Sin resultados con los filtros aplicados.</td></tr>
+                            )}
                         </tbody>
-                        <tfoot>
-                            <tr style={{ borderTop:`2px solid ${tk.bdr}`, background:tk.card2 }}>
-                                <td colSpan={5} style={{ padding:'10px 10px', fontSize:12, color:tk.txt2, fontWeight:600 }}>{filtered.length} actividades · {filtered.filter(a=>a.estado==='Completado').length} completadas</td>
-                                <td style={{ padding:'10px', fontWeight:700, color:'#10b981' }}>{fmtUSD(totalMonto, moneda)}</td>
-                                <td colSpan={6} />
-                            </tr>
-                        </tfoot>
                     </table>
+                </div>
+                <div className="pln-meta">
+                    <span><b>{filtered.length}</b> {filtered.length === 1 ? 'actividad' : 'actividades'}</span>
+                    <span className="dot" />
+                    <span>Total <b>{fmtUSD(totalMonto, moneda)}</b></span>
+                    {sort.key && (<>
+                        <span className="dot" />
+                        <span className="pln-meta-tag">
+                            Ordenado por {sortedColLabel} {sort.dir === 'asc' ? '↑' : '↓'}
+                            <button onClick={() => setSort({ key:null, dir:null })} aria-label="Quitar orden"><IcoX /></button>
+                        </span>
+                    </>)}
+                </div>
+            </>)}
+
+            {view === 'kanban' && (
+                <div className="pln-kbn-wrap">
+                    <div className="pln-kbn" style={isMobile ? { gridAutoColumns: '240px' } : undefined}>
+                        {KANBAN_COLS.map(col => {
+                            const colActs = filtered.filter(a => a.estado === col);
+                            const colSum  = colActs.reduce((s,a) => s + (Number(a.monto) || 0), 0);
+                            const isCollapsed = collapsedCols.has(col);
+                            const isOver = dragOverCol === col;
+                            return (
+                                <div key={col}
+                                     className={`pln-kcol ${isCollapsed ? 'collapsed' : ''} ${isOver ? 'over' : ''}`}
+                                     onClick={isCollapsed ? () => toggleCol(col) : undefined}
+                                     onDragOver={e => { e.preventDefault(); if (dragOverCol !== col) setDragOverCol(col); }}
+                                     onDragLeave={e => { if (e.currentTarget === e.target) setDragOverCol(null); }}
+                                     onDrop={e => { e.preventDefault(); handleDrop(col); }}>
+                                    <div className="pln-kcol-h" onClick={!isCollapsed ? () => toggleCol(col) : undefined} style={!isCollapsed ? { cursor: 'pointer' } : undefined}>
+                                        <span className="pln-kcol-pip" style={{ background: COL_PIP[col] }} />
+                                        <span className="pln-kcol-title">{col}</span>
+                                        {!isCollapsed && (<>
+                                            <span className="pln-kcol-count">{colActs.length}</span>
+                                            {colSum > 0 && <span className="pln-kcol-sum"><b>{fmtUSD(colSum, moneda)}</b></span>}
+                                            <button className="pln-kcol-add" title="Nueva actividad" onClick={(e) => { e.stopPropagation(); newWithEstado(col); }}><IcoPlus /></button>
+                                        </>)}
+                                        {isCollapsed && <span className="pln-kcol-count">{colActs.length}</span>}
+                                    </div>
+                                    {!isCollapsed && (
+                                        <div className="pln-kcol-list">
+                                            {colActs.map(a => {
+                                                const v = vendedores.find(x => x.id === a.vendedor_id);
+                                                const _cols = parseArr(a.colaboradores).filter(id => id !== a.vendedor_id);
+                                                const colabs = _cols.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
+                                                const finObj = fmtDateShort(a.fecha_fin);
+                                                const finDate = a.fecha_fin ? new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00') : null;
+                                                const vencida = finDate && finDate < new Date() && a.estado !== 'Completado' && a.estado !== 'Ganada';
+                                                const ganadaCalc = a.estado === 'Ganada' ? miniCalc(a) : null;
+                                                const montoNum = Number(a.monto) || 0;
+                                                const typeColor = getTypeColor(a.tipo);
+                                                return (
+                                                    <div key={a.id} className={`pln-kcard ${dragId === a.id ? 'dragging' : ''}`}
+                                                         data-pr={a.prioridad}
+                                                         style={{ '--type-color': typeColor.color }}
+                                                         draggable
+                                                         onClick={() => setModal({ open:true, actividad:a })}
+                                                        onDragStart={e => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
+                                                        onDragEnd={() => { setDragId(null); setDragOverCol(null); }}>
+                                                        <div className="pln-kcard-top">
+                                                            {ganadaCalc && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="pln-calc-left"
+                                                                    onClick={e => { e.stopPropagation(); setCalcModal({ open:true, actividad:a }); }}
+                                                                    title="Ver comisión">
+                                                                    <IcoCash /><span>Calcular</span>
+                                                                </button>
+                                                            )}
+                                                            <TipoBadge tipo={a.tipo} />
+                                                            <div className="pln-kcard-acts" onClick={e => e.stopPropagation()}>
+                                                                <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>
+                                                                {puedeEliminar && <button className="pln-ra danger" onClick={() => setConfirmId(a.id)} title="Eliminar"><IcoTrash /></button>}
+                                                            </div>
+                                                        </div>
+                                                        <div className="pln-kcard-title">{a.nombre}</div>
+                                                        {a.cliente && (
+                                                            <div className="pln-kcard-cli"><span className="cli-dot" />{a.cliente}</div>
+                                                        )}
+                                                        <div className="pln-kcard-mid">
+                                                            <span className={`pln-kcard-monto ${montoNum > 0 ? 'pos' : 'zero'}`}>
+                                                                <span className="cur">{moneda}</span>{fmtUSD(montoNum, moneda).replace(/^[^\d-]+/, '')}
+                                                            </span>
+                                                            <PrioBadge prioridad={a.prioridad} />
+                                                            {ganadaCalc && <span className="pln-kcard-margin">{ganadaCalc.margen.toFixed(1)}%</span>}
+                                                        </div>
+                                                        <div className="pln-kcard-bot">
+                                                            <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                                                                <span className="pln-stack">
+                                                                    {v && <Avatar vendedor={v} />}
+                                                                    {colabs.map(c => <span key={c.id} title={c.nombre}><Avatar vendedor={c} /></span>)}
+                                                                </span>
+                                                                <span style={{ fontSize: 11, color: 'var(--pln-ink-3)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{v?.nombre?.split(' ').slice(0,2).join(' ') || '—'}</span>
+                                                            </div>
+                                                            {finObj && (
+                                                                <span className={`pln-kcard-when ${vencida ? 'overdue' : ''}`}><IcoCal />{finObj.day}/{finObj.year}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {!colActs.length && <div className="pln-kbn-empty">Sin actividades</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
 
-            {/* Vista Kanban */}
-            {view === 'kanban' && (
-                <div style={{ display:'grid', gridTemplateColumns: isMobile ? KANBAN_COLS.map(c => collapsedCols.has(c) ? '40px' : '260px').join(' ') : KANBAN_COLS.map(c => collapsedCols.has(c) ? '40px' : '1fr').join(' '), gap:14, overflowX:isMobile ? 'auto' : 'visible', paddingBottom:isMobile ? 8 : 0 }}>
-                    {KANBAN_COLS.map(col => {
-                        const colActs = filtered.filter(a => a.estado === col);
-                        const isCollapsed = collapsedCols.has(col);
-                        if (isCollapsed) {
-                            return (
-                                <div key={col}
-                                    onClick={() => toggleCol(col)}
-                                    onDragOver={e => { e.preventDefault(); if (dragOverCol !== col) setDragOverCol(col); }}
-                                    onDragLeave={e => { if (e.currentTarget === e.target) setDragOverCol(null); }}
-                                    onDrop={e => { e.preventDefault(); handleDrop(col); }}
-                                    title={`Expandir ${col}`}
-                                    style={{ background: dragOverCol === col ? `${COL_COLOR[col]}44` : COL_COLOR[col], borderRadius:8, color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', padding:'10px 0', gap:8, minHeight:200, outline: dragOverCol === col ? `2px dashed ${COL_COLOR[col]}` : 'none' }}>
-                                    <span style={{ writingMode:'vertical-rl', transform:'rotate(180deg)', letterSpacing:1 }}>{col}</span>
-                                    <span style={{ background:'rgba(255,255,255,0.25)', borderRadius:12, padding:'2px 8px', fontSize:11 }}>{colActs.length}</span>
-                                </div>
-                            );
-                        }
-                        return (
-                            <div key={col}>
-                                <div onClick={() => toggleCol(col)}
-                                    title="Colapsar"
-                                    style={{ padding:'8px 12px', borderRadius:'8px 8px 0 0', background: COL_COLOR[col], color:'#fff', fontWeight:700, fontSize:13, display:'flex', justifyContent:'space-between', cursor:'pointer' }}>
-                                    <span>{col}</span><span>{colActs.length}</span>
-                                </div>
-                                <div
-                                    onDragOver={e => { e.preventDefault(); if (dragOverCol !== col) setDragOverCol(col); }}
-                                    onDragLeave={e => { if (e.currentTarget === e.target) setDragOverCol(null); }}
-                                    onDrop={e => { e.preventDefault(); handleDrop(col); }}
-                                    style={{ background: dragOverCol === col ? `${COL_COLOR[col]}22` : tk.bg, borderRadius:'0 0 8px 8px', padding:8, minHeight:200, display:'flex', flexDirection:'column', gap:8, transition:'background 0.15s', outline: dragOverCol === col ? `2px dashed ${COL_COLOR[col]}` : 'none' }}>
-                                    {colActs.map(a => {
-                                        const v = vendedores.find(x => x.id === a.vendedor_id);
-                                        const _cols = parseArr(a.colaboradores).filter(id => id !== a.vendedor_id);
-                                        const colabs = _cols.map(id => vendedores.find(x => x.id === id)).filter(Boolean);
-                                        return (
-                                            <div key={a.id} onClick={() => setModal({ open:true, actividad:a })}
-                                                draggable
-                                                onDragStart={e => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
-                                                onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
-                                                style={{ background:tk.card, borderRadius:8, padding:'12px 14px', cursor: dragId === a.id ? 'grabbing' : 'grab', boxShadow:tk.shadow, borderLeft:`3px solid ${COL_COLOR[col]}`, opacity: dragId === a.id ? 0.4 : 1 }}>
-                                                <div style={{ fontWeight:600, fontSize:13, marginBottom:6, color:tk.txt }}>{a.nombre}</div>
-                                                <div style={{ display:'flex', gap:6, marginBottom:8, flexWrap:'wrap' }}>
-                                                    <TipoBadge tipo={a.tipo} />
-                                                    <PrioBadge prioridad={a.prioridad} />
-                                                </div>
-                                                <div style={{ fontSize:12, color:tk.txt2, marginBottom:6 }}>{a.cliente} · {fmtUSD(a.monto, moneda)}</div>
-                                                {a.cliente_registrado_por_nombre && (
-                                                    <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:10, color:tk.txt3, marginBottom:6 }}>
-                                                        {a.cliente_registrado_por_iniciales && (
-                                                            <span style={{ width:16, height:16, borderRadius:'50%', background:a.cliente_registrado_por_color || '#10b981', color:'#fff', fontSize:8, fontWeight:800, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
-                                                                {a.cliente_registrado_por_iniciales}
-                                                            </span>
-                                                        )}
-                                                        <span>Cliente de {a.cliente_registrado_por_nombre}</span>
-                                                    </div>
-                                                )}
-                                                {a.fecha && (
-                                                    <div style={{ fontSize:11, color: tk.txt3, marginBottom:6 }}>
-                                                        Inicio: {fmtDateShort(a.fecha)}
-                                                    </div>
-                                                )}
-                                                {a.fecha_fin && (() => {
-                                                    const fEst = new Date(String(a.fecha_fin).slice(0,10) + 'T12:00:00');
-                                                    const vencida = fEst < new Date() && a.estado !== 'Completado';
-                                                    return (
-                                                        <div style={{ fontSize:11, color: vencida ? '#e74c3c' : tk.txt3, marginBottom:6 }}>
-                                                            Fin estimado: {fEst.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'2-digit' })}
-                                                        </div>
-                                                    );
-                                                })()}
-                                                {a.estado === 'Ganada' && (() => { const { util, margen } = miniCalc(a); return (
-                                                    <div style={{ display:'flex', gap:5, marginBottom:7 }}>
-                                                        <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:700, background:'#27ae6018', color:'#27ae60' }}>
-                                                            {fmtUSD(util, moneda)}
-                                                        </span>
-                                                        <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:700, background: margen >= 15 ? '#10b98118' : '#e74c3c18', color: margen >= 15 ? '#10b981' : '#e74c3c' }}>
-                                                            {margen.toFixed(1)}% margen
-                                                        </span>
-                                                    </div>
-                                                ); })()}
-                                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                                                        <div style={{ display:'flex' }}>
-                                                            <div style={{ position:'relative', zIndex: colabs.length + 1 }}><Avatar vendedor={v} /></div>
-                                                            {colabs.map((c, idx) => (
-                                                                <div key={c.id} title={c.nombre} style={{ marginLeft:-8, position:'relative', zIndex: colabs.length - idx, border:`2px solid ${tk.card}`, borderRadius:'50%' }}>
-                                                                    <Avatar vendedor={c} />
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        <span style={{ fontSize:11, color:tk.txt3 }}>
-                                                            {v?.nombre}{colabs.length ? ` +${colabs.length}` : ''}
-                                                        </span>
-                                                    </div>
-                                                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                                                        {a.estado === 'Ganada' && (
-                                                            <button onClick={e => { e.stopPropagation(); setCalcModal({ open:true, actividad:a }); }}
-                                                                style={{ background:'#27ae6018', border:'none', borderRadius:6, cursor:'pointer', fontSize:13, padding:'2px 5px' }} title="Ver comisión">🧮</button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Modal actividad */}
             <ActividadModal
                 open={modal.open}
                 actividad={modal.actividad}
@@ -574,17 +1368,16 @@ export default function Planificador() {
                 }}
             />
 
-            {/* Modal confirmar eliminar */}
             {confirmId && (
-                <div onClick={() => setConfirmId(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.35)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-                    <div onClick={e => e.stopPropagation()} style={{ background:tk.card, borderRadius:12, padding:24, maxWidth:320, boxShadow:'0 8px 32px rgba(0,0,0,0.3)' }}>
-                        <div style={{ fontWeight:700, marginBottom:10, color:tk.txt }}>¿Eliminar actividad?</div>
+                <div onClick={() => setConfirmId(null)} style={{ position:'fixed', inset:0, background:'rgba(20,20,18,0.42)', backdropFilter:'blur(2px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:24 }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background:tk.card, borderRadius:12, padding:'18px 20px', maxWidth:340, width:'100%', boxShadow:'0 24px 64px -12px rgba(20,20,18,.28), 0 4px 12px rgba(20,20,18,.08)', border:`1px solid ${tk.bdr}` }}>
+                        <div style={{ fontWeight:600, marginBottom:6, color:tk.txt, fontSize:15, letterSpacing:'-.01em' }}>¿Eliminar actividad?</div>
                         <div style={{ fontSize:13, color:tk.txt2, marginBottom:18 }}>
                             {actividades.find(a => a.id === confirmId)?.nombre}
                         </div>
                         <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-                            <button onClick={() => setConfirmId(null)} style={btnSec}>Cancelar</button>
-                            <button onClick={() => handleDelete(confirmId)} style={{ ...btnPri, background:'#e74c3c' }}>Eliminar</button>
+                            <button onClick={() => setConfirmId(null)} style={{ height:34, padding:'0 14px', background:tk.card2, color:tk.txt, border:`1px solid ${tk.bdr}`, borderRadius:7, fontWeight:500, cursor:'pointer', fontSize:13 }}>Cancelar</button>
+                            <button onClick={() => handleDelete(confirmId)} style={{ height:34, padding:'0 14px', background:'#c0392b', color:'#fff', border:'none', borderRadius:7, fontWeight:600, cursor:'pointer', fontSize:13 }}>Eliminar</button>
                         </div>
                     </div>
                 </div>
@@ -592,4 +1385,3 @@ export default function Planificador() {
         </div>
     );
 }
-

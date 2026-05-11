@@ -6,6 +6,7 @@ import useRolFilter from '../hooks/useRolFilter';
 import PageHeader from '../components/PageHeader';
 import KpiCard from '../components/KpiCard';
 import Avatar from '../components/Avatar';
+import { ClockIcon } from '../components/Icons';
 
 const STATUS_STYLES = {
     'A tiempo': { bg: '#dcfce7', color: '#166534' },
@@ -257,7 +258,9 @@ export default function Asistencia() {
                 />
 
                 <div className="card" style={{ padding: 28, textAlign: 'center' }}>
-                    <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 12 }}>🕒</div>
+                    <div style={{ color: '#10b981', marginBottom: 12 }}>
+                        <ClockIcon size={44} />
+                    </div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: tk.txt, marginBottom: 8 }}>
                         Módulo en desarrollo
                     </div>

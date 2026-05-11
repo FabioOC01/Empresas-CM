@@ -133,7 +133,7 @@ export default function ProfileModal({ onClose }) {
                             </div>
                             {photoMsg && (
                                 <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 7, fontSize: 12, background: photoMsg.type === 'ok' ? '#e8f8ee' : '#fff0f0', border: `1px solid ${photoMsg.type === 'ok' ? '#a8ddb8' : '#fcc'}`, color: photoMsg.type === 'ok' ? '#1a7a3c' : '#c0392b' }}>
-                                    {photoMsg.type === 'ok' ? '✓ ' : '⚠ '}{photoMsg.text}
+                                    {photoMsg.type === 'ok' ? 'Listo: ' : 'Error: '}{photoMsg.text}
                                 </div>
                             )}
                         </div>
@@ -156,7 +156,7 @@ export default function ProfileModal({ onClose }) {
 
                                 {pwMsg && (
                                     <div style={{ padding: '8px 12px', borderRadius: 7, fontSize: 12, background: pwMsg.type === 'ok' ? '#e8f8ee' : '#fff0f0', border: `1px solid ${pwMsg.type === 'ok' ? '#a8ddb8' : '#fcc'}`, color: pwMsg.type === 'ok' ? '#1a7a3c' : '#c0392b' }}>
-                                        {pwMsg.type === 'ok' ? '✓ ' : '⚠ '}{pwMsg.text}
+                                        {pwMsg.type === 'ok' ? 'Listo: ' : 'Error: '}{pwMsg.text}
                                     </div>
                                 )}
 

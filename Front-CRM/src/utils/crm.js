@@ -60,17 +60,23 @@ export const TYPE_COLOR = {
     'Evento':                { bg: '#fce4ec', color: '#ad1457' },
 };
 
-export const TYPE_ICON = {
-    'Venta': '💰', 'Homologación': '🏆', 'Visita': '🤝',
-    'Propuesta': '📄', 'Seguimiento': '🔄', 'Administrativa': '📋',
-    'Oportunidad': '🎯', 'Cotización': '🧾', 'Publicidad': '📢', 'Piezas gráficas': '🎨',
-    'Despacho': '📦', 'Inventario': '🗂️', 'Facturación': '💸', 'Redes': '📱', 'Soporte': '🔧',
-    'Video': '🎬',
-    'P. Gráficas Externas': '🖼️',
-    'P. Gráficas Internas': '🎨',
-    'Actividad': '🏃',
-    'Evento': '🎉',
-};
+const TYPE_FALLBACK_COLORS = [
+    { bg: '#e0f2fe', color: '#0369a1' },
+    { bg: '#dcfce7', color: '#166534' },
+    { bg: '#fef3c7', color: '#92400e' },
+    { bg: '#ede9fe', color: '#5b21b6' },
+    { bg: '#ffe4e6', color: '#be123c' },
+    { bg: '#ccfbf1', color: '#0f766e' },
+    { bg: '#f1f5f9', color: '#475569' },
+    { bg: '#fae8ff', color: '#86198f' },
+];
+
+export function getTypeColor(tipo) {
+    if (TYPE_COLOR[tipo]) return TYPE_COLOR[tipo];
+    const key = String(tipo || '');
+    const hash = [...key].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    return TYPE_FALLBACK_COLORS[hash % TYPE_FALLBACK_COLORS.length];
+}
 
 export function fmt(secs) {
     const h = Math.floor(secs / 3600);

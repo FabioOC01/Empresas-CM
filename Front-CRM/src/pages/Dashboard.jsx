@@ -44,14 +44,7 @@ export default function Dashboard() {
     }, [fsvend]);
 
     useEffect(() => {
-        getVendedores().then(vs =>
-            setVendedores(vs.filter(v => {
-                const roles = v.roles || [];
-                if (roles.includes('Admin')) return false;
-                if (roles.includes('Gerencia')) return roles.some(r => r !== 'Gerencia');
-                return true;
-            }))
-        );
+        getVendedores().then(setVendedores);
     }, []);
 
     const data = filterActs(actividades, {
@@ -393,7 +386,7 @@ export default function Dashboard() {
                                     <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>{fsvend.roles?.join(' · ')}</div>
                                 </div>
                                 <button onClick={() => setFsvend(null)}
-                                    style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:20, color:tk.txt3, lineHeight:1, padding:'4px 8px' }}>✕</button>
+                                    style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:20, color:tk.txt3, lineHeight:1, padding:'4px 8px' }}>×</button>
                             </div>
                             {/* KPIs */}
                             <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>

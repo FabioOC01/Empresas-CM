@@ -9,6 +9,7 @@ import useRolFilter from '../hooks/useRolFilter';
 import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
 import { getVendedores, updateVendedorMetas } from '../api/actividades';
+import { EditIcon } from '../components/Icons';
 
 // ── Configuración ──────────────────────────────────────────────────────────────
 const COMISION_BASE  = 'rentabilidad'; // 'facturacion' | 'rentabilidad'
@@ -269,8 +270,8 @@ export default function Rentabilidad() {
                                         meta_facturacion_anual: vData?.meta_facturacion_anual ?? 0,
                                         umbral_comision: vData?.umbral_comision ?? 0,
                                     }); }}
-                                    style={{ border:`1px solid ${tk.bdr}`, background: isEditing ? '#e74c3c22' : tk.card2, cursor:'pointer', fontSize:12, color: isEditing ? '#e74c3c' : tk.txt2, padding:'5px 12px', borderRadius:7, fontWeight:600 }}>
-                                    {isEditing ? '✕ Cancelar' : '✏ Editar metas'}
+                                    style={{ border:`1px solid ${tk.bdr}`, background: isEditing ? '#e74c3c22' : tk.card2, cursor:'pointer', fontSize:12, color: isEditing ? '#e74c3c' : tk.txt2, padding:'5px 12px', borderRadius:7, fontWeight:600, display:'inline-flex', alignItems:'center', gap:6 }}>
+                                    {isEditing ? 'Cancelar' : <><EditIcon size={13} /> Editar metas</>}
                                 </button>
                             )}
                         </div>

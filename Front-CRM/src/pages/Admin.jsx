@@ -3,8 +3,9 @@ import { getVendedores, createVendedor, updateVendedor, updateVendedorMetas, upd
 import Avatar from '../components/Avatar';
 import { useActividadesContext, CONFIG_DEFAULT } from '../context/ActividadesContext';
 import { useAuth } from '../context/AuthContext';
-import { ROLES, TYPE_ICON } from '../utils/crm';
+import { ROLES, getTypeColor } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
+import { CalendarIcon, ChartIcon, ClockIcon, CurrencyIcon, PaletteIcon, PipelineIcon, LockIcon, TagIcon, UserIcon } from '../components/Icons';
 
 const MONEDAS = [
     { value:'USD', label:'USD — Dólar americano' },
@@ -75,7 +76,7 @@ function MsgBox({ msg }) {
             background: msg.type==='ok' ? '#e8f8ee' : '#fff0f0',
             border: `1px solid ${msg.type==='ok' ? '#a8ddb8' : '#fcc'}`,
             color: msg.type==='ok' ? '#1a7a3c' : '#c0392b' }}>
-            {msg.type==='ok' ? '✓ ' : '⚠ '}{msg.text}
+            {msg.type === 'ok' ? 'Listo: ' : 'Error: '}{msg.text}
         </div>
     );
 }
@@ -135,22 +136,22 @@ export default function Admin() {
 
     // Secciones disponibles
     const secciones = esGerencia && !esAdmin ? [
-        { id: 'horario',   label: 'Horario laboral', icon: '🕐' },
-        { id: 'tasas',     label: 'Tasas',           icon: '💹' },
-        { id: 'moneda',    label: 'Moneda',          icon: '💱' },
-        { id: 'feriados',  label: 'Feriados',        icon: '📅' },
+        { id: 'horario',   label: 'Horario laboral', icon: ClockIcon },
+        { id: 'tasas',     label: 'Tasas',           icon: ChartIcon },
+        { id: 'moneda',    label: 'Moneda',          icon: CurrencyIcon },
+        { id: 'feriados',  label: 'Feriados',        icon: CalendarIcon },
     ] : [
-        { id: 'vendedores', label: 'Vendedores',      icon: '👤' },
+        { id: 'vendedores', label: 'Vendedores',      icon: UserIcon },
         ...(esAdmin ? [
-            { id: 'horario',   label: 'Horario laboral', icon: '🕐' },
-            { id: 'tasas',     label: 'Tasas',           icon: '💹' },
-            { id: 'feriados',  label: 'Feriados',        icon: '📅' },
-            { id: 'moneda',    label: 'Moneda',          icon: '💱' },
-            { id: 'tipos',     label: 'Tipos actividad', icon: '🏷️' },
-            { id: 'pipeline',  label: 'Pipeline',        icon: '🔀' },
-            { id: 'roltypes',  label: 'Permisos por rol',icon: '🔐' },
-            { id: 'asistencia',label: 'Asistencia',      icon: '🕒' },
-            { id: 'branding',  label: 'Branding',        icon: '🎨' },
+            { id: 'horario',   label: 'Horario laboral', icon: ClockIcon },
+            { id: 'tasas',     label: 'Tasas',           icon: ChartIcon },
+            { id: 'feriados',  label: 'Feriados',        icon: CalendarIcon },
+            { id: 'moneda',    label: 'Moneda',          icon: CurrencyIcon },
+            { id: 'tipos',     label: 'Tipos actividad', icon: TagIcon },
+            { id: 'pipeline',  label: 'Pipeline',        icon: PipelineIcon },
+            { id: 'roltypes',  label: 'Permisos por rol',icon: LockIcon },
+            { id: 'asistencia',label: 'Asistencia',      icon: ClockIcon },
+            { id: 'branding',  label: 'Branding',        icon: PaletteIcon },
         ] : []),
     ];
 
@@ -388,7 +389,9 @@ export default function Admin() {
 
             {/* Sidebar de secciones */}
             <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
-                {secciones.map(s => (
+                {secciones.map(s => {
+                    const SectionIcon = s.icon;
+                    return (
                     <button key={s.id} onClick={() => { setSeccion(s.id); setEditing(null); setMsg(null); }} style={{
                         display:'flex', alignItems:'center', gap:10, width:'100%',
                         padding:'13px 18px', border:'none', cursor:'pointer', textAlign:'left',
@@ -398,10 +401,13 @@ export default function Admin() {
                         fontWeight: seccion===s.id ? 700 : 500,
                         fontSize:13, color: seccion===s.id ? '#10b981' : tk.txt,
                     }}>
-                        <span style={{ fontSize:16 }}>{s.icon}</span>
+                        <span style={{ width:16, height:16, display:'inline-grid', placeItems:'center' }}>
+                            <SectionIcon size={16} />
+                        </span>
                         {s.label}
                     </button>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Panel derecho */}
@@ -494,7 +500,9 @@ export default function Admin() {
                                         </div>
                                     </div>
                                     <div style={{ borderTop:`1px solid ${tk.bdr}`, paddingTop:16 }}>
-                                        <div style={{ fontSize:12, color:tk.txt2, fontWeight:700, marginBottom:10, textTransform:'uppercase', letterSpacing:0.5 }}>🕒 Asistencia (BioTime)</div>
+                                        <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:tk.txt2, fontWeight:700, marginBottom:10, textTransform:'uppercase', letterSpacing:0.5 }}>
+                                            <ClockIcon size={14} /> Asistencia (BioTime)
+                                        </div>
                                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
                                             <label style={lbl}>Código BioTime (DNI)
                                                 <input style={inp} placeholder="Ej: 76507151" value={form.zkbio_employee_code || ''} onChange={e => setF('zkbio_employee_code', e.target.value)} />
@@ -729,7 +737,7 @@ export default function Admin() {
                                                 style={{ padding:'7px 14px', background: isSaving || !changed ? '#a0b8e8' : '#10b981', color:'#fff', border:'none', borderRadius:7, fontWeight:700, fontSize:12, cursor: isSaving || !changed ? 'default' : 'pointer' }}>
                                                 {isSaving ? 'Guardando...' : 'Guardar'}
                                             </button>
-                                            {rowMsg && <div style={{ fontSize:11, color: rowMsg.type==='ok' ? '#27ae60' : '#e74c3c' }}>{rowMsg.type==='ok' ? '✓' : '⚠'} {rowMsg.text}</div>}
+                                            {rowMsg && <div style={{ fontSize:11, color: rowMsg.type==='ok' ? '#27ae60' : '#e74c3c' }}>{rowMsg.type === 'ok' ? 'Listo: ' : 'Error: '}{rowMsg.text}</div>}
                                         </div>
                                     </div>
                                 );
@@ -800,12 +808,15 @@ export default function Admin() {
                                 <button type="button" onClick={addTipo} style={{ padding:'9px 18px', background:'#10b981', color:'#fff', border:'none', borderRadius:7, fontSize:13, fontWeight:700, cursor:'pointer', flexShrink:0 }}>+ Agregar tipo</button>
                             </div>
                             <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                                {cfgForm.tipos_actividad.map(t => (
-                                    <span key={t} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', background:tk.bg, border:`1px solid ${tk.bdr}`, borderRadius:20, fontSize:12, color:tk.txt, fontWeight:600 }}>
-                                        {TYPE_ICON[t] || '📌'} {t}
+                                {cfgForm.tipos_actividad.map(t => {
+                                    const tc = getTypeColor(t);
+                                    return (
+                                    <span key={t} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', background:tk.isDark ? `${tc.color}28` : tc.bg, border:`1px solid ${tc.color}${tk.isDark ? '66' : '44'}`, borderRadius:20, fontSize:12, color:tk.isDark ? '#e3e7ee' : tc.color, fontWeight:600 }}>
+                                        {t}
                                         <button type="button" onClick={() => removeTipo(t)} style={{ background:'none', border:'none', cursor:'pointer', color:'#e74c3c', fontSize:15, lineHeight:1, padding:0 }}>×</button>
                                     </span>
-                                ))}
+                                    );
+                                })}
                             </div>
                             {cfgMsg && <MsgBox msg={cfgMsg} />}
                             <div><button type="submit" disabled={cfgSaving} style={btnGuardar(cfgSaving)}>{cfgSaving?'Guardando...':'Guardar'}</button></div>
@@ -840,16 +851,19 @@ export default function Admin() {
                             <div>
                                 <div style={{ fontSize:12, color:tk.txt2, fontWeight:600, marginBottom:10 }}>Asignar tipo → etapa</div>
                                 <div style={{ display:'grid', gap:8 }}>
-                                    {cfgForm.tipos_actividad.map(tipo => (
+                                    {cfgForm.tipos_actividad.map(tipo => {
+                                        const tc = getTypeColor(tipo);
+                                        return (
                                         <div key={tipo} style={{ display:'flex', alignItems:'center', gap:10 }}>
-                                            <span style={{ fontSize:13, color:tk.txt, width:160, flexShrink:0 }}>{TYPE_ICON[tipo] || '📌'} {tipo}</span>
+                                            <span style={{ fontSize:13, color:tk.txt, width:160, flexShrink:0, borderLeft:`3px solid ${tc.color}`, paddingLeft:8 }}>{tipo}</span>
                                             <select style={{ ...inp, width:180 }} value={getTipoEtapa(tipo)}
                                                 onChange={e => setTipoEtapa(tipo, parseInt(e.target.value))}>
                                                 <option value={-1}>— Sin etapa —</option>
                                                 {cfgForm.pipeline_etapas.map((e, i) => <option key={i} value={i}>{e.nombre}</option>)}
                                             </select>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                             {cfgMsg && <MsgBox msg={cfgMsg} />}
@@ -872,17 +886,18 @@ export default function Admin() {
                                         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
                                             <span style={{ fontSize:13, fontWeight:700, color:tk.txt, width:130 }}>{rol}</span>
                                             <button type="button" onClick={() => toggleRolTodos(rol)} style={{ padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer', border:'none', background: esTodos?'#10b981':'#10b981'+(tk.isDark?'28':'18'), color: esTodos?'#fff':tk.txt }}>
-                                                {esTodos ? '✓ Todos' : 'Todos'}
+                                                {esTodos ? 'Todos activos' : 'Todos'}
                                             </button>
                                         </div>
                                         {!esTodos && (
                                             <div style={{ display:'flex', flexWrap:'wrap', gap:6, paddingLeft:140 }}>
                                                 {cfgForm.tipos_actividad.map(tipo => {
                                                     const on = activos.includes(tipo);
+                                                    const tc = getTypeColor(tipo);
                                                     return (
                                                         <button key={tipo} type="button" onClick={() => toggleRolTipo(rol, tipo)}
-                                                            style={{ padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer', border:'1px solid', background: on?'#10b981':'#10b981'+(tk.isDark?'28':'18'), color: on?'#fff':tk.txt, borderColor: on?'#10b981':'#10b981'+(tk.isDark?'44':'33') }}>
-                                                            {TYPE_ICON[tipo] || '📌'} {tipo}
+                                                            style={{ padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer', border:'1px solid', background: on ? tc.color : (tk.isDark ? `${tc.color}28` : tc.bg), color: on ? '#fff' : (tk.isDark ? '#e3e7ee' : tc.color), borderColor: on ? tc.color : `${tc.color}${tk.isDark ? '66' : '44'}` }}>
+                                                            {tipo}
                                                         </button>
                                                     );
                                                 })}
@@ -935,7 +950,7 @@ export default function Admin() {
 
                         <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
                             <div style={{ padding:'16px 22px', borderBottom:`1px solid ${tk.bdr}` }}>
-                                <div style={{ fontWeight:700, fontSize:14, color:tk.txt }}>Vinculos CRM ↔ ZKBio</div>
+                                <div style={{ fontWeight:700, fontSize:14, color:tk.txt }}>Vinculos CRM y ZKBio</div>
                                 <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>Relaciona cada vendedor con su codigo biometrico y controla si participa en asistencia.</div>
                             </div>
                             <div style={{ display:'grid', gridTemplateColumns:'1fr 180px 180px 120px 110px', gap:10, padding:'9px 22px', borderBottom:`1px solid ${tk.bdr}`, background:tk.bg }}>

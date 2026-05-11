@@ -7,12 +7,13 @@ const renderActivePie = ({ cx, cy, innerRadius, outerRadius, startAngle, endAngl
 import { getVendedores, createActividad } from '../api/actividades';
 import { useAuth } from '../context/AuthContext';
 import useActividades from '../hooks/useActividades';
-import { filterActs, fmtUSD, fmt, calcDuration, TIPOS, MESES, TYPE_COLOR, TYPE_ICON, ROL_TIPOS } from '../utils/crm';
+import { filterActs, fmtUSD, fmt, calcDuration, TIPOS, MESES, getTypeColor, ROL_TIPOS } from '../utils/crm';
 import ActividadModal from '../components/ActividadModal';
 import Avatar from '../components/Avatar';
 import { RolBadge } from '../components/Badge';
 import PeriodoPicker from '../components/PeriodoPicker';
 import { useTheme } from '../context/ThemeContext';
+import { AlertIcon } from '../components/Icons';
 
 const ESTADO_COLOR = { 'Pendiente': '#e67e22', 'En Progreso': '#10b981', 'Completado': '#27ae60', 'Ganada': '#2e7d32', 'Perdida': '#e74c3c' };
 const TIPO_COLORS = ['#10b981', '#27ae60', '#e67e22', '#8e44ad', '#e74c3c', '#1abc9c', '#e91e63', '#4caf50', '#ff9800', '#9c27b0'];
@@ -68,11 +69,10 @@ export default function Equipo() {
 
     useEffect(() => {
         getVendedores().then((vs) => {
-            const sinAdminGerencia = vs.filter((v) => !v.roles?.some((r) => ['Admin', 'Gerencia'].includes(r)));
             if (esAdminGerencia) {
-                setVendedores(sinAdminGerencia);
+                setVendedores(vs);
             } else {
-                setVendedores(sinAdminGerencia.filter((v) => v.id === user?.id));
+                setVendedores(vs.filter((v) => v.id === user?.id));
             }
         });
     }, [esAdminGerencia, user?.id]);
@@ -148,7 +148,9 @@ export default function Equipo() {
                         <div key={v.id} style={{ background: tk.card, borderRadius: 10, padding: '16px 14px', boxShadow: tk.shadow, textAlign: 'center', position: 'relative' }}>
                             {i < 2 && (
                                 <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 18 }}>
-                                    {i === 0 ? '🥇' : '🥈'}<span style={{ fontSize: 11, fontWeight: 700, color: tk.txt2 }}>#{i + 1}</span>
+                                    <span style={{ fontSize: 10, fontWeight: 800, color: i === 0 ? '#b8740a' : '#6b7a8d', background: i === 0 ? '#fff4d7' : '#eef2f7', borderRadius: 999, padding: '3px 8px' }}>
+                                        Top {i + 1}
+                                    </span>
                                 </div>
                             )}
                             {i >= 2 && <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, color: tk.txt3, fontWeight: 600 }}>#{i + 1}</div>}
@@ -273,10 +275,10 @@ export default function Equipo() {
                                                 <tr style={{ borderBottom: `2px solid ${tk.bdr}` }}>
                                                     <th style={{ ...th, width: '22%' }}>VENDEDOR</th>
                                                     {tiposCol.map((t) => {
-                                                        const c = TYPE_COLOR[t] || { color: tk.txt2 };
+                                                        const c = getTypeColor(t);
                                                         return (
                                                             <th key={t} style={{ ...th, textAlign: 'center', color: c.color }}>
-                                                                {TYPE_ICON[t] || ''} {t}
+                                                                {t}
                                                             </th>
                                                         );
                                                     })}
@@ -294,7 +296,7 @@ export default function Equipo() {
                                                         </td>
                                                         {tiposCol.map((t) => {
                                                             const n = vActs.filter((a) => a.tipo === t).length;
-                                                            const c = TYPE_COLOR[t] || { color: tk.txt2 };
+                                                            const c = getTypeColor(t);
                                                             return (
                                                                 <td key={t} style={{ padding: '10px', textAlign: 'center' }}>
                                                                     {n > 0
@@ -343,7 +345,9 @@ export default function Equipo() {
                             const mkt = isMarketing(v);
                             return (
                                 <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${tk.bdr}` }}>
-                                    <span style={{ fontSize: 16 }}>⚠️</span>
+                                    <span style={{ color: '#c0392b', display: 'inline-grid', placeItems: 'center' }}>
+                                        <AlertIcon size={16} />
+                                    </span>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontSize: 12, fontWeight: 600, color: tk.txt, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre}</div>
                                         <div style={{ fontSize: 10, color: tk.txt3 }}>{v?.nombre.split(' ')[0]} · {a.mes}</div>
@@ -447,7 +451,7 @@ export default function Equipo() {
                         {filtered.map((a) => {
                             const v = vendedores.find((x) => x.id === a.vendedor_id);
                             const mkt = isMarketing(v);
-                            const tc = TYPE_COLOR[a.tipo] || { bg: '#eee', color: '#333' };
+                            const tc = getTypeColor(a.tipo);
                             return (
                                 <tr key={a.id} style={{ borderBottom: `1px solid ${tk.bdr}` }}>
                                     <td style={td}>
@@ -462,7 +466,7 @@ export default function Equipo() {
                                     </td>
                                     <td style={td}>
                                         <span style={{ padding: '3px 9px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: tc.color + (tk.isDark ? '28' : '1a'), color: tk.isDark ? '#cbd5e1' : tc.color, whiteSpace: 'nowrap' }}>
-                                            {TYPE_ICON[a.tipo]} {a.tipo}
+                                            {a.tipo}
                                         </span>
                                     </td>
                                     <td style={td}>{a.cliente}</td>

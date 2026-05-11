@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
 import { getEmpresas } from '../api/actividades';
 import ProfileModal from './ProfileModal';
+import { BuildingIcon, ChartIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, ClipboardIcon, DashboardIcon, PowerIcon, SettingsIcon, TeamIcon } from './Icons';
 
 const DEFAULT_LOGO_FULL = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO.png';
 const DEFAULT_LOGO_ISO  = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO-SHORT.png';
@@ -21,13 +22,13 @@ function canAccessAttendance(user) {
 }
 
 const BASE_LINKS = [
-    { to: '/',             label: 'Dashboard',    icon: '📊' },
-    { to: '/equipo',       label: 'Equipo',       icon: '👥' },
-    { to: '/planificador', label: 'Planificador', icon: '📋' },
-    { to: '/clientes',     label: 'Clientes',     icon: '🏢' },
-    { to: '/rentabilidad', label: 'Comisiones',   icon: '💹' },
+    { to: '/',             label: 'Dashboard',    icon: DashboardIcon },
+    { to: '/equipo',       label: 'Equipo',       icon: TeamIcon },
+    { to: '/planificador', label: 'Planificador', icon: ClipboardIcon },
+    { to: '/clientes',     label: 'Clientes',     icon: BuildingIcon },
+    { to: '/rentabilidad', label: 'Comisiones',   icon: ChartIcon },
 ];
-const ADMIN_LINK = { to: '/admin', label: 'Administración', icon: '⚙️' };
+const ADMIN_LINK = { to: '/admin', label: 'Administración', icon: SettingsIcon };
 
 const external = [
     { href: RETAIL_URL, label: 'Vantio Leads', img: VANTIO_LEADS_ICON },
@@ -68,7 +69,7 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
     const attendanceLink = {
         to: '/asistencia',
         label: canAccessAttendance(user) ? 'Asistencia' : 'Próximamente',
-        icon: '🕒',
+        icon: ClockIcon,
     };
     const links = user?.is_superadmin || user?.roles?.includes('Admin')
         ? [...BASE_LINKS.slice(0, 3), attendanceLink, ...BASE_LINKS.slice(3), ADMIN_LINK]
@@ -86,6 +87,9 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                 <img src={logoIso} alt={appName} style={{ width: 34, height: 34, objectFit: 'contain', flexShrink: 0 }} />
                 <nav style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, overflowX: 'auto', paddingBottom: 2 }}>
                     {links.map(l => (
+                        (() => {
+                            const LinkIcon = l.icon;
+                            return (
                         <NavLink
                             key={l.to}
                             to={l.to}
@@ -100,8 +104,10 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                                 textDecoration: 'none', fontSize: 17, flexShrink: 0,
                             })}
                         >
-                            <span>{l.icon}</span>
+                            <LinkIcon size={17} />
                         </NavLink>
+                            );
+                        })()
                     ))}
                 </nav>
                 {user && (
@@ -139,6 +145,9 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
             {/* Nav links */}
             <nav style={{ padding: collapsed ? '12px 0' : '12px 8px', flex: 1 }}>
                 {links.map(l => (
+                    (() => {
+                        const LinkIcon = l.icon;
+                        return (
                     <NavLink
                         key={l.to}
                         to={l.to}
@@ -159,9 +168,13 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                             transition: 'all 0.15s',
                         })}
                     >
-                        <span style={{ fontSize: 16, flexShrink: 0 }}>{l.icon}</span>
+                        <span style={{ width: 18, height: 18, display: 'inline-grid', placeItems: 'center', flexShrink: 0 }}>
+                            <LinkIcon size={16} />
+                        </span>
                         {!collapsed && <span>{l.label}</span>}
                     </NavLink>
+                        );
+                    })()
                 ))}
 
                 {/* Separador */}
@@ -274,7 +287,7 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                         onMouseEnter={e => e.currentTarget.style.color = '#fff'}
                         onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
                     >
-                        <span style={{ fontSize: 14 }}>⏻</span>
+                        <PowerIcon size={14} />
                         {!collapsed && <span>Cerrar sesión</span>}
                     </button>
                 </div>
@@ -294,7 +307,7 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
                 onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
             >
-                <span style={{ fontSize: 16 }}>{collapsed ? '»' : '«'}</span>
+                {collapsed ? <ChevronRightIcon size={16} /> : <ChevronLeftIcon size={16} />}
                 {!collapsed && <span>Contraer menú</span>}
             </button>
         </aside>

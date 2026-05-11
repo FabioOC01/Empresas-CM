@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { MESES, Q_MAP } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
+import { CalendarIcon } from './Icons';
 
 const PULSE_KEYFRAMES = `
 @keyframes ppPulse {
@@ -40,7 +41,7 @@ export default function PeriodoPicker({ trim = '', mes = '', año = '', onTrim, 
                     display: 'flex', alignItems: 'center', gap: 6,
                 }}
             >
-                📅 {label} {open ? '▴' : '▾'}
+                <CalendarIcon size={14} /> {label} {open ? '▴' : '▾'}
             </button>
 
             {open && (
@@ -119,7 +120,7 @@ export default function PeriodoPicker({ trim = '', mes = '', año = '', onTrim, 
                     {hasFilter && (
                         <button onClick={() => { onTrim(''); onMes(''); onAño && onAño(''); setOpen(false); }}
                             style={{ marginTop: 10, width: '100%', padding: '7px', border: 'none', borderRadius: 7, background: '#e74c3c22', color: '#e74c3c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                            ✕ Limpiar período
+                            Limpiar período
                         </button>
                     )}
                 </div>

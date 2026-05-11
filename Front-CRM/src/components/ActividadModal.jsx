@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
 import { getClientes, createCliente, lookupRuc, lookupDni, uploadArchivoActividad, deleteArchivoActividad } from '../api/actividades';
-import { TIPOS, ESTADOS, PRIORIDADES, MESES, ROL_TIPOS, ROLES, TYPE_COLOR, TYPE_ICON, TIPOS_CON_RESULTADO, fmt as fmtDur } from '../utils/crm';
+import { TIPOS, ESTADOS, PRIORIDADES, MESES, ROL_TIPOS, ROLES, TIPOS_CON_RESULTADO, getTypeColor, fmt as fmtDur } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
+import { FileIcon, ImageIcon, PaperclipIcon } from './Icons';
 
 
 function fmtTS(ts) {
-    if (!ts) return '—';
+    if (!ts) return 'â€”';
     const d = new Date(ts);
     return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
         + ' ' + d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
@@ -30,7 +31,7 @@ const EMPTY = {
 
 const docLabel = (doc) => String(doc || '').replace(/\D/g, '').length === 8 ? 'DNI' : 'RUC';
 
-const MARKETING_TIPOS = new Set(['Publicidad','Redes','Video','P. Gráficas Externas','P. Gráficas Internas','Actividad','Evento','Piezas gráficas']);
+const MARKETING_TIPOS = new Set(['Publicidad','Redes','Video','P. GrÃ¡ficas Externas','P. GrÃ¡ficas Internas','Actividad','Evento','Piezas grÃ¡ficas']);
 
 function parseArr(val) {
     if (Array.isArray(val)) return val;
@@ -55,7 +56,6 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const tk = useTheme();
     const lbl    = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: tk.txt2, fontWeight: 600 };
     const inp    = { padding: '9px 11px', borderRadius: 8, border: `1px solid ${tk.bdr}`, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', background: tk.inp, color: tk.txt };
-    const btnSec = { padding: '10px 20px', background: tk.card2, color: tk.txt, border: 'none', borderRadius: 9, fontWeight: 600, cursor: 'pointer', fontSize: 13 };
     const { user } = useAuth();
     const { config } = useActividadesContext();
     const todosLosTipos = config?.tipos_actividad || TIPOS;
@@ -85,7 +85,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const esMarketing = MARKETING_TIPOS.has(form.tipo);
     const vendedoresFiltrados = esMarketing
-        ? vendedores.filter(v => v.roles?.includes('Marketing'))
+        ? vendedores.filter(v => v.roles?.some(r => ['Admin','Marketing'].includes(r)))
         : vendedores;
 
     const esAdmin = user?.is_superadmin || user?.roles?.includes('Admin');
@@ -110,6 +110,20 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     useEffect(() => {
         if (open) getClientes().then(setClientes);
     }, [open]);
+
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e) => {
+            if (e.key === 'Escape') { onClose(); return; }
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                const formEl = document.querySelector('.am-md form');
+                if (formEl) formEl.requestSubmit?.();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [open, onClose]);
 
     useEffect(() => {
         if (!open) return;
@@ -178,7 +192,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 ...f,
                 cliente: data.nombre || documento,
                 cliente_ruc: documento,
-                ...(!actividad ? { nombre: `${f.tipo} — ${data.nombre || documento}` } : {}),
+                ...(!actividad ? { nombre: `${f.tipo} â€” ${data.nombre || documento}` } : {}),
             }));
             setNuevoC(true);
             setSunatInfoC(data);
@@ -203,7 +217,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 cliente_telefono: cliente.telefono || '',
             }));
         }
-        if (!actividad) set('nombre', `${form.tipo} — ${val}`);
+        if (!actividad) set('nombre', `${form.tipo} â€” ${val}`);
     };
     const handleClienteSearchChange = (val) => {
         setClienteQuery(val);
@@ -215,7 +229,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
             cliente_ruc: '',
             cliente_email: '',
             cliente_telefono: '',
-            ...(!actividad ? { nombre: `${f.tipo} — ${val}` } : {}),
+            ...(!actividad ? { nombre: `${f.tipo} â€” ${val}` } : {}),
         }));
     };
 
@@ -231,7 +245,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const handleTipoChange = (tipo) => {
         set('tipo', tipo);
-        if (!actividad && form.cliente) set('nombre', `${tipo} — ${form.cliente}`);
+        if (!actividad && form.cliente) set('nombre', `${tipo} â€” ${form.cliente}`);
         if (MARKETING_TIPOS.has(tipo)) setExpanded(true);
     };
     const handleFechaChange = (val) => {
@@ -256,10 +270,6 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     }));
     const removeChkItem = (id) => set('checklist', (form.checklist || []).filter(it => it.id !== id));
 
-    const addGasto    = () => set('gastos_operativos', [...(form.gastos_operativos || []), { nombre: '', monto: '', notas: '' }]);
-    const removeGasto = (i) => set('gastos_operativos', form.gastos_operativos.filter((_, idx) => idx !== i));
-    const setGasto    = (i, field, val) => set('gastos_operativos', form.gastos_operativos.map((g, idx) => idx === i ? { ...g, [field]: val } : g));
-
     const handleSubmit = (e) => {
         e.preventDefault();
         const nowTs = Date.now();
@@ -275,7 +285,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         onSave({
             ...form,
             fecha_fin:        form.fecha_fin || null,
-            nombre:           form.nombre || `${form.tipo} — ${form.cliente}`,
+            nombre:           form.nombre || `${form.tipo} â€” ${form.cliente}`,
             monto:            parseFloat(form.monto)         || 0,
             precio_venta:     parseFloat(form.precio_venta)  || 0,
             costo_base:       0,
@@ -293,50 +303,115 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         onClose();
     };
 
-    const tipoActual = TYPE_COLOR[form.tipo] || { bg: '#e8f0fe', color: '#10b981' };
     const estadosDisponibles = TIPOS_CON_RESULTADO.includes(form.tipo)
         ? ['Pendiente','En Progreso','Completado','Ganada','Perdida']
         : ESTADOS;
 
     return (
-        <div onClick={onClose} style={{
-            position: 'fixed', inset: 0, background: 'rgba(7,13,25,0.65)', backdropFilter: 'blur(3px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        <div onClick={onClose} className="am-ovl" style={{
+            position: 'fixed', inset: 0, background: 'rgba(20,20,18,0.42)', backdropFilter: 'blur(2px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24,
         }}>
-            <div onClick={e => e.stopPropagation()} className="card" style={{
-                borderRadius: 14,
-                width: isMobile ? '96vw' : (expanded ? 900 : 520),
+            <style>{`
+                .am-md {
+                    --g:#079669; --g2:#036b4c; --gbg:#ecfdf5; --gln:#bfe9d6;
+                    --ln:#ebebe7; --ln2:#f1f1ed; --ln3:#e3e3df;
+                    --ink:#161614; --ink2:#4a4a45; --ink3:#8a8a82; --ink4:#b6b6ad;
+                    --hover:#f6f6f3; --bg:#f7f7f5;
+                    --red:#c0392b; --amber:#b8740a; --blue:#2862c8; --gray:#5b5d57;
+                }
+                [data-theme="dark"] .am-md { --bg:${tk.bg}; --hover:${tk.card2}; --ln:${tk.bdr}; --ln2:${tk.bdr}; --ln3:${tk.bdr}; --ink:${tk.txt}; --ink2:${tk.txt2}; --ink3:${tk.txt3}; --ink4:${tk.txt3}; }
+                .am-md .am-h {
+                    display:flex; align-items:center; justify-content:space-between; gap:12px;
+                    padding:14px 18px;
+                    background: linear-gradient(180deg, #ecfdf5 0%, #f3fbf7 100%);
+                    border-bottom: 1px solid var(--gln);
+                }
+                [data-theme="dark"] .am-md .am-h { background: ${tk.card2}; border-bottom-color: ${tk.bdr}; }
+                .am-md .am-eyebrow { font-size:10.5px; font-weight:600; color: var(--g2); text-transform:uppercase; letter-spacing:.08em; }
+                .am-md .am-title { font-size:17px; font-weight:600; color: var(--ink); letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+                .am-md .am-gbtn { appearance:none; height:30px; padding:0 11px; font:inherit; font-size:12px; font-weight:500; background:#fff; border:1px solid var(--gln); color: var(--g2); border-radius:7px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+                .am-md .am-gbtn:hover { background: var(--gbg); }
+                .am-md .am-x { appearance:none; width:30px; height:30px; background:#fff; border:1px solid var(--ln3); color: var(--ink2); border-radius:7px; cursor:pointer; display:inline-grid; place-items:center; }
+                .am-md .am-x:hover { background: var(--hover); color: var(--ink); }
+                .am-md .am-tchip {
+                    appearance:none; display:inline-flex; align-items:center; gap:6px;
+                    height:30px; padding:0 10px;
+                    font:inherit; font-size:12px; font-weight:500; color: var(--type-color, var(--ink2));
+                    background:var(--type-bg, #fff); border:1px solid var(--type-border, var(--ln)); border-radius:7px;
+                    cursor:pointer; text-align:left;
+                    transition: border-color .1s, background .1s, color .1s, box-shadow .1s;
+                }
+                .am-md .am-tchip:hover { border-color: var(--type-color, var(--ln3)); filter: saturate(1.05); }
+                .am-md .am-tchip.on { color: var(--type-color, var(--g2)); background: var(--type-bg, var(--gbg)); border-color: var(--type-color, var(--g)); box-shadow: 0 0 0 3px var(--type-ring, rgba(7,150,105,.10)); }
+                .am-md .am-seg {
+                    display:grid; grid-auto-flow:column; grid-auto-columns:1fr;
+                    background: var(--bg); border:1px solid var(--ln);
+                    border-radius:8px; padding:3px; gap:2px;
+                }
+                .am-md .am-seg button {
+                    appearance:none; border:none; background:transparent;
+                    height:28px; font:inherit; font-size:12px; font-weight:500; color: var(--ink2);
+                    border-radius:6px; cursor:pointer;
+                    display:inline-flex; align-items:center; justify-content:center; gap:5px;
+                }
+                .am-md .am-seg button:hover { color: var(--ink); }
+                .am-md .am-seg button.on { background:#fff; box-shadow: 0 0 0 1px var(--ln3), 0 1px 2px rgba(0,0,0,.04); color: var(--ink); }
+                .am-md .am-seg button .pd { width:6px; height:6px; border-radius:50%; }
+                .am-md .am-seg button.on[data-p="Alta"]  { color:#8a201a; box-shadow:0 0 0 1px #f0c6c1, 0 1px 2px rgba(192,57,43,.08); }
+                .am-md .am-seg button.on[data-p="Alta"]  .pd { background: var(--red); }
+                .am-md .am-seg button.on[data-p="Media"] { color:#7a4d05; box-shadow:0 0 0 1px #ecd6b1, 0 1px 2px rgba(184,116,10,.08); }
+                .am-md .am-seg button.on[data-p="Media"] .pd { background: var(--amber); }
+                .am-md .am-seg button.on[data-p="Baja"]  { color: var(--g2); box-shadow:0 0 0 1px var(--gln), 0 1px 2px rgba(7,150,105,.08); }
+                .am-md .am-seg button.on[data-p="Baja"]  .pd { background: var(--g); }
+                .am-md .am-seg button.on[data-s="Pendiente"]    { color: var(--gray); box-shadow:0 0 0 1px var(--ln3); }
+                .am-md .am-seg button.on[data-s="Pendiente"]    .pd { background: var(--gray); }
+                .am-md .am-seg button.on[data-s="En Progreso"]  { color: var(--blue); box-shadow:0 0 0 1px #cfdcf5; }
+                .am-md .am-seg button.on[data-s="En Progreso"]  .pd { background: var(--blue); }
+                .am-md .am-seg button.on[data-s="Completado"]   { color: var(--g2); box-shadow:0 0 0 1px var(--gln); }
+                .am-md .am-seg button.on[data-s="Completado"]   .pd { background: var(--g); }
+                .am-md .am-seg button.on[data-s="Ganada"]       { color: var(--g2); box-shadow:0 0 0 1px var(--gln); }
+                .am-md .am-seg button.on[data-s="Ganada"]       .pd { background: var(--g); }
+                .am-md .am-seg button.on[data-s="Perdida"]      { color: var(--red); box-shadow:0 0 0 1px #f0c6c1; }
+                .am-md .am-seg button.on[data-s="Perdida"]      .pd { background: var(--red); }
+                .am-md .am-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; background:#fbfbf8; border-top:1px solid var(--ln); }
+                [data-theme="dark"] .am-md .am-foot { background: ${tk.card2}; border-top-color: ${tk.bdr}; }
+                .am-md .am-hint { font-size:11.5px; color: var(--ink3); }
+                .am-md .am-hint kbd { font-family:inherit; font-size:10.5px; font-weight:600; color: var(--ink2); padding:1px 5px; background:#fff; border:1px solid var(--ln3); border-bottom-width:2px; border-radius:4px; margin:0 1px; }
+                .am-md .am-cancel { appearance:none; height:34px; padding:0 14px; font:inherit; font-size:12.5px; font-weight:500; color: var(--ink2); background:#fff; border:1px solid var(--ln3); border-radius:8px; cursor:pointer; white-space:nowrap; }
+                .am-md .am-cancel:hover { background: var(--hover); color: var(--ink); }
+                .am-md .am-create { appearance:none; position:relative; height:34px; padding:0 14px; font:inherit; font-size:12.5px; font-weight:600; color:#fff; background: linear-gradient(180deg, #0aaa78 0%, #058256 100%); border:1px solid #036445; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 -1px 0 rgba(0,0,0,.12) inset, 0 4px 10px -3px rgba(7,150,105,.45); transition: filter .15s, transform .08s; white-space:nowrap; }
+                .am-md .am-create:hover { filter: brightness(1.04); }
+                .am-md .am-create:active { transform: translateY(1px); }
+            `}</style>
+            <div onClick={e => e.stopPropagation()} className="card am-md" style={{
+                borderRadius: 12,
+                width: isMobile ? '96vw' : (expanded ? 960 : 520),
                 maxWidth: '96vw',
-                maxHeight: '92vh', overflowY: 'auto',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.35)',
+                maxHeight: 'calc(100vh - 48px)', overflow: 'hidden',
+                boxShadow: '0 24px 64px -12px rgba(20,20,18,.28), 0 4px 12px rgba(20,20,18,.08)',
                 display: 'flex', flexDirection: 'column',
                 transition: 'width 0.2s ease',
+                border: `1px solid ${tk.bdr}`,
             }}>
-                {/* Header */}
-                <div style={{
-                    background: tk.isDark ? tk.card2 : tipoActual.bg, padding: '20px 24px 16px',
-                    borderRadius: '16px 16px 0 0',
-                    borderBottom: `2px solid ${tipoActual.color}33`,
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-                }}>
-                    <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: tipoActual.color, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>
+                {/* Header v2 */}
+                <div className="am-h">
+                    <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
+                        <div className="am-eyebrow">
                             {actividad ? 'Editar actividad' : 'Nueva actividad'}
                         </div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: tk.txt }}>
-                            {form.nombre || (form.cliente ? `${form.tipo} — ${form.cliente}` : form.tipo)}
+                        <div className="am-title">
+                            {form.nombre || (form.cliente ? `${form.tipo} â€” ${form.cliente}` : form.tipo)}
                         </div>
                     </div>
-                    {/* Toggle expandir */}
-                    <button type="button" onClick={() => setExpanded(x => !x)} style={{
-                        background: expanded ? tipoActual.color + '22' : 'none',
-                        border: `1px solid ${tipoActual.color}44`,
-                        borderRadius: 8, cursor: 'pointer', padding: '5px 10px',
-                        fontSize: 11, fontWeight: 700, color: tk.txt,
-                        display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
-                    }}>
-                        {expanded ? '◀ Menos' : 'Más opciones ▶'}
-                    </button>
+                    <div style={{ display:'inline-flex', gap:6 }}>
+                        <button type="button" onClick={() => setExpanded(x => !x)} className="am-gbtn">
+                            {expanded ? 'â–¾ Menos' : 'â–¸ MÃ¡s'}
+                        </button>
+                        <button type="button" onClick={onClose} className="am-x" aria-label="Cerrar">
+                            <svg viewBox="0 0 10 10" width="10" height="10"><path d="M2 2l6 6M8 2l-6 6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                        </button>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px' }}>
@@ -347,46 +422,44 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                         alignItems: 'start',
                     }}>
 
-                        {/* ── Columna izquierda — campos principales ── */}
+                        {/* â”€â”€ Columna izquierda â€” campos principales â”€â”€ */}
                         <div style={{ display: 'grid', gap: 16 }}>
 
                             {/* Tipos */}
                             <div>
                                 <div style={lbl}>Tipo de actividad</div>
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(108px, 1fr))', gap: 6, marginTop: 6 }}>
                                     {tiposDisponibles.map(t => {
-                                        const tc = TYPE_COLOR[t] || { bg: '#f0f2f5', color: tk.txt2 };
+                                        const tc = getTypeColor(t);
                                         const active = form.tipo === t;
-                                        const fg = tc.color;
                                         return (
-                                            <button key={t} type="button" onClick={() => handleTipoChange(t)} style={{
-                                                padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                                                cursor: 'pointer', border: 'none',
-                                                background: active ? fg : fg + (tk.isDark ? '28' : '1a'),
-                                                color: active ? '#fff' : tk.txt,
-                                                boxShadow: active ? `0 2px 8px ${fg}44` : 'none',
+                                            <button key={t} type="button" onClick={() => handleTipoChange(t)} className={`am-tchip ${active ? 'on' : ''}`} style={{
+                                                '--type-color': tc.color,
+                                                '--type-bg': tk.isDark ? `${tc.color}${active ? '36' : '20'}` : tc.bg,
+                                                '--type-border': `${tc.color}${active ? '' : tk.isDark ? '66' : '44'}`,
+                                                '--type-ring': `${tc.color}22`,
                                             }}>
-                                                {TYPE_ICON[t] || '📌'} {t}
+                                                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t}</span>
                                             </button>
                                         );
                                     })}
                                 </div>
                             </div>
 
-                            {/* Cliente o Área (si Marketing) */}
+                            {/* Cliente o Ãrea (si Marketing) */}
                             <div>
                                 <div style={{ ...lbl, flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-                                    <span>{esMarketing ? 'Área *' : 'Cliente *'}</span>
+                                    <span>{esMarketing ? 'Ãrea *' : 'Cliente *'}</span>
                                     {!esMarketing && (
                                         <button type="button" onClick={() => { setNuevoC(x => !x); resetNuevoCliente(); }}
                                             style={{ fontSize:11, fontWeight:700, padding:'2px 10px', borderRadius:6, border:`1px solid ${'#10b981'}`, background: nuevoC ? '#10b981' : '#10b98118', color: nuevoC ? '#fff' : '#10b981', cursor:'pointer' }}>
-                                            {nuevoC ? '✕ Cancelar' : '+ Nuevo'}
+                                            {nuevoC ? 'Cancelar' : '+ Nuevo'}
                                         </button>
                                     )}
                                 </div>
                                 {esMarketing ? (
                                     <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
-                                        <option value="">— Seleccionar área —</option>
+                                        <option value="">â€” Seleccionar Ã¡rea â€”</option>
                                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
                                 ) : (
@@ -403,9 +476,9 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                 onBlur={() => setTimeout(() => setClienteQuery(form.cliente || clienteQuery), 120)}
                                             />
                                             <button type="button" disabled={lookingDocC || ![8, 11].includes(clienteQueryRuc.length)} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteDoc}
-                                                title="Buscar documento en Migo"
+                                                title="Buscar documento en SUNAT"
                                                 style={{ padding:'9px 12px', borderRadius:8, border:'none', background: lookingDocC || ![8, 11].includes(clienteQueryRuc.length) ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingDocC || ![8, 11].includes(clienteQueryRuc.length) ? 'default' : 'pointer' }}>
-                                                {lookingDocC ? '...' : 'Migo'}
+                                                {lookingDocC ? '...' : 'SUNAT'}
                                             </button>
                                         </div>
                                         {clienteQuery.trim() && !clienteSeleccionadoExacto && clientesFiltrados.length > 0 && (
@@ -423,17 +496,17 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                             <div style={{ position:'absolute', zIndex:20, top:'calc(100% + 4px)', left:0, right:0, background:tk.card, border:`1px solid ${tk.bdr}`, borderRadius:8, boxShadow:tk.shadow, overflow:'hidden' }}>
                                                 <button type="button" disabled={lookingDocC} onMouseDown={e => e.preventDefault()} onClick={handleLookupClienteDoc}
                                                     style={{ width:'100%', border:'none', background:'transparent', color:tk.txt, textAlign:'left', padding:'10px 11px', cursor: lookingDocC ? 'default' : 'pointer', display:'block' }}>
-                                                    <div style={{ fontSize:12, fontWeight:700 }}>{lookingDocC ? 'Buscando en Migo...' : `Buscar ${docLabel(clienteQueryRuc)} ${clienteQueryRuc} en Migo`}</div>
-                                                    <div style={{ fontSize:10, color:tk.txt3 }}>Si existe, se llenará el nuevo cliente para crearlo.</div>
+                                                    <div style={{ fontSize:12, fontWeight:700 }}>{lookingDocC ? 'Buscando en SUNAT...' : `Buscar ${docLabel(clienteQueryRuc)} ${clienteQueryRuc} en SUNAT`}</div>
+                                                    <div style={{ fontSize:10, color:tk.txt3 }}>Si existe, se llenarÃ¡ el nuevo cliente para crearlo.</div>
                                                 </button>
                                             </div>
                                         )}
                                     </div>
                                     {/* Legacy select removed; client search above replaces it. */}
                                     {false && <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
-                                        <option value="">— Seleccionar cliente —</option>
+                                        <option value="">”Seleccionar cliente”</option>
                                         {clientes.map(c => (
-                                            <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` · ${docLabel(c.ruc)} ${c.ruc}` : ''}</option>
+                                            <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` Â· ${docLabel(c.ruc)} ${c.ruc}` : ''}</option>
                                         ))}
                                     </select>}
                                     </>
@@ -450,7 +523,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                 style={{ padding:'8px 12px', borderRadius:8, border:'none', background: lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length) ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length) ? 'default' : 'pointer' }}>
                                                 {lookingDocC ? 'Buscando...' : 'Buscar'}
                                             </button>
-                                            <input style={inp} placeholder="Teléfono" value={formC.telefono}
+                                            <input style={inp} placeholder="TelÃ©fono" value={formC.telefono}
                                                 onChange={e => setFormC(f => ({ ...f, telefono: e.target.value }))} />
                                         </div>
                                         {sunatInfoC && (
@@ -493,7 +566,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                 }
                                             }}
                                             style={{ padding:'8px', borderRadius:8, border:'none', background:'#10b981', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', opacity: savingC ? 0.6 : 1 }}>
-                                            {savingC ? 'Guardando…' : 'Crear cliente'}
+                                            {savingC ? 'Guardandoâ€¦' : 'Crear cliente'}
                                         </button>
                                     </div>
                                 )}
@@ -505,7 +578,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     <select style={{ ...inp, background: tk.inp, color: puedeElegirVendedor ? tk.txt : tk.txt2 }}
                                         required value={form.vendedor_id} disabled={!puedeElegirVendedor}
                                         onChange={e => set('vendedor_id', e.target.value)}>
-                                        <option value="">— Seleccionar —</option>
+                                        <option value="">â€” Seleccionar â€”</option>
                                         {vendedoresFiltrados.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
                                     </select>
                                 </label>
@@ -518,61 +591,42 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 </label>
                             </div>
 
-                            {/* Gastos adicionales */}
-                            {TIPOS_CON_RESULTADO.includes(form.tipo) && (
-                                <div style={{ display: 'grid', gap: 12 }}>
-                                    <div>
-                                        <div style={{ ...lbl, marginBottom: 8 }}>Gastos</div>
-                                        {(form.gastos_operativos || []).map((g, i) => (
-                                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 30px', gap: 6, marginBottom: 8 }}>
-                                                <input style={inp} placeholder="Producto o gasto" value={g.nombre} onChange={e => setGasto(i, 'nombre', e.target.value)} />
-                                                <input style={inp} type="number" min="0" step="0.01" placeholder="Monto" value={g.monto} onChange={e => setGasto(i, 'monto', e.target.value)} />
-                                                <button type="button" onClick={() => removeGasto(i)} style={{ background: '#e74c3c22', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#e74c3c', fontWeight: 700 }}>x</button>
-                                                <textarea style={{ ...inp, gridColumn: '1 / -1', resize: 'vertical', minHeight: 52 }} placeholder="Notas del producto o gasto" value={g.notas || ''} onChange={e => setGasto(i, 'notas', e.target.value)} />
-                                            </div>
-                                        ))}
-                                        <button type="button" onClick={addGasto} style={{ fontSize: 12, color: '#10b981', background: 'none', border: '1px dashed #10b981', borderRadius: 7, padding: '6px 14px', cursor: 'pointer' }}>
-                                            + Agregar producto o gasto
-                                        </button>
-                                    </div>
+                            {/* Botones â€” siempre en columna izquierda */}
+                            <div className="am-foot" style={{ margin: '14px -24px -20px', borderRadius: '0 0 12px 12px' }}>
+                                <div className="am-hint">
+                                    <kbd>Esc</kbd> para cerrar Â· <kbd>âŒ˜</kbd>+<kbd>Enter</kbd> para {actividad ? 'guardar' : 'crear'}
                                 </div>
-                            )}
-
-                            {/* Botones — siempre en columna izquierda */}
-                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
-                                <button type="button" onClick={onClose} style={btnSec}>Cancelar</button>
-                                <button type="submit" style={{ ...btnPri, background: tipoActual.color }}>
-                                    {actividad ? 'Guardar cambios' : 'Crear actividad'}
-                                </button>
+                                <div style={{ display:'inline-flex', gap: 8 }}>
+                                    <button type="button" onClick={onClose} className="am-cancel">Cancelar</button>
+                                    <button type="submit" className="am-create">
+                                        <svg viewBox="0 0 10 10" width="10" height="10"><path d="M5 1.5v7M1.5 5h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                                        {actividad ? 'Guardar cambios' : 'Crear actividad'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        {/* ── Columna derecha — más opciones (solo cuando expandido) ── */}
+                        {/* â”€â”€ Columna derecha â€” mÃ¡s opciones (solo cuando expandido) â”€â”€ */}
                         {expanded && (
                             <div style={{ display: 'grid', gap: 16, borderLeft: isMobile ? 'none' : `1px solid ${tk.bdr}`, paddingLeft: isMobile ? 0 : 28, marginTop:isMobile ? 18 : 0 }}>
 
                                 {/* Nombre */}
                                 <label style={lbl}>Nombre
-                                    <input style={inp} placeholder={`${form.tipo} — ${form.cliente || '...'}`}
+                                    <input style={inp} placeholder={`${form.tipo} â€” ${form.cliente || '...'}`}
                                         value={form.nombre} onChange={e => set('nombre', e.target.value)} />
                                 </label>
 
                                 {/* Prioridad */}
                                 <div>
                                     <div style={lbl}>Prioridad</div>
-                                    <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                                    <div className="am-seg" style={{ marginTop: 6 }}>
                                         {PRIORIDADES.map(p => {
-                                            const c = { Alta: '#e74c3c', Media: '#e67e22', Baja: '#27ae60' }[p];
                                             const active = form.prioridad === p;
                                             return (
-                                                <button key={p} type="button" onClick={() => set('prioridad', p)} style={{
-                                                    flex: 1, padding: '7px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                                    cursor: 'pointer', border: 'none',
-                                                    background: active ? c : c + (tk.isDark ? '28' : '18'),
-                                                    color: active ? '#fff' : tk.txt,
-                                                    boxShadow: active ? `0 2px 8px ${c}44` : 'none',
-                                                }}>
-                                                    {p === 'Alta' ? '↑' : p === 'Media' ? '→' : '↓'} {p}
+                                                <button key={p} type="button" data-p={p}
+                                                        className={active ? 'on' : ''}
+                                                        onClick={() => set('prioridad', p)}>
+                                                    <span className="pd" />{p}
                                                 </button>
                                             );
                                         })}
@@ -582,25 +636,20 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 {/* Estado */}
                                 <div>
                                     <div style={lbl}>Estado</div>
-                                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                                    <div className="am-seg" style={{ marginTop: 6 }}>
                                         {estadosDisponibles.map(s => {
-                                            const c = { 'Pendiente':'#e67e22','En Progreso':'#10b981','Completado':'#27ae60','Ganada':'#2e7d32','Perdida':'#e74c3c' }[s] || '#6b7a8d';
                                             const active = form.estado === s;
                                             return (
-                                                <button key={s} type="button" onClick={() => set('estado', s)} style={{
-                                                    flex: 1, minWidth: 70, padding: '7px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                                                    cursor: 'pointer', border: 'none',
-                                                    background: active ? c : c + (tk.isDark ? '28' : '18'),
-                                                    color: active ? '#fff' : tk.txt,
-                                                    boxShadow: active ? `0 2px 8px ${c}44` : 'none',
-                                                }}>
-                                                    {s}
+                                                <button key={s} type="button" data-s={s}
+                                                        className={active ? 'on' : ''}
+                                                        onClick={() => set('estado', s)}>
+                                                    <span className="pd" />{s}
                                                 </button>
                                             );
                                         })}
                                     </div>
                                     {TIPOS_CON_RESULTADO.includes(form.tipo) && (
-                                        <div style={{ fontSize: 10, color: tk.txt3, marginTop: 5 }}>Ganada → aparece en Comisiones</div>
+                                        <div style={{ fontSize: 10, color: tk.txt3, marginTop: 5 }}>Ganada â†’ aparece en Comisiones</div>
                                     )}
                                 </div>
 
@@ -631,7 +680,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                     border: 'none', cursor: soloChecklist ? 'default' : 'pointer',
                                                     background: active ? v.color : (tk.isDark ? '#1e2a3b' : '#eef2f7'),
                                                     color: active ? '#fff' : tk.txt, opacity: soloChecklist ? 0.6 : 1,
-                                                }}>{active ? '✓ ' : ''}{v.nombre}</button>
+                                                }}>{v.nombre}</button>
                                             );
                                         })}
                                     </div>
@@ -642,12 +691,12 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     <div style={{ ...lbl, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                                         <span>Checklist</span>
                                         {!soloChecklist && (
-                                            <button type="button" onClick={addChkItem} style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:6, border:'1px dashed #10b981', background:'#10b98118', color:'#10b981', cursor:'pointer' }}>+ Ítem</button>
+                                            <button type="button" onClick={addChkItem} style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:6, border:'1px dashed #10b981', background:'#10b98118', color:'#10b981', cursor:'pointer' }}>+ Ãtem</button>
                                         )}
                                     </div>
                                     <div style={{ display:'grid', gap:6, marginTop:6 }}>
                                         {(form.checklist || []).length === 0 && (
-                                            <div style={{ fontSize:11, color:tk.txt3 }}>Sin ítems.</div>
+                                            <div style={{ fontSize:11, color:tk.txt3 }}>Sin Ã­tems.</div>
                                         )}
                                         {(form.checklist || []).map(it => {
                                             const puedeMarcar = soloChecklist ? it.vendedor_id === user?.id : true;
@@ -663,15 +712,15 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                         onChange={e => updChkItem(it.id, { texto: e.target.value })} />
                                                     <select style={{ ...inp, padding:'5px 8px' }} value={it.vendedor_id || ''} disabled={soloChecklist}
                                                         onChange={e => updChkItem(it.id, { vendedor_id: e.target.value })}>
-                                                        <option value="">— Sin asignar —</option>
+                                                        <option value="">â€” Sin asignar â€”</option>
                                                         {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
                                                     </select>
                                                     <span title={created ? `Creado ${new Date(created).toLocaleString('es-PE')}` : 'Sin iniciar'}
                                                         style={{ fontFamily:'monospace', fontSize:11, textAlign:'center', color: it.hecho ? '#27ae60' : tk.txt2 }}>
-                                                        {created ? fmtDur(elapsed) : '—'}
+                                                        {created ? fmtDur(elapsed) : 'â€”'}
                                                     </span>
                                                     {!soloChecklist ? (
-                                                        <button type="button" onClick={() => removeChkItem(it.id)} style={{ background:'#e74c3c22', border:'none', borderRadius:6, cursor:'pointer', color:'#e74c3c', fontWeight:700 }}>×</button>
+                                                        <button type="button" onClick={() => removeChkItem(it.id)} style={{ background:'#e74c3c22', border:'none', borderRadius:6, cursor:'pointer', color:'#e74c3c', fontWeight:700 }}>Ã—</button>
                                                     ) : <span />}
                                                 </div>
                                             );
@@ -682,27 +731,31 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 {/* Notas */}
                                 <label style={lbl}>Notas
                                     <textarea style={{ ...inp, resize: 'vertical', minHeight: 72 }}
-                                        placeholder="Observaciones, acuerdos, próximos pasos..."
+                                        placeholder="Observaciones, acuerdos, prÃ³ximos pasos..."
                                         value={form.notas} onChange={e => set('notas', e.target.value)} />
                                 </label>
 
-                                {/* Adjuntos — solo actividades existentes */}
+                                {/* Adjuntos â€” solo actividades existentes */}
                                 <div>
                                     <div style={{ ...lbl, marginBottom: 8 }}>Archivos adjuntos</div>
                                     {actividad ? (
                                         <>
                                             {(form.archivos || []).map((a, i) => (
                                                 <div key={i} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5, padding:'6px 10px', background: tk.card2, borderRadius:7 }}>
-                                                    <span style={{ fontSize:14 }}>{a.tipo?.includes('pdf') ? '📄' : a.tipo?.includes('image') ? '🖼' : '📎'}</span>
+                                                    <span style={{ display:'inline-grid', placeItems:'center', color:tk.txt2 }}>
+                                                        {a.tipo?.includes('pdf')
+                                                            ? <FileIcon size={14} />
+                                                            : a.tipo?.includes('image') ? <ImageIcon size={14} /> : <PaperclipIcon size={14} />}
+                                                    </span>
                                                     <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ flex:1, fontSize:12, color:'#10b981', textDecoration:'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.nombre}</a>
                                                     <button type="button" onClick={async () => {
                                                         await deleteArchivoActividad(actividad.id, a.url);
                                                         set('archivos', form.archivos.filter((_, idx) => idx !== i));
-                                                    }} style={{ background:'none', border:'none', cursor:'pointer', color:'#e74c3c', fontSize:14, flexShrink:0 }}>×</button>
+                                                    }} style={{ background:'none', border:'none', cursor:'pointer', color:'#e74c3c', fontSize:14, flexShrink:0 }}>Ã—</button>
                                                 </div>
                                             ))}
                                             <label style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'6px 14px', background:'#10b98120', color:'#10b981', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer', border:'1px dashed #10b98180', marginTop:4 }}>
-                                                📎 Adjuntar archivo
+                                                <PaperclipIcon size={14} /> Adjuntar archivo
                                                 <input type="file" style={{ display:'none' }} onChange={async (e) => {
                                                     const file = e.target.files?.[0];
                                                     if (!file) return;
@@ -749,6 +802,3 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         </div>
     );
 }
-
-const btnPri = { padding: '10px 24px', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
-

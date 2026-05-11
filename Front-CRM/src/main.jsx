@@ -66,8 +66,9 @@ function AppLayout() {
                 minHeight: '100vh', background: tk.bg,
                 transition: 'margin-left 0.25s ease',
                 display: 'flex', flexDirection: 'column',
+                minWidth: 0, overflowX: 'hidden',
             }}>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                     <Routes>
                         <Route path="/" element={
                             <RequireRole roles={['Admin','Gerencia']}>

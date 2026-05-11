@@ -212,7 +212,7 @@ export default function Clientes() {
 
                         {msg && (
                             <div style={{ padding: '9px 12px', borderRadius: 7, fontSize: 12, background: msg.type === 'ok' ? '#e8f8ee' : '#fff0f0', border: `1px solid ${msg.type === 'ok' ? '#a8ddb8' : '#fcc'}`, color: msg.type === 'ok' ? '#1a7a3c' : '#c0392b' }}>
-                                {msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}
+                                {msg.type === 'ok' ? 'Listo: ' : 'Error: '}{msg.text}
                             </div>
                         )}
 
