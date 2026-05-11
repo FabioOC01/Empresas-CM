@@ -758,11 +758,6 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                         </div>
 
                         <div className="cm-products-title">Productos de la cotizacion</div>
-                        <div className="cm-product-help">
-                            <span><strong>P. Venta (10%)</strong>&nbsp;trata el costo como precio de venta y toma 10% como costo</span>
-                            <span><strong>Imp. 7%</strong>&nbsp;aparece al marcar importacion</span>
-                            <span><strong>SUNAT</strong>&nbsp;solo se cobra si hay rentabilidad bruta positiva</span>
-                        </div>
                         <div className="cm-searchbox">
                             <div className="cm-searchrow">
                                 <input
