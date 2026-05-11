@@ -93,28 +93,15 @@ const cleanProduct = (p = {}) => ({
     origen: p.origen || 'admin',
 });
 
-function zeroCostUnitEstimate(lines, facturacion) {
-    const knownCost = lines.reduce((sum, line) => {
-        const cost = productUnitCost(line);
-        return cost > 0 ? sum + (cost * productUnits(line?.unidad)) : sum;
-    }, 0);
-    const zeroUnits = lines.reduce((sum, line) => {
-        const cost = productUnitCost(line);
-        return cost > 0 ? sum : sum + productUnits(line?.unidad);
-    }, 0);
-    if (!zeroUnits) return 0;
-    return (Math.max(0, facturacion - knownCost) / zeroUnits) * 0.9;
-}
-
-function effectiveProductCost(line, facturacion, zeroUnitCost = null) {
+function effectiveProductCost(line) {
     const unitCost = productUnitCost(line);
-    const base = unitCost > 0 ? unitCost : Math.max(0, zeroUnitCost ?? 0);
+    const base = line?.precio_venta ? unitCost * 0.1 : unitCost;
     return base * productUnits(line?.unidad);
 }
 
-function importCost(line, facturacion, zeroUnitCost = null) {
+function importCost(line) {
     if (!line?.importacion) return 0;
-    return effectiveProductCost(line, facturacion, zeroUnitCost) * 0.07;
+    return effectiveProductCost(line) * 0.07;
 }
 
 function productToLine(product, origen = 'catalogo') {
@@ -132,6 +119,7 @@ function productToLine(product, origen = 'catalogo') {
         notas: p.descripcion,
         importacion: false,
         importacion_monto: 0,
+        precio_venta: false,
         origen,
     };
 }
@@ -150,6 +138,7 @@ function normalizeGastos(gastosOperativos, costoBase = 0) {
         notas: g.notas || g.descripcion || '',
         importacion: !!g.importacion,
         importacion_monto: parseFloat(g.importacion_monto) || 0,
+        precio_venta: !!g.precio_venta,
         origen: g.origen || (g.tipo_linea === 'producto' ? 'catalogo' : 'manual'),
     }));
     const legacyCosto = parseFloat(costoBase) || 0;
@@ -199,7 +188,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
         if (idx !== i) return x;
         const next = { ...x, [field]: val };
         if (field === 'unidad') next.unidad = productUnits(val);
-        if (['costo', 'unidad', 'importacion'].includes(field)) next.importacion_monto = 0;
+        if (['costo', 'unidad', 'importacion', 'precio_venta'].includes(field)) next.importacion_monto = 0;
         return next;
     }));
     const addProductLine = (product, origen = 'catalogo') => {
@@ -224,12 +213,11 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     const pctBase = parseFloat(vendedor?.pct_comision_base) || 0.02;
     const pctBajo = parseFloat(vendedor?.pct_comision_bajo) || 0.07;
     const pctAlto = parseFloat(vendedor?.pct_comision_alto) || 0.08;
-    const zeroUnitCost = zeroCostUnitEstimate(gastos, facturacion);
-    const importacionTotal = gastos.reduce((s, g) => s + importCost(g, facturacion, zeroUnitCost), 0);
+    const importacionTotal = gastos.reduce((s, g) => s + importCost(g), 0);
     const hasImportacion = gastos.some(g => !!g.importacion);
-    const productosCostoCero = gastos.filter(g => productUnitCost(g) === 0);
-    const productosCostoCeroTotal = productosCostoCero.reduce((s, g) => s + effectiveProductCost(g, facturacion, zeroUnitCost), 0);
-    const gastosTotal = gastos.reduce((s, g) => s + effectiveProductCost(g, facturacion, zeroUnitCost) + importCost(g, facturacion, zeroUnitCost), 0);
+    const productosPrecioVenta = gastos.filter(g => !!g.precio_venta);
+    const productosPrecioVentaTotal = productosPrecioVenta.reduce((s, g) => s + effectiveProductCost(g), 0);
+    const gastosTotal = gastos.reduce((s, g) => s + effectiveProductCost(g) + importCost(g), 0);
     const rentabilidadBrutaPreview = facturacion - gastosTotal;
 
     const calc = useMemo(() => {
@@ -248,8 +236,8 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                 gastos_operativos: gastos
                     .filter(g => g.nombre || g.modelo || g.descripcion || parseFloat(g.monto) > 0 || parseFloat(g.costo) > 0)
                     .map(g => {
-                        const costo = effectiveProductCost(g, facturacion, zeroUnitCost);
-                        const imp = importCost(g, facturacion, zeroUnitCost);
+                        const costo = effectiveProductCost(g);
+                        const imp = importCost(g);
                         return {
                             tipo_linea: 'producto',
                             producto_id: g.producto_id || '',
@@ -263,6 +251,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             notas: g.notas || g.descripcion || '',
                             importacion: !!g.importacion,
                             importacion_monto: imp,
+                            precio_venta: !!g.precio_venta,
                             origen: g.origen || 'manual',
                         };
                     }),
@@ -439,14 +428,14 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                 [data-theme="dark"] .cm-products-title { color: var(--cm-muted); }
                 .cm-gasto {
                     display: grid;
-                    grid-template-columns: minmax(0, 1fr) 110px 70px 94px 34px;
+                    grid-template-columns: minmax(0, 1fr) 92px 62px 60px 60px 34px;
                     gap: 8px;
                     margin-bottom: 8px;
                     align-items: center;
                 }
                 .cm-product-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-                .cm-product-name { font-size: 13px; font-weight: 700; color: var(--cm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-                .cm-product-sub { font-size: 11px; color: var(--cm-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                .cm-product-name { font-size: 13px; font-weight: 700; color: var(--cm-ink); word-break: break-word; }
+                .cm-product-sub { font-size: 11px; color: var(--cm-muted); word-break: break-word; }
                 .cm-product-help {
                     display: flex;
                     flex-wrap: wrap;
@@ -729,7 +718,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                     .cm-close-small { top: 18px; right: 16px; }
                     .cm-body { grid-template-columns: 1fr; }
                     .cm-col + .cm-col { border-left: 0; border-top: 1px solid var(--cm-line); }
-                    .cm-gasto { grid-template-columns: 1fr 92px 64px 82px 34px; }
+                    .cm-gasto { grid-template-columns: 1fr 80px 56px 54px 54px 34px; }
                     .cm-create-product { grid-template-columns: 1fr; }
                     .cm-foot { flex-direction: column; align-items: stretch; }
                     .cm-actions { width: 100%; }
@@ -770,7 +759,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
 
                         <div className="cm-products-title">Productos de la cotizacion</div>
                         <div className="cm-product-help">
-                            <span><strong>Costo 0 (-10%)</strong>&nbsp;reserva 10% de margen del saldo</span>
+                            <span><strong>P. Venta (10%)</strong>&nbsp;trata el costo como precio de venta y toma 10% como costo</span>
                             <span><strong>Imp. 7%</strong>&nbsp;aparece al marcar importacion</span>
                             <span><strong>SUNAT</strong>&nbsp;solo se cobra si hay rentabilidad bruta positiva</span>
                         </div>
@@ -826,20 +815,18 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             <div key={i} className="cm-gasto">
                                 <div className="cm-product-main">
                                     <div className="cm-product-name">{g.nombre || [g.marca, g.modelo].filter(Boolean).join(' ') || 'Producto'}</div>
-                                    <div className="cm-product-sub">
-                                        {[g.marca, g.modelo, g.descripcion || g.notas].filter(Boolean).join(' - ')}
-                                        {` - ${USD2(parseFloat(g.costo || g.monto) || 0)} x ${productUnits(g.unidad)}`}
-                                        {productUnitCost(g) === 0 ? ` - Costo 0 (-10%): ${USD2(effectiveProductCost(g, facturacion, zeroUnitCost))}` : ''}
-                                        {g.importacion ? ` - imp. 7%: ${USD2(importCost(g, facturacion, zeroUnitCost))}` : ''}
-                                    </div>
                                 </div>
                                 <input className="cm-input amount" type="number" min="0" step="0.01" placeholder="Costo unit." value={g.costo}
                                     onChange={e => setGasto(i, 'costo', e.target.value)} />
                                 <input className="cm-input amount" type="number" min="1" step="1" placeholder="Unid." value={productUnits(g.unidad)}
                                     onChange={e => setGasto(i, 'unidad', e.target.value)} />
+                                <label className="cm-import" title="P. Venta: trata el costo como precio de venta y toma 10% como costo">
+                                    <input type="checkbox" checked={!!g.precio_venta} onChange={e => setGasto(i, 'precio_venta', e.target.checked)} />
+                                    P.V
+                                </label>
                                 <label className="cm-import" title="Importacion: suma 7% del costo calculado de esta linea">
                                     <input type="checkbox" checked={!!g.importacion} onChange={e => setGasto(i, 'importacion', e.target.checked)} />
-                                    Imp. 7%
+                                    Imp.
                                 </label>
                                 <button type="button" className="cm-remove" onClick={() => removeGasto(i)}>x</button>
                             </div>
@@ -870,8 +857,8 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             </div>
                             <CalcRow label="Facturacion real" value={USD2(facturacion)} />
                             <CalcRow label="- Gastos adicionales" value={USD2(calc.gastosTotal)} tone="red" />
-                            {productosCostoCeroTotal > 0 && (
-                                <CalcRow label="  Costo 0 (-10%)" value={USD2(productosCostoCeroTotal)} tone="red" />
+                            {productosPrecioVentaTotal > 0 && (
+                                <CalcRow label="  P. Venta (10%)" value={USD2(productosPrecioVentaTotal)} tone="red" />
                             )}
                             {hasImportacion && (
                                 <CalcRow label="  Importacion 7%" value={USD2(importacionTotal)} tone={importacionTotal > 0 ? 'red' : undefined} />
