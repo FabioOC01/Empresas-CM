@@ -7,7 +7,7 @@ const renderActivePie = ({ cx, cy, innerRadius, outerRadius, startAngle, endAngl
 import { getVendedores, createActividad } from '../api/actividades';
 import { useAuth } from '../context/AuthContext';
 import useActividades from '../hooks/useActividades';
-import { filterActs, fmtUSD, fmt, calcDuration, TIPOS, MESES, getTypeColor, ROL_TIPOS } from '../utils/crm';
+import { filterActs, fmtUSD, fmt, calcDuration, TIPOS, MESES, getTypeColor, ROL_TIPOS, totalGastosOperacion } from '../utils/crm';
 import ActividadModal from '../components/ActividadModal';
 import Avatar from '../components/Avatar';
 import { RolBadge } from '../components/Badge';
@@ -47,6 +47,13 @@ function tiposPermitidos(vendedor, rolTipos = ROL_TIPOS) {
 }
 
 const isMarketing = (v) => v?.roles?.includes('Marketing') && !v?.roles?.some((r) => ['Ventas', 'Gerencia', 'Retail'].includes(r));
+const esCompletado = (actividad) => actividad?.estado === 'Completado';
+const esGanada = (actividad) => actividad?.estado === 'Ganada';
+const esPerdida = (actividad) => actividad?.estado === 'Perdida';
+const rentabilidadBrutaActividad = (actividad) => {
+    const facturacion = parseFloat(actividad?.precio_venta) || parseFloat(actividad?.monto) || 0;
+    return facturacion - totalGastosOperacion(actividad);
+};
 
 function primaryRole(vendedor) {
     const roles = vendedor?.roles || [];
@@ -135,8 +142,8 @@ export default function Equipo() {
     }));
 
     const vendRanked = [...vendedores].sort((a, b) => {
-        const mA = filtered.filter((x) => x.vendedor_id === a.id && x.estado === 'Completado').reduce((s, x) => s + Number(x.monto), 0);
-        const mB = filtered.filter((x) => x.vendedor_id === b.id && x.estado === 'Completado').reduce((s, x) => s + Number(x.monto), 0);
+        const mA = filtered.filter((x) => x.vendedor_id === a.id && esCompletado(x)).reduce((s, x) => s + rentabilidadBrutaActividad(x), 0);
+        const mB = filtered.filter((x) => x.vendedor_id === b.id && esCompletado(x)).reduce((s, x) => s + rentabilidadBrutaActividad(x), 0);
         return mB - mA;
     });
     const vendRankedMatriz = vendRanked.filter(cuentaEnMatriz);
@@ -187,7 +194,7 @@ export default function Equipo() {
         .map((v) => ({
             name: v.nombre.split(' ')[0],
             color: v.color,
-            Monto: filtered.filter((a) => a.vendedor_id === v.id && a.estado === 'Completado').reduce((s, a) => s + Number(a.monto), 0),
+            Monto: filtered.filter((a) => a.vendedor_id === v.id && esCompletado(a)).reduce((s, a) => s + rentabilidadBrutaActividad(a), 0),
         })).filter((x) => x.Monto > 0);
 
     const byTipo = TIPOS.map((t) => ({ name: t, value: filtered.filter((a) => a.tipo === t).length })).filter((x) => x.value > 0);
@@ -216,7 +223,7 @@ export default function Equipo() {
                             </div>
                         );
                     })}
-                    <div style={{ padding: '8px 10px', textAlign: 'center', color: tk.txt2, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>Total</div>
+                    <div style={{ padding: '8px 10px', textAlign: 'center', color: tk.txt2, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>Ganada</div>
                 </div>
 
                 {roleGroups.map((grupoRol) => (
@@ -270,8 +277,8 @@ export default function Equipo() {
                                         );
                                     })}
 
-                                    <div className="team-matrix-total" data-label="Total" style={{ display: 'grid', placeItems: 'center', padding: 10, borderLeft: `1px solid ${tk.bdr}`, fontWeight: 900, color: tk.txt }}>
-                                        {vActs.length}
+                                    <div className="team-matrix-total" data-label="Ganada" style={{ display: 'grid', placeItems: 'center', padding: 10, borderLeft: `1px solid ${tk.bdr}`, fontWeight: 900, color: tk.txt }}>
+                                        {vActs.filter(esGanada).length}
                                     </div>
                                 </div>
                             );
@@ -316,9 +323,9 @@ export default function Equipo() {
                             </div>
                         </div>
                         {[
-                            ['Total', vActs.length],
                             ['Proceso', vActs.filter(a => a.estado === 'En Progreso').length],
-                            ['Cerrado', vActs.filter(a => a.estado === 'Completado').length],
+                            ['Cerrado', vActs.filter(esCompletado).length],
+                            ['Ganada', vActs.filter(esGanada).length],
                         ].map(([label, value]) => (
                             <div key={label} style={{ textAlign: 'center' }}>
                                 <div style={{ fontSize: 18, fontWeight: 900, color: tk.txt }}>{value}</div>
@@ -418,10 +425,13 @@ export default function Equipo() {
                                 <div style={{ display: 'grid', gridAutoFlow: 'column', gridAutoColumns: 'minmax(188px, 214px)', gap: 14, overflowX: 'auto', overflowY: 'hidden', padding: '2px 2px 6px' }}>
                                     {g.entries.map(({ v, rank }) => {
                                         const vActs = filtered.filter((a) => a.vendedor_id === v.id);
-                                        const cerr = vActs.filter((a) => a.estado === 'Completado');
-                                        const pct = vActs.length ? Math.round(cerr.length / vActs.length * 100) : 0;
+                                        const cerr = vActs.filter(esCompletado);
+                                        const ganadas = vActs.filter(esGanada);
+                                        const perdidas = vActs.filter(esPerdida);
+                                        const avanceCount = cerr.length + ganadas.length + perdidas.length;
+                                        const pct = vActs.length ? Math.round(avanceCount / vActs.length * 100) : 0;
                                         const enProgreso = vActs.filter(a => a.estado === 'En Progreso').length;
-                                        const montoCerrado = cerr.reduce((s, a) => s + Number(a.monto), 0);
+                                        const rentabilidadBrutaCerrada = ganadas.reduce((s, a) => s + rentabilidadBrutaActividad(a), 0);
                                         const isTop = rank < 2;
                                         const vColor = v.color || g.color;
                                         const rankTone = rank === 0
@@ -495,7 +505,7 @@ export default function Equipo() {
                                                         {v.nombre}
                                                     </div>
                                                     <div style={{ fontSize: 11, color: tk.txt3, marginTop: 4, fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {fmt$(montoCerrado)} cerrado
+                                                        {fmt$(rentabilidadBrutaCerrada)} rent. bruta
                                                     </div>
                                                 </div>
 
@@ -513,7 +523,7 @@ export default function Equipo() {
                                                     {[
                                                         ['En progreso', enProgreso, '#2862c8'],
                                                         ['Completado', cerr.length, '#079669'],
-                                                        ['Total', vActs.length, vColor],
+                                                        ['Ganada', ganadas.length, vColor],
                                                     ].map(([l, val, color]) => (
                                                         <div key={l} style={{ minWidth: 0, paddingTop: 8, borderTop: `1px solid ${tk.bdr}` }}>
                                                             <div style={{ fontSize: 19, fontWeight: 850, color, lineHeight: 1 }}>{val}</div>
