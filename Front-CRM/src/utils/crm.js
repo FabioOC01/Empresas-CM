@@ -12,7 +12,7 @@ export const TIPOS = [
     'Video','P. Gráficas Externas','P. Gráficas Internas','Actividad','Evento',
 ];
 
-export const ROLES = ['Admin','Gerencia','Marketing','Ventas','Corporativo','Soporte Técnico','Logística'];
+export const ROLES = ['Admin','Gerencia','Marketing','Ventas','Corporativo','Soporte Técnico','Logística','Finanzas'];
 
 // Tipos de actividad permitidos por rol
 // Gerencia: solo visualización, no crea actividades
@@ -25,6 +25,7 @@ export const ROL_TIPOS = {
     Gerencia:         [],
     Corporativo:      ['Cotización','Homologación','Visita','Propuesta','Prospección','Primer Contacto','Reunión'],
     'Soporte Técnico':['Seguimiento','Soporte','Cotización','Administrativa'],
+    Finanzas:         ['Facturación','Administrativa'],
 };
 
 export const ESTADOS = ['Pendiente','En Progreso','Completado'];

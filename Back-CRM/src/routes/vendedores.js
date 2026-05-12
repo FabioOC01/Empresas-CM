@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/pool');
 const { uploadAvatar } = require('../lib/cloudinary');
 
-const VALID_ROLES = ['Admin', 'Gerencia', 'Marketing', 'Ventas', 'Corporativo', 'Soporte Técnico', 'Logística'];
+const VALID_ROLES = ['Admin', 'Gerencia', 'Marketing', 'Ventas', 'Corporativo', 'Soporte Técnico', 'Logística', 'Finanzas'];
 
 function normalizeUsername(value = '') {
     return String(value)

@@ -41,6 +41,7 @@ export const CONFIG_DEFAULT = {
         Corporativo: ['Cotización','Oportunidad','Visita','Homologación'],
         'Soporte Técnico': ['Visita','Cotización','Seguimiento','Soporte'],
         Logística: ['Despacho','Inventario','Facturación'],
+        Finanzas: ['Facturación','Administrativa'],
     },
 };
 

@@ -79,7 +79,7 @@ function initCfgForm(config) {
         tipoInput:       '',
         pipeline_etapas: (config?.pipeline_etapas || CONFIG_DEFAULT.pipeline_etapas).map(e => ({ ...e, tipos: [...e.tipos] })),
         etapaInput:      '',
-        rol_tipos:       { ...(config?.rol_tipos || CONFIG_DEFAULT.rol_tipos) },
+        rol_tipos:       { ...CONFIG_DEFAULT.rol_tipos, ...(config?.rol_tipos || {}) },
         branding:        { ...BRANDING_DEFAULT, ...(config?.branding || {}) },
         attendance_config: {
             ...attendance,
@@ -393,7 +393,7 @@ export default function Admin() {
 
     // --- ROL_TIPOS ---
     const toggleRolTipo = (rol, tipo) => setCfgForm(f => {
-        const actual = f.rol_tipos[rol];
+        const actual = f.rol_tipos[rol] ?? [];
         if (actual === null) return { ...f, rol_tipos: { ...f.rol_tipos, [rol]: f.tipos_actividad.filter(t => t !== tipo) } };
         const nuevo = actual.includes(tipo) ? actual.filter(t => t !== tipo) : [...actual, tipo];
         return { ...f, rol_tipos: { ...f.rol_tipos, [rol]: nuevo } };

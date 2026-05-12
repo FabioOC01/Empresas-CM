@@ -23,6 +23,7 @@ const ROL_COLOR = {
     'Corporativo':      '#8e44ad',
     'Soporte Técnico':  '#16a085',
     'Logística':        '#1565c0',
+    'Finanzas':         '#0f766e',
     'Admin':            '#6b7a8d',
 };
 

@@ -25,7 +25,7 @@ const GRUPOS_MATRIZ = [
     { label: 'MARKETING', color: '#e67e22', tipos: ['Publicidad', 'Piezas gráficas', 'Redes', 'Video', 'P. Gráficas Externas', 'P. Gráficas Internas', 'Actividad', 'Evento'] },
     { label: 'ADMIN', color: '#6b7a8d', tipos: ['Administrativa'] },
 ];
-const ROLE_ORDER = ['Ventas', 'Corporativo', 'Marketing', 'Soporte Técnico', 'Logística', 'Admin', 'Gerencia', 'Retail'];
+const ROLE_ORDER = ['Ventas', 'Corporativo', 'Marketing', 'Soporte Técnico', 'Logística', 'Finanzas', 'Admin', 'Gerencia', 'Retail'];
 const ROLE_COLOR = {
     Gerencia: '#3f51b5',
     Admin: '#6b7a8d',
@@ -34,6 +34,7 @@ const ROLE_COLOR = {
     Marketing: '#e91e63',
     'Soporte Técnico': '#16a085',
     'Logística': '#1565c0',
+    Finanzas: '#0f766e',
     Retail: '#f57f17',
     'Sin rol': '#6b7a8d',
 };
@@ -58,6 +59,15 @@ const rentabilidadBrutaActividad = (actividad) => {
 function primaryRole(vendedor) {
     const roles = vendedor?.roles || [];
     return ROLE_ORDER.find((rol) => roles.includes(rol)) || roles[0] || 'Sin rol';
+}
+
+function rolesParaCarrusel(vendedor) {
+    const roles = vendedor?.roles || [];
+    if (!roles.length) return ['Sin rol'];
+    return [
+        ...ROLE_ORDER.filter((rol) => roles.includes(rol)),
+        ...roles.filter((rol) => !ROLE_ORDER.includes(rol)),
+    ];
 }
 
 function cuentaEnMatriz(vendedor) {
@@ -147,7 +157,7 @@ export default function Equipo() {
         return mB - mA;
     });
     const vendRankedMatriz = vendRanked.filter(cuentaEnMatriz);
-    const rolesConVendedores = [...new Set(vendRankedMatriz.map(primaryRole))];
+    const rolesConVendedores = [...new Set(vendRankedMatriz.flatMap(rolesParaCarrusel))];
     const rolesOrdenados = [
         ...ROLE_ORDER.filter((rol) => rolesConVendedores.includes(rol)),
         ...rolesConVendedores.filter((rol) => !ROLE_ORDER.includes(rol)),
@@ -157,7 +167,7 @@ export default function Equipo() {
         color: ROLE_COLOR[rol] || '#6b7a8d',
         entries: vendRankedMatriz
             .map((v, rank) => ({ v, rank }))
-            .filter(({ v }) => primaryRole(v) === rol),
+            .filter(({ v }) => rolesParaCarrusel(v).includes(rol)),
     })).filter((g) => g.entries.length);
     const visibleRoleIdx = roleGroups.length ? Math.min(activeRoleIdx, roleGroups.length - 1) : 0;
     const activeRoleGroup = roleGroups[visibleRoleIdx] || roleGroups[0];
