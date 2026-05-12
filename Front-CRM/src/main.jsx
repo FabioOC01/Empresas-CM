@@ -16,8 +16,8 @@ import Clientes from './pages/Clientes';
 import Login from './pages/Login';
 import './index.css';
 
-const SIDEBAR_W   = 210;
-const COLLAPSED_W = 62;
+const SIDEBAR_W   = 232;
+const COLLAPSED_W = 68;
 
 function RequireAuth({ children }) {
     const { isAuth } = useAuth();
@@ -49,13 +49,13 @@ function AppLayout() {
     }, []);
 
     const changelogFlag = user?.id ? `crm_changelog_seen_v${CHANGELOG_VERSION}_${user.id}` : null;
-    const [showChangelog, setShowChangelog] = useState(false);
-    useEffect(() => {
-        if (changelogFlag && !localStorage.getItem(changelogFlag)) setShowChangelog(true);
-    }, [changelogFlag]);
+    const [dismissedChangelogFlag, setDismissedChangelogFlag] = useState(null);
+    const showChangelog = !!changelogFlag
+        && dismissedChangelogFlag !== changelogFlag
+        && !localStorage.getItem(changelogFlag);
     const handleCloseChangelog = () => {
         if (changelogFlag) localStorage.setItem(changelogFlag, '1');
-        setShowChangelog(false);
+        setDismissedChangelogFlag(changelogFlag);
     };
 
     return (

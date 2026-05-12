@@ -19,12 +19,12 @@ export const ROLES = ['Admin','Gerencia','Marketing','Ventas','Corporativo','Sop
 // Admin: acceso total a todos los tipos
 export const ROL_TIPOS = {
     Admin:            null,   // null = todos los tipos, sin restricción
-    Ventas:           ['Visita','Propuesta','Seguimiento','Oportunidad','Cotización','Administrativa'],
-    Logística:        ['Despacho','Inventario','Facturación'],
-    Marketing:        ['Publicidad','Redes','Video','P. Gráficas Externas','P. Gráficas Internas','Actividad','Evento'],
+    Ventas:           ['Venta','Cotización','Oportunidad'],
+    Logística:        ['Despacho','Inventario','Facturación','Administrativa'],
+    Marketing:        ['Publicidad','Piezas gráficas','Redes','Video','P. Gráficas Externas','P. Gráficas Internas','Actividad','Evento','Administrativa'],
     Gerencia:         [],
-    Corporativo:      ['Cotización','Oportunidad','Visita','Homologación'],
-    'Soporte Técnico':['Visita','Cotización','Seguimiento','Soporte'],
+    Corporativo:      ['Cotización','Homologación','Visita','Propuesta','Prospección','Primer Contacto','Reunión'],
+    'Soporte Técnico':['Seguimiento','Soporte','Cotización','Administrativa'],
 };
 
 export const ESTADOS = ['Pendiente','En Progreso','Completado'];

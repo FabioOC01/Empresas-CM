@@ -32,9 +32,9 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Usuario y contrasena requeridos' });
         }
 
-        // 1. Buscar en superadmins por email para mantener compatibilidad
+        // 1. Buscar en superadmins por email o por la parte local del email (admin.local → admin.local@...)
         const { rows: saRows } = await pool.query(
-            'SELECT * FROM superadmins WHERE lower(email) = $1',
+            'SELECT * FROM superadmins WHERE lower(email) = $1 OR lower(split_part(email, \'@\', 1)) = $1',
             [identifier]
         );
 

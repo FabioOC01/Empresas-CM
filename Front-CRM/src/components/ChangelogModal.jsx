@@ -1,16 +1,13 @@
 import { useTheme } from '../context/ThemeContext';
 
-export const CHANGELOG_VERSION = 2;
+export const CHANGELOG_VERSION = 3;
 
 const CHANGES = [
-    { icon: 'SUNAT', text: 'Busqueda de RUC con Migo/SUNAT para autollenar razon social al crear o editar clientes.' },
-    { icon: 'RUC', text: 'Nueva actividad permite buscar clientes por nombre o RUC, con sugerencias mientras se escribe y boton SUNAT.' },
-    { icon: 'OK', text: 'Se evita duplicar clientes por RUC, tanto desde el CRM como desde el webhook de SendPulse.' },
-    { icon: 'SP', text: 'Los clientes creados desde SendPulse quedan asociados al vendedor asignado.' },
-    { icon: 'USER', text: 'Planificador muestra de que vendedor es cada cliente cuando el dato esta disponible.' },
-    { icon: 'FILT', text: 'Clientes incorpora filtro por vendedor/registrador.' },
-    { icon: 'ORD', text: 'Planificador incluye buscador general y ordenamiento por columnas con flechas.' },
-    { icon: 'MOB', text: 'Interfaz adaptada para movil: barra superior, paginas apiladas, tablas con scroll y modales responsivos.' },
+    { icon: 'UI', text: 'Menu lateral renovado: mas espacio, mejor jerarquia visual, secciones separadas y estados activos mas claros.' },
+    { icon: 'DASH', text: 'Dashboard con resumen por vendedor en carrusel, filtros por rol o vendedor y avance de metas mas facil de leer.' },
+    { icon: 'EQ', text: 'Equipo reorganiza los grupos de actividades por rol y mejora la matriz para revisar avances desde escritorio y movil.' },
+    { icon: 'COM', text: 'Rentabilidad y comisiones ahora se adaptan mejor a pantallas pequenas, con tarjetas de detalle para evitar tablas incomodas.' },
+    { icon: 'LOGIN', text: 'Superadmins pueden iniciar sesion con el correo completo o con el usuario antes del arroba.' },
 ];
 
 export default function ChangelogModal({ open, onClose }) {

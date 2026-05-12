@@ -139,6 +139,98 @@ table { border-collapse: collapse; width: 100%; }
   --accent-border:  rgba(16,185,129,0.3);
 }
 
+.app-sidebar {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(24, 35, 54, 0.98) 48%, rgba(16, 24, 39, 1) 100%) !important;
+  box-shadow: 16px 0 40px rgba(0,0,0,0.14);
+}
+
+.sidebar-brand {
+  position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-brand::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(52,211,153,.32), transparent);
+}
+
+.sidebar-section-label {
+  padding: 0 12px 8px;
+  color: rgba(159,180,223,.78);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.sidebar-nav .nav-item:hover {
+  color: #fff !important;
+  background: rgba(255,255,255,0.055) !important;
+  transform: translateX(2px);
+}
+
+.app-sidebar.is-collapsed .sidebar-nav .nav-item:hover {
+  transform: none;
+}
+
+.sidebar-company-card,
+.sidebar-user-wrap {
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-company-card {
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(159,180,223,.28);
+}
+
+@media (max-height: 820px) {
+  .app-sidebar:not(.is-collapsed) .sidebar-brand {
+    min-height: 78px !important;
+    padding-top: 11px !important;
+    padding-bottom: 9px !important;
+  }
+
+  .app-sidebar:not(.is-collapsed) .sidebar-brand img {
+    max-width: 142px !important;
+  }
+
+  .app-sidebar:not(.is-collapsed) .sidebar-section-label {
+    padding-bottom: 5px;
+  }
+
+  .app-sidebar:not(.is-collapsed) .nav-item {
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .app-sidebar:not(.is-collapsed) .sidebar-company-card {
+    margin-top: 5px !important;
+    margin-bottom: 5px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .app-sidebar:not(.is-collapsed) .sidebar-user-wrap {
+    padding-top: 6px !important;
+    padding-bottom: 7px !important;
+  }
+}
+
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -173,6 +265,32 @@ table { border-collapse: collapse; width: 100%; }
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+}
+
+.team-matrix-scroll {
+  min-width: 0;
+}
+
+.dashboard-vendor-row {
+  min-width: 0;
+}
+
+.dashboard-vendor-card {
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .dashboard-vendor-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .commission-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .commission-edit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
 /* ── Inputs ── */
@@ -356,6 +474,64 @@ input.input, select.input, textarea.input {
 .data-table tbody tr:hover td { background: var(--hover); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
+/* Commission page */
+.commission-page {
+  min-width: 0;
+}
+
+.commission-filters {
+  flex-wrap: wrap;
+}
+
+.commission-filters select {
+  min-width: 150px;
+}
+
+.commission-summary-grid,
+.commission-metric-grid,
+.commission-edit-grid,
+.commission-sale-row,
+.commission-detail-metrics {
+  min-width: 0;
+}
+
+.commission-detail-cards {
+  display: none;
+}
+
+.commission-detail-card {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.commission-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.commission-mini-metric {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.commission-mini-metric span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.commission-mini-metric strong {
+  min-width: 0;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Icon button ── */
 .icon-btn {
   width: 32px; height: 32px;
@@ -410,5 +586,114 @@ input.input, select.input, textarea.input {
 
   .data-table {
     min-width: 760px;
+  }
+
+  .dashboard-vendor-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .commission-filters {
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+
+  .commission-filters > * {
+    width: 100%;
+  }
+
+  .commission-seller-head {
+    align-items: flex-start !important;
+    flex-wrap: wrap;
+  }
+
+  .commission-seller-head button {
+    width: 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+
+  .commission-edit-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .commission-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .commission-metric-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .commission-total-pill {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .commission-sale-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .commission-sale-row > div {
+    text-align: left !important;
+  }
+
+  .commission-detail-table {
+    display: none;
+  }
+
+  .commission-detail-cards {
+    display: grid;
+  }
+
+  .commission-detail-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .team-matrix-scroll {
+    overflow-x: visible !important;
+  }
+
+  .team-matrix-table {
+    min-width: 0 !important;
+    display: grid;
+    gap: 10px;
+  }
+
+  .team-matrix-head {
+    display: none !important;
+  }
+
+  .team-matrix-row {
+    grid-template-columns: 1fr !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+
+  .team-matrix-vendor {
+    background: var(--bg-card);
+  }
+
+  .team-matrix-cell,
+  .team-matrix-total {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px;
+    min-height: 44px;
+    text-align: right !important;
+    border-left: 0 !important;
+    border-top: 1px solid var(--border);
+  }
+
+  .team-matrix-cell::before,
+  .team-matrix-total::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
   }
 }

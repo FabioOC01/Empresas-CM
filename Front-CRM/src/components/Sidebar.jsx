@@ -39,7 +39,7 @@ const external = [
 ];
 
 export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
-    const W = collapsed ? 62 : 210;
+    const W = collapsed ? 68 : 232;
     const { user, logout, switchEmpresa } = useAuth();
     const { config } = useActividadesContext();
     const branding   = config?.branding || {};
@@ -135,26 +135,27 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
 
     return (
         <>
-        <aside className="sidebar-dark" style={{
-            width: W, minHeight: '100vh', background: 'var(--sidebar)',
+        <aside className={`sidebar-dark app-sidebar ${collapsed ? 'is-collapsed' : ''}`} style={{
+            width: W, height: '100vh', background: 'var(--sidebar)',
             display: 'flex', flexDirection: 'column', flexShrink: 0,
             position: 'fixed', top: 0, left: 0, zIndex: 100,
             transition: 'width 0.25s ease', overflow: 'hidden',
-            borderRight: '1px solid rgba(255,255,255,0.04)',
+            borderRight: '1px solid rgba(255,255,255,0.08)',
         }}>
             {/* Logo */}
-            <div style={{ padding: collapsed ? '16px 0' : '16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 64 }}>
+            <div className="sidebar-brand" style={{ padding: collapsed ? '13px 0' : '14px 16px 12px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: collapsed ? 62 : 92, flexShrink:0 }}>
                 {collapsed
-                    ? <img src={logoIso} alt={appName} style={{ width: 36, display: 'block' }} />
-                    : <div style={{ width: '100%' }}>
-                        <img src={logoFull} alt={appName} style={{ width: '100%', maxWidth: 160, display: 'block' }} />
-                        <div style={{ color: '#8b9cbf', fontSize: 11, marginTop: 6 }}>{subtitulo}</div>
+                    ? <img src={logoIso} alt={appName} style={{ width: 32, display: 'block', filter:'drop-shadow(0 8px 18px rgba(0,0,0,.24))' }} />
+                    : <div style={{ width: '100%', minWidth:0 }}>
+                        <img src={logoFull} alt={appName} style={{ width: '100%', maxWidth: 158, display: 'block', filter:'drop-shadow(0 8px 18px rgba(0,0,0,.24))' }} />
+                        <div style={{ color: '#9fb4df', fontSize: 11, marginTop: 4, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subtitulo}</div>
                       </div>
                 }
             </div>
 
             {/* Nav links */}
-            <nav style={{ padding: collapsed ? '12px 0' : '12px 8px', flex: 1 }}>
+            <nav className="sidebar-nav" style={{ padding: collapsed ? '8px 8px' : '9px 9px', flex: 1, minHeight:0, overflowY:'auto', overflowX:'hidden' }}>
+                {!collapsed && <div className="sidebar-section-label">Operación</div>}
                 {links.map(l => (
                     (() => {
                         const LinkIcon = l.icon;
@@ -169,19 +170,20 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                             const active = linkActive(l, isActive);
                             return ({
                             display: 'flex', alignItems: 'center',
-                            gap: collapsed ? 0 : 10,
+                            gap: collapsed ? 0 : 11,
                             justifyContent: collapsed ? 'center' : 'flex-start',
-                            padding: collapsed ? '10px 0' : '9px 12px',
-                            borderRadius: collapsed ? 0 : 8,
-                            marginBottom: 4,
-                            color: active ? '#10b981' : '#8b9cbf',
-                            background: active ? 'rgba(16,185,129,0.13)' : 'transparent',
-                            border: active ? '1px solid rgba(16,185,129,0.30)' : '1px solid transparent',
-                            textDecoration: 'none', fontSize: 13, fontWeight: 600,
-                            transition: 'all 0.15s',
+                            padding: collapsed ? '9px 0' : '8px 11px',
+                            borderRadius: 10,
+                            marginBottom: 3,
+                            color: active ? '#34d399' : '#9fb4df',
+                            background: active ? 'linear-gradient(90deg, rgba(16,185,129,0.20), rgba(16,185,129,0.08))' : 'transparent',
+                            border: active ? '1px solid rgba(52,211,153,0.34)' : '1px solid transparent',
+                            boxShadow: active ? 'inset 3px 0 0 rgba(52,211,153,.95)' : 'none',
+                            textDecoration: 'none', fontSize: 13, fontWeight: 700,
+                            transition: 'background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s',
                         });}}
                     >
-                        <span style={{ width: 18, height: 18, display: 'inline-grid', placeItems: 'center', flexShrink: 0 }}>
+                        <span style={{ width: 20, height: 20, display: 'inline-grid', placeItems: 'center', flexShrink: 0 }}>
                             <LinkIcon size={16} />
                         </span>
                         {!collapsed && <span>{l.label}</span>}
@@ -191,7 +193,8 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                 ))}
 
                 {/* Separador */}
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', margin: '12px 8px' }} />
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: collapsed ? '9px 8px' : '10px 8px 8px' }} />
+                {!collapsed && <div className="sidebar-section-label">Accesos</div>}
 
                 {/* Links externos */}
                 {external.map(e => (
@@ -203,17 +206,19 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                         title={collapsed ? e.label : undefined}
                         style={{
                             display: 'flex', alignItems: 'center',
-                            gap: collapsed ? 0 : 10,
+                            gap: collapsed ? 0 : 11,
                             justifyContent: collapsed ? 'center' : 'flex-start',
-                            padding: collapsed ? '10px 0' : '9px 12px',
-                            borderRadius: collapsed ? 0 : 8,
-                            marginBottom: 4,
-                            color: '#8b9cbf',
-                            textDecoration: 'none', fontSize: 13, fontWeight: 500,
+                            padding: collapsed ? '8px 0' : '8px 11px',
+                            borderRadius: 10,
+                            marginBottom: 3,
+                            color: '#9fb4df',
+                            background: collapsed ? 'transparent' : 'rgba(255,255,255,0.025)',
+                            border: '1px solid transparent',
+                            textDecoration: 'none', fontSize: 13, fontWeight: 600,
                             transition: 'all 0.15s',
                         }}
                         onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                        onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#9fb4df'}
                     >
                         {e.img
                             ? <img src={e.img} alt={e.label} style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} />
@@ -225,8 +230,8 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
 
             {/* Selector de empresa — solo superadmin */}
             {user?.is_superadmin && !collapsed && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '12px 14px' }}>
-                    <div style={{ fontSize: 10, color: '#8b9cbf', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
+                <div className="sidebar-company-card" style={{ margin: '7px 10px', padding: '9px 10px', borderRadius:10, flexShrink:0 }}>
+                    <div style={{ fontSize: 9, color: '#9fb4df', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6, letterSpacing:.4 }}>
                         Empresa activa
                     </div>
                     <select
@@ -234,40 +239,40 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                         onChange={handleSwitch}
                         disabled={switching}
                         style={{
-                            width: '100%', padding: '7px 8px', borderRadius: 7,
-                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)',
+                            width: '100%', padding: '7px 9px', borderRadius: 8,
+                            background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.13)',
                             color: '#fff', fontSize: 12, cursor: 'pointer', outline: 'none',
                         }}
                     >
-                        <option value="" disabled>— Seleccionar empresa —</option>
+                        <option value="" disabled>Seleccionar empresa</option>
                         {empresas.map(e => (
                             <option key={e.id} value={e.id}>{e.nombre}</option>
                         ))}
                     </select>
-                    {switching && <div style={{ fontSize: 10, color: '#8b9cbf', marginTop: 4 }}>Cambiando...</div>}
+                    {switching && <div style={{ fontSize: 10, color: '#9fb4df', marginTop: 6 }}>Cambiando...</div>}
                 </div>
             )}
 
             {/* Usuario + logout */}
             {user && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: collapsed ? '12px 0' : '12px 14px' }}>
+                <div className="sidebar-user-wrap" style={{ padding: collapsed ? '8px 8px' : '8px 10px 9px', flexShrink:0 }}>
                     {!collapsed && (
                         <button
                             onClick={() => setProfileOpen(true)}
                             title="Ver perfil"
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', borderRadius: 7, textAlign: 'left', transition: 'background 0.15s' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                            style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7, width: '100%', background: 'rgba(255,255,255,0.045)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', padding: '7px 8px', borderRadius: 10, textAlign: 'left', transition: 'background 0.15s', minWidth:0 }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.075)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.045)'}
                         >
                             {user.foto_url
-                                ? <img src={user.foto_url} alt={user.nombre} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                                : <span style={{ width: 28, height: 28, borderRadius: '50%', background: user.color || '#10b981', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                ? <img src={user.foto_url} alt={user.nombre} style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                                : <span style={{ width: 30, height: 30, borderRadius: '50%', background: user.color || '#10b981', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                     {user.iniciales || user.nombre?.[0] || '?'}
                                   </span>
                             }
-                            <div>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.3 }}>{user.nombre}</div>
-                                <div style={{ fontSize: 10, color: '#8b9cbf' }}>
+                            <div style={{ minWidth:0 }}>
+                                <div style={{ fontSize: 12, fontWeight: 800, color: '#fff', lineHeight: 1.25, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{user.nombre}</div>
+                                <div style={{ fontSize: 10, color: '#9fb4df', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                                     {user.is_superadmin ? 'Superadmin' : user.roles?.join(', ')}
                                 </div>
                             </div>
@@ -293,12 +298,12 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                         style={{
                             display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start',
                             gap: 8, padding: collapsed ? '8px 0' : '7px 10px', width: '100%',
-                            background: 'none', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 7,
-                            color: '#8b9cbf', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                            background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10,
+                            color: '#9fb4df', cursor: 'pointer', fontSize: 12, fontWeight: 700,
                             transition: 'color 0.15s',
                         }}
                         onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                        onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#9fb4df'}
                     >
                         <PowerIcon size={14} />
                         {!collapsed && <span>Cerrar sesión</span>}
@@ -312,13 +317,13 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                 title={collapsed ? 'Expandir menú' : 'Contraer menú'}
                 style={{
                     display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start',
-                    gap: 8, padding: collapsed ? '14px 0' : '14px 20px',
-                    borderTop: '1px solid rgba(255,255,255,0.06)', background: 'none', border: 'none',
-                    color: '#8b9cbf', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    gap: 8, padding: collapsed ? '11px 0' : '10px 18px',
+                    borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.015)', border: 'none',
+                    color: '#9fb4df', cursor: 'pointer', fontSize: 13, fontWeight: 700,
                     width: '100%', transition: 'color 0.15s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = '#8b9cbf'}
+                onMouseLeave={e => e.currentTarget.style.color = '#9fb4df'}
             >
                 {collapsed ? <ChevronRightIcon size={16} /> : <ChevronLeftIcon size={16} />}
                 {!collapsed && <span>Contraer menú</span>}

@@ -121,7 +121,7 @@ export default function Rentabilidad() {
 
     const [mes,        setMes]        = useState('');
     const [trimestre,  setTrimestre]  = useState('');
-    const [año,        setAño]        = useState('');
+    const [anio,       setAnio]       = useState('');
     const [vendedorId, setVendedorId] = useState('');
     const [vendedoresData, setVendedoresData] = useState([]);
     const [editingId,  setEditingId]  = useState(null);
@@ -139,10 +139,10 @@ export default function Rentabilidad() {
     useEffect(() => { getVendedores().then(setVendedoresData); }, []);
 
     const ventas = useMemo(() => filterActs(actividades, {
-        mes, trimestre, año,
+        mes, trimestre, año: anio,
         vendedorId: vendedorForzado || vendedorId,
     }).filter(a => ESTADOS_VENTA_CERRADA.has(a.estado)),
-    [actividades, mes, trimestre, año, vendedorId, vendedorForzado]);
+    [actividades, mes, trimestre, anio, vendedorId, vendedorForzado]);
 
     // Agrupado por vendedor — incluye SUNAT y desglose por actividad
     const porVendedor = useMemo(() => {
@@ -195,12 +195,12 @@ export default function Rentabilidad() {
     if (loading) return <div style={{ color:'#6b7a8d', fontSize:14 }}>Cargando...</div>;
 
     return (
-        <div style={{ display:'grid', gap:24 }}>
+        <div className="commission-page" style={{ display:'grid', gap:24 }}>
 
             {/* Filtros */}
-            <div style={{ display:'flex', justifyContent:'center', gap:8, alignItems:'center' }}>
+            <div className="commission-filters" style={{ display:'flex', justifyContent:'center', gap:8, alignItems:'center' }}>
                 <PeriodoPicker trim={trimestre} mes={mes} onTrim={setTrimestre} onMes={setMes} />
-                <select style={sel} value={año} onChange={e => setAño(e.target.value)}>
+                <select style={sel} value={anio} onChange={e => setAnio(e.target.value)}>
                     <option value="">Todos los años</option>
                     <option value="2024">2024</option>
                     <option value="2025">2025</option>
@@ -224,7 +224,7 @@ export default function Rentabilidad() {
             {/* Tarjetas por vendedor */}
             {porVendedor.map(v => {
                 const vData      = vendedoresData.find(x => x.id === v.id);
-                const esAnual    = !!año && !trimestre && !mes;
+                const esAnual    = !!anio && !trimestre && !mes;
                 const esTrimestre = !!trimestre && !esAnual;
                 const cuota = esAnual
                     ? (vData?.meta_rentabilidad_anual ?? 0)
@@ -253,7 +253,7 @@ export default function Rentabilidad() {
                 return (
                     <div key={v.id}>
                         {/* Cabecera del vendedor */}
-                        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+                        <div className="commission-seller-head" style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
                             <Avatar vendedor={v} size="lg" />
                             <div style={{ flex:1 }}>
                                 <div style={{ fontSize:16, fontWeight:800, color:tk.txt }}>{v.nombre}</div>
@@ -278,7 +278,7 @@ export default function Rentabilidad() {
 
                         {/* Edit cuota inline */}
                         {isEditing && esAdminGerencia && (
-                            <div style={{ background:tk.card2, borderRadius:10, padding:14, marginBottom:12, display:'grid', gridTemplateColumns:`repeat(${esAnual ? 2 : 4}, minmax(140px, 1fr)) auto`, gap:12, alignItems:'end' }}>
+                            <div className="commission-edit-grid" style={{ background:tk.card2, borderRadius:10, padding:14, marginBottom:12, display:'grid', gridTemplateColumns:`repeat(${esAnual ? 2 : 4}, minmax(140px, 1fr)) auto`, gap:12, alignItems:'end' }}>
                                 {esAnual ? (
                                     <>
                                         <label style={lbl}>Rentabilidad Bruta anual (USD)
@@ -318,7 +318,7 @@ export default function Rentabilidad() {
                         )}
 
                         {/* Dos cuadros */}
-                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                        <div className="commission-summary-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
 
                             {/* CUADRO 1 — meta de rentabilidad bruta */}
                             <div style={{ background:tk.card, borderRadius:12, boxShadow:tk.shadow, overflow:'hidden', borderTop:`3px solid ${ec}` }}>
@@ -329,7 +329,7 @@ export default function Rentabilidad() {
                                     </span>
                                 </div>
                                 <div style={{ padding:'16px 20px', display:'grid', gap:9 }}>
-                                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                                    <div className="commission-metric-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                                         <div style={{ background:tk.card2, borderRadius:10, padding:'12px 14px' }}>
                                             <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Rentabilidad Bruta</div>
                                             <div style={{ fontSize:24, fontWeight:800, color:tk.txt }}>{USD2(rentabilidadBrutaTotal)}</div>
@@ -379,7 +379,7 @@ export default function Rentabilidad() {
                                     <span style={{ fontSize:13, fontWeight:700, color:tk.txt }}>Comisión aplicada</span>
                                 </div>
                                 <div style={{ padding:'20px', display:'grid', gap:14 }}>
-                                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                                    <div className="commission-metric-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                                         <div style={{ background:tk.card2, borderRadius:10, padding:'12px 14px' }}>
                                             <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Margen Promedio</div>
                                             <div style={{ fontSize:24, fontWeight:800, color:calc.margen_pct >= MARGEN_MINIMO ? '#10b981' : '#e74c3c' }}>{PCT(calc.margen_pct)}</div>
@@ -390,7 +390,7 @@ export default function Rentabilidad() {
                                             <div style={{ fontSize:10, color:tk.txt3, marginTop:3 }}>{tramoComisionLabel(calc)}</div>
                                         </div>
                                     </div>
-                                    <div style={{ background:tk.card2, borderRadius:10, padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+                                    <div className="commission-total-pill" style={{ background:tk.card2, borderRadius:10, padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
                                         <div>
                                             <div style={{ fontSize:11, color:tk.txt3, marginBottom:4 }}>Comisión total ganada</div>
                                             <div style={{ fontSize:13, color:tk.txt2 }}>Base: rentabilidad neta</div>
@@ -400,7 +400,7 @@ export default function Rentabilidad() {
                                     <div style={{ borderTop:`1px solid ${tk.bdr}` }} />
                                     <div style={{ display:'grid', gap:8 }}>
                                         {ventasDetalle.map((venta) => (
-                                            <div key={venta.id} style={{ display:'grid', gridTemplateColumns:'1fr 90px 120px', gap:10, alignItems:'center', background:tk.card2, borderRadius:10, padding:'10px 12px' }}>
+                                            <div key={venta.id} className="commission-sale-row" style={{ display:'grid', gridTemplateColumns:'1fr 90px 120px', gap:10, alignItems:'center', background:tk.card2, borderRadius:10, padding:'10px 12px' }}>
                                                 <div style={{ minWidth:0 }}>
                                                     <div style={{ fontSize:12, fontWeight:700, color:tk.txt, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{venta.nombre}</div>
                                                     <div style={{ fontSize:10, color:tk.txt3 }}>{venta.cliente}</div>
@@ -439,7 +439,39 @@ export default function Rentabilidad() {
                             <div style={{ padding:'11px 18px', borderBottom:`1px solid ${tk.bdr}`, fontSize:12, fontWeight:700, color:tk.txt2, textTransform:'uppercase', letterSpacing:0.5 }}>
                                 Cotizaciones ganadas — detalle
                             </div>
-                            <div style={{ overflowX:'auto' }}>
+                            <div className="commission-detail-cards">
+                                {v.actividades.map((a) => {
+                                    const ventaCalc = calcComision(a._fact, a._costoBase, a._sunat, a._gastos, pctBase, pctBajo, pctAlto);
+                                    return (
+                                        <div key={a.id} className="commission-detail-card" style={{ background:tk.card2, borderBottom:`1px solid ${tk.bdr}` }}>
+                                            <div style={{ minWidth:0 }}>
+                                                <div style={{ fontSize:13, fontWeight:800, color:tk.txt, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.nombre}</div>
+                                                <div style={{ fontSize:11, color:tk.txt3, marginTop:2 }}>{a.cliente || 'Sin cliente'} · {a.mes}</div>
+                                            </div>
+                                            <div className="commission-detail-metrics">
+                                                <MiniMetric label="Facturación" value={USD2(a._fact)} color={tk.txt} />
+                                                <MiniMetric label="Rent. bruta" value={USD2(a._rentabilidadBruta)} color={a._rentabilidadBruta >= 0 ? '#27ae60' : '#e74c3c'} />
+                                                <MiniMetric label="Rent. neta" value={USD2(a._util)} color={a._util >= 0 ? '#27ae60' : '#e74c3c'} />
+                                                <MiniMetric label="Margen" value={PCT(ventaCalc.margen_pct)} color={ventaCalc.margen_pct >= MARGEN_MINIMO ? '#27ae60' : '#e74c3c'} />
+                                                <MiniMetric label="Tramo" value={tramoComisionLabel(ventaCalc)} color={ventaCalc.pct_comision > 0 ? '#10b981' : tk.txt3} />
+                                                <MiniMetric label="Comisión" value={USD2(ventaCalc.monto_comision)} color={ventaCalc.monto_comision > 0 ? '#10b981' : tk.txt3} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                <div className="commission-detail-card commission-detail-total" style={{ background: tk.isDark ? '#1a2744' : '#f0f5ff' }}>
+                                    <div style={{ fontSize:12, fontWeight:900, color:tk.txt }}>TOTAL</div>
+                                    <div className="commission-detail-metrics">
+                                        <MiniMetric label="Facturación" value={USD2(v.facturacion)} color={tk.txt} />
+                                        <MiniMetric label="Costo real" value={USD2(v.costoBase)} color={tk.txt2} />
+                                        <MiniMetric label="Rent. bruta" value={USD2(v.facturacion - v.costoBase)} color={v.facturacion - v.costoBase >= 0 ? '#27ae60' : '#e74c3c'} />
+                                        <MiniMetric label="SUNAT" value={USD2(v.sunat)} color={tk.txt2} />
+                                        <MiniMetric label="Rent. neta" value={USD2(calc.utilidad)} color={calc.utilidad >= 0 ? '#27ae60' : '#e74c3c'} />
+                                        <MiniMetric label="Comisión" value={USD2(comisionTotalSuma)} color={comisionTotalSuma > 0 ? '#10b981' : tk.txt3} />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="commission-detail-table" style={{ overflowX:'auto' }}>
                                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                                     <thead>
                                         <tr style={{ background:tk.bg }}>
@@ -495,11 +527,11 @@ export default function Rentabilidad() {
                     onClick={() => setCasosOpen(x => !x)}
                     style={{ width:'100%', padding:'14px 20px', background:'none', border:'none', borderBottom: casosOpen ? `1px solid ${tk.bdr}` : 'none', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                     <span style={{ fontSize:13, fontWeight:700, color:tk.txt }}>Casos de prueba</span>
-                    <span style={{ fontSize:11, color:tk.txt3 }}>{casosOpen ? '▲ Cerrar' : '▼ Ver ejemplos'}</span>
+                    <span style={{ fontSize:11, color:tk.txt3 }}>{casosOpen ? 'Cerrar' : 'Ver ejemplos'}</span>
                 </button>
 
                 {casosOpen && (
-                    <div style={{ overflowX:'auto' }}>
+                    <div className="commission-detail-table" style={{ overflowX:'auto' }}>
                         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                             <thead>
                                 <tr style={{ background:tk.card2 }}>
@@ -558,6 +590,16 @@ function Row({ label, value, color, bold, big }) {
             <span style={{ fontSize: big ? 18 : 13, fontWeight: bold || big ? 700 : 400, color: color || tk.txt, fontFamily:'monospace', flexShrink:0 }}>
                 {value}
             </span>
+        </div>
+    );
+}
+
+function MiniMetric({ label, value, color }) {
+    const tk = useTheme();
+    return (
+        <div className="commission-mini-metric">
+            <span style={{ color:tk.txt3 }}>{label}</span>
+            <strong style={{ color }}>{value}</strong>
         </div>
     );
 }

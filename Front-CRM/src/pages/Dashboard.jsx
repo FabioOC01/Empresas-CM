@@ -14,14 +14,16 @@ import { useTheme } from '../context/ThemeContext';
 export default function Dashboard() {
     const { actividades, config } = useActividades();
     const tk     = useTheme();
-    const { sel, card, ct, td } = useDashStyles(tk);
+    const { sel, card, ct, td } = useDashStyles();
     const moneda = config?.moneda || 'USD';
     const [vendedores, setVendedores] = useState([]);
     const [trim, setTrim] = useState('');
     const [mes, setMes]   = useState(MESES[new Date().getMonth()]);
-    const [año, setAño]   = useState('');
+    const [anio, setAnio] = useState('');
     const [vend, setVend] = useState('');
+    const [rol, setRol] = useState('');
     const [activePieIdx, setActivePieIdx] = useState(null);
+    const [activeVendorSlide, setActiveVendorSlide] = useState(0);
     const [fsvend, setFsvend] = useState(null);
     const [isFs, setIsFs] = useState(false);
 
@@ -47,14 +49,21 @@ export default function Dashboard() {
         getVendedores().then(setVendedores);
     }, []);
 
-    const data = filterActs(actividades, {
+    const rolesDisponibles = [...new Set(vendedores.flatMap(v => v.roles || []))].sort();
+    const vendedoresFiltrados = vendedores.filter(v => {
+        if (vend) return v.id === vend;
+        if (rol) return v.roles?.includes(rol);
+        return true;
+    });
+    const vendedorIdsVisibles = new Set(vendedoresFiltrados.map(v => v.id));
+    const baseData = filterActs(actividades, {
         trimestre:  trim || undefined,
         mes:        mes  || undefined,
-        año:        año  || undefined,
-        vendedorId: vend || undefined,
+        año:        anio || undefined,
     });
+    const data = baseData.filter(a => vendedorIdsVisibles.has(a.vendedor_id));
 
-    const periodo = mes ? 'mensual' : trim ? 'trimestral' : año ? 'anual' : 'mensual';
+    const periodo = mes ? 'mensual' : trim ? 'trimestral' : anio ? 'anual' : 'mensual';
 
     const ttStyle = {
         contentStyle: { background: tk.card, border: `1px solid ${tk.bdr}`, borderRadius: 8, fontSize: 12, color: tk.txt },
@@ -67,7 +76,7 @@ export default function Dashboard() {
 
 
     // Charts
-    const byVendedorEstado = vendedores.map(v => ({
+    const byVendedorEstado = vendedoresFiltrados.map(v => ({
         name: v.nombre.split(' ')[0],
         Ganada:        data.filter(a => a.vendedor_id === v.id && a.estado === 'Ganada').length,
         Completado:    data.filter(a => a.vendedor_id === v.id && a.estado === 'Completado').length,
@@ -105,7 +114,7 @@ export default function Dashboard() {
     const metaRentHit = metaGlobalRent > 0 && rentabilidadGlobal >= metaGlobalRent;
     const metaFactHit = metaGlobalFact > 0 && facturacionGlobal  >= metaGlobalFact;
 
-    const actividadReciente = vendedores
+    const actividadReciente = vendedoresFiltrados
         .map(v => {
             const ultima = [...data]
                 .filter(a => a.vendedor_id === v.id)
@@ -119,7 +128,7 @@ export default function Dashboard() {
     const topOps = [...data].sort((a,b) => b.monto - a.monto).slice(0,8);
 
     // Avance por vendedor según el periodo seleccionado
-    const avanceMensual = vendedores.map(v => {
+    const avanceMensual = vendedoresFiltrados.map(v => {
         const vVentas = ventasGanadas.filter(a => a.vendedor_id === v.id);
         const fact = vVentas.reduce((s,a) => s + (parseFloat(a.precio_venta) || parseFloat(a.monto) || 0), 0);
         const rent = vVentas.reduce((s,a) => {
@@ -144,6 +153,22 @@ export default function Dashboard() {
             pctRent: metaRent > 0 ? Math.min((rent / metaRent) * 100, 100) : 0,
         };
     });
+    const vendorSlideSize = 4;
+    const vendorSlides = [];
+    for (let i = 0; i < vendedoresFiltrados.length; i += vendorSlideSize) {
+        vendorSlides.push(vendedoresFiltrados.slice(i, i + vendorSlideSize));
+    }
+
+    useEffect(() => {
+        if (vendorSlides.length <= 1) return undefined;
+        const t = setInterval(() => {
+            setActiveVendorSlide((idx) => (idx + 1) % vendorSlides.length);
+        }, 5600);
+        return () => clearInterval(t);
+    }, [vendorSlides.length]);
+
+    const visibleVendorSlide = vendorSlides.length ? Math.min(activeVendorSlide, vendorSlides.length - 1) : 0;
+    const showLegacyDashboardCards = false;
 
     return (
         <div>
@@ -159,8 +184,28 @@ export default function Dashboard() {
             <div style={{ display:'flex', justifyContent:'center', alignItems:'center', marginBottom:24 }}>
                 
                 <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                    <PeriodoPicker trim={trim} mes={mes} año={año} onTrim={setTrim} onMes={setMes} onAño={setAño} showAño />
-                    <select style={sel} value={vend} onChange={e => setVend(e.target.value)}>
+                    <PeriodoPicker trim={trim} mes={mes} año={anio} onTrim={setTrim} onMes={setMes} onAño={setAnio} showAño />
+                    <select
+                        style={sel}
+                        value={rol}
+                        onChange={e => {
+                            setRol(e.target.value);
+                            setVend('');
+                            setActiveVendorSlide(0);
+                        }}
+                    >
+                        <option value="">Todos los roles</option>
+                        {rolesDisponibles.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <select
+                        style={sel}
+                        value={vend}
+                        onChange={e => {
+                            setVend(e.target.value);
+                            setRol('');
+                            setActiveVendorSlide(0);
+                        }}
+                    >
                         <option value="">Todos los vendedores</option>
                         {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
                     </select>
@@ -174,7 +219,99 @@ export default function Dashboard() {
                 </div>
             </div>
 
-           
+            <div style={{ marginBottom:20 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:10 }}>
+                    <div>
+                        <div style={ct}>Resumen por vendedor</div>
+                        <div style={{ fontSize:11, color:tk.txt3, marginTop:-8 }}>{vendedoresFiltrados.length} vendedores · {periodo}</div>
+                    </div>
+                    {vendorSlides.length > 1 && (
+                        <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                            {vendorSlides.map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => setActiveVendorSlide(idx)}
+                                    aria-label={`Ver grupo ${idx + 1}`}
+                                    style={{
+                                        width: idx === visibleVendorSlide ? 22 : 7,
+                                        height: 7,
+                                        borderRadius: 999,
+                                        border: 'none',
+                                        background: idx === visibleVendorSlide ? tk.accent : tk.bdr,
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                        transition: 'width 0.2s ease, background 0.2s ease',
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {vendorSlides.length === 0 ? (
+                    <div style={{ color:tk.txt3, fontSize:12, textAlign:'center', padding:14 }}>Sin vendedores</div>
+                ) : (
+                    <div style={{ overflow:'hidden', minWidth:0 }}>
+                        <div style={{
+                            display:'flex',
+                            width:'100%',
+                            transform:`translateX(-${visibleVendorSlide * 100}%)`,
+                            transition:'transform 0.62s cubic-bezier(.22,1,.36,1)',
+                        }}>
+                            {vendorSlides.map((slide, slideIdx) => (
+                                <div key={slideIdx} style={{ flex:'0 0 100%', minWidth:0 }}>
+                                    <div className="dashboard-vendor-row" style={{ display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:14 }}>
+                                        {slide.map(v => {
+                                            const vAv = avanceMensual.find(x => x.id === v.id) || { fact:0, rent:0, metaFact:0, metaRent:0, pctFact:0, pctRent:0 };
+                                            const vActsCount = data.filter(a => a.vendedor_id === v.id).length;
+                                            const factColor = vAv.pctFact >= 100 ? '#10b981' : '#5b8dee';
+                                            const rentColor = vAv.pctRent >= 100 ? '#10b981' : '#27ae60';
+                                            return (
+                                                <div key={v.id} className="card dashboard-vendor-card" style={{ padding:'15px 14px', position:'relative', minWidth:0 }}>
+                                                    <button onClick={() => setFsvend(v)} title="Pantalla completa"
+                                                        style={{ position:'absolute', top:10, right:10, background:'transparent', border:'none', cursor:'pointer', color:tk.txt3, padding:3, borderRadius:5, display:'flex', opacity:0.7 }}>
+                                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                                                            <polyline points="9,1 13,1 13,5"/><polyline points="5,13 1,13 1,9"/>
+                                                            <line x1="13" y1="1" x2="8" y2="6"/><line x1="1" y1="13" x2="6" y2="8"/>
+                                                        </svg>
+                                                    </button>
+                                                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12, paddingRight:18, minWidth:0 }}>
+                                                        <Avatar vendedor={v} size="lg" />
+                                                        <div style={{ minWidth:0, flex:1 }}>
+                                                            <div style={{ fontWeight:800, fontSize:13, color:tk.txt, lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{v.nombre}</div>
+                                                            <div style={{ fontSize:11, color:tk.txt3, marginTop:2 }}>{vActsCount} actividades</div>
+                                                        </div>
+                                                    </div>
+                                                    {[
+                                                        ['Facturación', vAv.fact, vAv.metaFact, vAv.pctFact, factColor],
+                                                        ['Rentabilidad', vAv.rent, vAv.metaRent, vAv.pctRent, rentColor],
+                                                    ].map(([label, logrado, meta, pct, color]) => (
+                                                        <div key={label} style={{ marginBottom: label === 'Facturación' ? 10 : 0, minWidth:0 }}>
+                                                            <div style={{ display:'flex', justifyContent:'space-between', gap:8, fontSize:10, marginBottom:4 }}>
+                                                                <span style={{ color:tk.txt2, fontWeight:700 }}>{label}</span>
+                                                                <span style={{ color, fontWeight:800 }}>{pct.toFixed(0)}%</span>
+                                                            </div>
+                                                            <div style={{ height:6, background:tk.bdr, borderRadius:999, overflow:'hidden' }}>
+                                                                <div style={{ height:'100%', borderRadius:999, width:`${pct}%`, background:color, transition:'width 0.5s ease' }} />
+                                                            </div>
+                                                            <div style={{ fontSize:11, color:tk.txt3, marginTop:4, fontFamily:'monospace', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                                                                {fmtUSD(logrado, moneda)}{meta > 0 && <span> / {fmtUSD(meta, moneda)}</span>}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {showLegacyDashboardCards && (
             <div style={{ display:'grid', gridTemplateColumns:`repeat(${vendedores.length},1fr)`, gap:14, marginBottom:20 }}>
                 {vendedores.map(v => {
                     const vAv = avanceMensual.find(x => x.id === v.id) || { fact:0, rent:0, metaFact:0, metaRent:0, pctFact:0, pctRent:0 };
@@ -221,8 +358,9 @@ export default function Dashboard() {
                     );
                 })}
             </div>
+            )}
 
-            {/* Charts — fila 1: por tipo + estado por vendedor + donut estado */}
+            {/* Charts - fila 1: por tipo + estado por vendedor + donut estado */}
             <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr 1fr', gap:16, marginBottom:16 }}>
                 <div style={card}>
                     <div style={ct}>Por Tipo</div>
@@ -282,7 +420,7 @@ export default function Dashboard() {
                                             <Avatar vendedor={v} size="sm" />
                                             <div style={{ flex:1, minWidth:0 }}>
                                                 <div style={{ fontSize:12, fontWeight:700, color:tk.txt, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{v.ultima.nombre}</div>
-                                                <div style={{ fontSize:11, color:tk.txt3 }}>{v.nombre.split(' ')[0]} · {v.ultima.cliente || '—'}</div>
+                                                <div style={{ fontSize:11, color:tk.txt3 }}>{v.nombre.split(' ')[0]} · {v.ultima.cliente || '-'}</div>
                                             </div>
                                         </div>
                                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -446,7 +584,7 @@ export default function Dashboard() {
                                         <div key={a.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 0', borderBottom: i < fsRecent.length-1 ? `1px solid ${tk.bdr}` : 'none' }}>
                                             <div style={{ flex:1, minWidth:0 }}>
                                                 <div style={{ fontWeight:600, fontSize:13, color:tk.txt, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.nombre}</div>
-                                                <div style={{ fontSize:11, color:tk.txt3 }}>{a.cliente || '—'} · {a.mes}</div>
+                                                <div style={{ fontSize:11, color:tk.txt3 }}>{a.cliente || '-'} · {a.mes}</div>
                                             </div>
                                             <span style={{ fontSize:10, fontWeight:700, padding:'2px 9px', borderRadius:20, background:ec+'22', color:ec, flexShrink:0 }}>{a.estado}</span>
                                             <span style={{ fontSize:12, fontWeight:700, color:'#10b981', flexShrink:0, fontFamily:'monospace' }}>{fmtUSD(a.monto, moneda)}</span>
@@ -515,7 +653,7 @@ function MetaGlobalBox({ tk, titulo, logrado, meta, pct, hit, moneda }) {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useDashStyles(tk) {
+export function useDashStyles() {
     return {
         sel:  { padding:'8px 12px', borderRadius:8, border:`1px solid var(--input-bdr)`, fontSize:13, background:'var(--input-bg)', color:'var(--text-main)', outline:'none', fontFamily:'inherit' },
         card: { background:'var(--bg-card)', border:`1px solid var(--border)`, borderRadius:14, padding:'18px 20px', boxShadow:'var(--shadow-sm)' },
