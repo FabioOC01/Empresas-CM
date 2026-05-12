@@ -1,13 +1,15 @@
 import { useTheme } from '../context/ThemeContext';
 
-export const CHANGELOG_VERSION = 3;
+export const CHANGELOG_VERSION = 4;
 
 const CHANGES = [
-    { icon: 'UI', text: 'Menu lateral renovado: mas espacio, mejor jerarquia visual, secciones separadas y estados activos mas claros.' },
-    { icon: 'DASH', text: 'Dashboard con resumen por vendedor en carrusel, filtros por rol o vendedor y avance de metas mas facil de leer.' },
-    { icon: 'EQ', text: 'Equipo reorganiza los grupos de actividades por rol y mejora la matriz para revisar avances desde escritorio y movil.' },
-    { icon: 'COM', text: 'Rentabilidad y comisiones ahora se adaptan mejor a pantallas pequenas, con tarjetas de detalle para evitar tablas incomodas.' },
-    { icon: 'LOGIN', text: 'Superadmins pueden iniciar sesion con el correo completo o con el usuario antes del arroba.' },
+    { icon: '✨', text: 'Menu lateral renovado: mas espacio, mejor jerarquia visual, secciones separadas y estados activos mas claros.' },
+    { icon: '📊', text: 'Dashboard con resumen por vendedor en carrusel, filtros por rol o vendedor y avance de metas mas facil de leer.' },
+    { icon: '🗓️', text: 'Planificador con rework de busqueda, ordenamiento y lectura de actividades para trabajar mas rapido.' },
+    { icon: '🧮', text: 'Calculadora de comisiones revisada con catalogo de productos y detalles de rentabilidad mas claros.' },
+    { icon: '👥', text: 'Equipo reorganiza los grupos de actividades por rol y mejora la matriz para revisar avances desde escritorio y movil.' },
+    { icon: '⚙️', text: 'Administracion mejora su vista responsive, especialmente el mantenimiento de productos desde pantallas pequenas.' },
+    { icon: '💰', text: 'Rentabilidad y comisiones ahora se adaptan mejor a pantallas pequenas, con tarjetas de detalle para evitar tablas incomodas.' },
 ];
 
 export default function ChangelogModal({ open, onClose }) {

@@ -34,7 +34,7 @@ function RequireRole({ roles, children }) {
 }
 
 function AppLayout() {
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState(true);
     const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 760);
     const { config } = useActividadesContext();
     const { user } = useAuth();

@@ -465,10 +465,10 @@ export default function Admin() {
     const isNew = editing === 'new';
 
     return (
-        <div style={{ display:'grid', gridTemplateColumns:'220px 1fr', gap:20, alignItems:'start' }}>
+        <div className="admin-page" style={{ display:'grid', gridTemplateColumns:'220px 1fr', gap:20, alignItems:'start' }}>
 
             {/* Sidebar de secciones */}
-            <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
+            <div className="admin-sections" style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, overflow:'hidden' }}>
                 {secciones.map(s => {
                     const SectionIcon = s.icon;
                     return (
@@ -491,7 +491,7 @@ export default function Admin() {
             </div>
 
             {/* Panel derecho */}
-            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            <div className="admin-content" style={{ display:'flex', flexDirection:'column', gap:16, minWidth:0 }}>
 
                 {/* ── VENDEDORES ── */}
                 {seccion === 'vendedores' && (
@@ -877,11 +877,11 @@ export default function Admin() {
 
                 {/* ── TIPOS DE ACTIVIDAD ── */}
                 {seccion === 'productos' && cfgForm && esAdmin && (
-                    <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'24px 28px' }}>
+                    <div className="admin-products-card" style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:'24px 28px' }}>
                         <div style={{ fontWeight:700, fontSize:14, color:tk.txt, marginBottom:6 }}>Producto</div>
                         <div style={{ fontSize:12, color:tk.txt3, marginBottom:18 }}>Catalogo global usado por la calculadora de comisiones.</div>
                         <form onSubmit={handleSaveCfg} style={{ display:'grid', gap:18 }}>
-                            <div style={{ display:'grid', gridTemplateColumns:'repeat(5, minmax(120px, 1fr)) auto', gap:8, alignItems:'end' }}>
+                            <div className="admin-product-new-grid" style={{ display:'grid', gridTemplateColumns:'repeat(5, minmax(120px, 1fr)) auto', gap:8, alignItems:'end' }}>
                                 <label style={lbl}>Marca
                                     <input style={inp} value={cfgForm.productoInput?.marca || ''} onChange={e => setProductoInput('marca', e.target.value)} />
                                 </label>
@@ -900,7 +900,7 @@ export default function Admin() {
                                 <button type="button" onClick={addProducto} style={{ height:38, padding:'0 16px', background:'#10b981', color:'#fff', border:'none', borderRadius:7, fontSize:13, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>+ Agregar</button>
                             </div>
 
-                            <div style={{ display:'grid', gridTemplateColumns:'minmax(220px, 1fr) 220px auto', gap:10, alignItems:'end' }}>
+                            <div className="admin-product-filter-grid" style={{ display:'grid', gridTemplateColumns:'minmax(220px, 1fr) 220px auto', gap:10, alignItems:'end' }}>
                                 <label style={lbl}>Buscar producto
                                     <input
                                         style={inp}
@@ -925,7 +925,7 @@ export default function Admin() {
                                 </button>
                             </div>
 
-                            <div style={{ overflowX:'auto', border:`1px solid ${tk.bdr}`, borderRadius:10 }}>
+                            <div className="admin-product-table" style={{ overflowX:'auto', border:`1px solid ${tk.bdr}`, borderRadius:10 }}>
                                 <div style={{ display:'grid', gridTemplateColumns:'150px 150px minmax(220px,1fr) 110px 90px 56px', gap:8, padding:'9px 12px', background:tk.bg, borderBottom:`1px solid ${tk.bdr}`, minWidth:780 }}>
                                     {['Marca','Modelo','Descripcion','Costo unit.','Unid.',''].map(h => <span key={h} style={{ fontSize:11, fontWeight:700, color:tk.txt3, textTransform:'uppercase' }}>{h}</span>)}
                                 </div>
@@ -944,6 +944,46 @@ export default function Admin() {
                                 )}
                                 {!!cfgForm.productos_catalogo?.length && !productosFiltrados.length && (
                                     <div style={{ padding:'28px 12px', textAlign:'center', fontSize:13, color:tk.txt3 }}>No hay productos con esos filtros.</div>
+                                )}
+                            </div>
+                            <div className="admin-product-cards">
+                                {productosFiltrados.map(p => (
+                                    <div key={p.id} className="admin-product-card" style={{ background:tk.card2, border:`1px solid ${tk.bdr}`, borderRadius:10, padding:14 }}>
+                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10, marginBottom:12 }}>
+                                            <div style={{ minWidth:0 }}>
+                                                <div style={{ fontSize:13, fontWeight:800, color:tk.txt, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                                    {p.nombre || 'Producto'}
+                                                </div>
+                                                <div style={{ fontSize:11, color:tk.txt3, marginTop:2 }}>
+                                                    Costo unitario editable
+                                                </div>
+                                            </div>
+                                            <button type="button" onClick={() => removeProducto(p.id)} style={{ width:34, height:34, border:'none', borderRadius:7, background:'#e74c3c18', color:'#e74c3c', cursor:'pointer', fontWeight:800, flexShrink:0 }}>x</button>
+                                        </div>
+                                        <div className="admin-product-card-grid">
+                                            <label style={lbl}>Marca
+                                                <input style={inp} value={p.marca || ''} onChange={e => updateProducto(p.id, 'marca', e.target.value)} />
+                                            </label>
+                                            <label style={lbl}>Modelo
+                                                <input style={inp} value={p.modelo || ''} onChange={e => updateProducto(p.id, 'modelo', e.target.value)} />
+                                            </label>
+                                            <label style={lbl}>Descripcion
+                                                <input style={inp} value={p.descripcion || ''} onChange={e => updateProducto(p.id, 'descripcion', e.target.value)} />
+                                            </label>
+                                            <label style={lbl}>Costo
+                                                <input type="number" min="0" step="0.01" style={inp} value={p.costo ?? 0} onChange={e => updateProducto(p.id, 'costo', e.target.value)} />
+                                            </label>
+                                            <label style={lbl}>Unid.
+                                                <input type="number" min="1" step="1" style={inp} value={productUnits(p.unidad)} onChange={e => updateProducto(p.id, 'unidad', productUnits(e.target.value))} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                ))}
+                                {!cfgForm.productos_catalogo?.length && (
+                                    <div style={{ padding:'22px 12px', textAlign:'center', fontSize:13, color:tk.txt3, border:`1px solid ${tk.bdr}`, borderRadius:10 }}>Sin productos registrados.</div>
+                                )}
+                                {!!cfgForm.productos_catalogo?.length && !productosFiltrados.length && (
+                                    <div style={{ padding:'22px 12px', textAlign:'center', fontSize:13, color:tk.txt3, border:`1px solid ${tk.bdr}`, borderRadius:10 }}>No hay productos con esos filtros.</div>
                                 )}
                             </div>
                             {cfgMsg && <MsgBox msg={cfgMsg} />}

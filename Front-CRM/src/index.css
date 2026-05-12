@@ -533,6 +533,23 @@ input.input, select.input, textarea.input {
 }
 
 /* ── Icon button ── */
+.admin-page,
+.admin-content,
+.admin-products-card,
+.admin-product-table {
+  min-width: 0;
+}
+
+.admin-product-cards {
+  display: none;
+}
+
+.admin-product-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .icon-btn {
   width: 32px; height: 32px;
   border-radius: 8px;
@@ -586,6 +603,54 @@ input.input, select.input, textarea.input {
 
   .data-table {
     min-width: 760px;
+  }
+
+  .admin-page {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .admin-sections {
+    display: flex;
+    overflow-x: auto !important;
+    border-radius: 8px !important;
+  }
+
+  .admin-sections > button {
+    flex: 0 0 auto;
+    min-width: 142px;
+    border-left: 0 !important;
+    border-bottom: 3px solid transparent !important;
+    justify-content: center;
+    padding: 11px 12px !important;
+  }
+
+  .admin-products-card {
+    padding: 18px 14px !important;
+  }
+
+  .admin-product-new-grid,
+  .admin-product-filter-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-product-new-grid button,
+  .admin-product-filter-grid button {
+    width: 100%;
+    min-height: 42px;
+  }
+
+  .admin-product-table {
+    display: none;
+  }
+
+  .admin-product-cards {
+    display: grid;
+    gap: 12px;
+  }
+
+  .admin-product-card-grid {
+    grid-template-columns: 1fr;
   }
 
   .dashboard-vendor-row {
