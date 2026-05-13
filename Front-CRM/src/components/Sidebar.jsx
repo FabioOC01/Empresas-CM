@@ -5,6 +5,7 @@ import { useActividadesContext } from '../context/ActividadesContext';
 import { getEmpresas } from '../api/actividades';
 import ProfileModal from './ProfileModal';
 import { BuildingIcon, ChartIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, ClipboardIcon, DashboardIcon, PowerIcon, SettingsIcon, TagIcon, TeamIcon } from './Icons';
+import { getDisplayRoles } from '../utils/roles';
 
 const DEFAULT_LOGO_FULL = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO.png';
 const DEFAULT_LOGO_ISO  = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO-SHORT.png';
@@ -273,7 +274,7 @@ export default function Sidebar({ collapsed, isMobile = false, onToggle }) {
                             <div style={{ minWidth:0 }}>
                                 <div style={{ fontSize: 12, fontWeight: 800, color: '#fff', lineHeight: 1.25, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{user.nombre}</div>
                                 <div style={{ fontSize: 10, color: '#9fb4df', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                                    {user.is_superadmin ? 'Superadmin' : user.roles?.join(', ')}
+                                    {user.is_superadmin ? 'Superadmin' : getDisplayRoles(user).join(', ')}
                                 </div>
                             </div>
                         </button>

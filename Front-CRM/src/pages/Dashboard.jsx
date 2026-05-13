@@ -10,6 +10,7 @@ import { filterActs, fmtUSD, fmt, calcDuration, totalGastosOperacion, MESES } fr
 import PeriodoPicker from '../components/PeriodoPicker';
 import Avatar from '../components/Avatar';
 import { useTheme } from '../context/ThemeContext';
+import { getDisplayRoles } from '../utils/roles';
 
 export default function Dashboard() {
     const { actividades, config } = useActividades();
@@ -49,10 +50,10 @@ export default function Dashboard() {
         getVendedores().then(setVendedores);
     }, []);
 
-    const rolesDisponibles = [...new Set(vendedores.flatMap(v => v.roles || []))].sort();
+    const rolesDisponibles = [...new Set(vendedores.flatMap(v => getDisplayRoles(v)))].sort();
     const vendedoresFiltrados = vendedores.filter(v => {
         if (vend) return v.id === vend;
-        if (rol) return v.roles?.includes(rol);
+        if (rol) return getDisplayRoles(v).includes(rol);
         return true;
     });
     const vendedorIdsVisibles = new Set(vendedoresFiltrados.map(v => v.id));
@@ -521,7 +522,7 @@ export default function Dashboard() {
                                 <Avatar vendedor={fsvend} size="xl" />
                                 <div style={{ flex:1 }}>
                                     <div style={{ fontSize:20, fontWeight:800, color:tk.txt }}>{fsvend.nombre}</div>
-                                    <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>{fsvend.roles?.join(' · ')}</div>
+                                    <div style={{ fontSize:12, color:tk.txt3, marginTop:3 }}>{getDisplayRoles(fsvend).join(' · ')}</div>
                                 </div>
                                 <button onClick={() => setFsvend(null)}
                                     style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:20, color:tk.txt3, lineHeight:1, padding:'4px 8px' }}>×</button>

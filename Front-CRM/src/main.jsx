@@ -14,6 +14,7 @@ import Rentabilidad from './pages/Rentabilidad';
 import Admin from './pages/Admin';
 import Clientes from './pages/Clientes';
 import Login from './pages/Login';
+import { hasEffectiveRole } from './utils/roles';
 import './index.css';
 
 const SIDEBAR_W   = 232;
@@ -28,7 +29,7 @@ function RequireAuth({ children }) {
 
 function RequireRole({ roles, children }) {
     const { user } = useAuth();
-    const allowed = user?.is_superadmin || roles.some(r => user?.roles?.includes(r));
+    const allowed = user?.is_superadmin || roles.some(r => hasEffectiveRole(user, r));
     if (!allowed) return <Navigate to="/planificador?view=kanban" replace />;
     return children;
 }

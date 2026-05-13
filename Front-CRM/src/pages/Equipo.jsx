@@ -8,6 +8,7 @@ import { getVendedores, createActividad } from '../api/actividades';
 import { useAuth } from '../context/AuthContext';
 import useActividades from '../hooks/useActividades';
 import { filterActs, fmtUSD, fmt, calcDuration, TIPOS, MESES, getTypeColor, ROL_TIPOS, totalGastosOperacion } from '../utils/crm';
+import { canViewAll, getDisplayRoles, getEffectiveRoles, hasEffectiveRole, isGerenciaOnly } from '../utils/roles';
 import ActividadModal from '../components/ActividadModal';
 import Avatar from '../components/Avatar';
 import { RolBadge } from '../components/Badge';
@@ -40,14 +41,14 @@ const ROLE_COLOR = {
 };
 
 function tiposPermitidos(vendedor, rolTipos = ROL_TIPOS) {
-    const roles = vendedor?.roles || [];
+    const roles = getEffectiveRoles(vendedor);
     if (roles.includes('Admin')) return null; // null = todos
     const set = new Set();
     roles.forEach(r => ((rolTipos && rolTipos[r]) || ROL_TIPOS[r] || []).forEach(t => set.add(t)));
     return set;
 }
 
-const isMarketing = (v) => v?.roles?.includes('Marketing') && !v?.roles?.some((r) => ['Ventas', 'Gerencia', 'Retail'].includes(r));
+const isMarketing = (v) => hasEffectiveRole(v, 'Marketing') && !getEffectiveRoles(v).some((r) => ['Ventas', 'Retail'].includes(r));
 const esCompletado = (actividad) => actividad?.estado === 'Completado';
 const esGanada = (actividad) => actividad?.estado === 'Ganada';
 const esPerdida = (actividad) => actividad?.estado === 'Perdida';
@@ -57,13 +58,13 @@ const rentabilidadBrutaActividad = (actividad) => {
 };
 
 function primaryRole(vendedor) {
-    const roles = vendedor?.roles || [];
+    const roles = getDisplayRoles(vendedor);
     return ROLE_ORDER.find((rol) => roles.includes(rol)) || roles[0] || 'Sin rol';
 }
 
 function rolesParaCarrusel(vendedor) {
-    const roles = vendedor?.roles || [];
-    if (!roles.length) return ['Sin rol'];
+    const roles = getDisplayRoles(vendedor);
+    if (!roles.length) return [];
     return [
         ...ROLE_ORDER.filter((rol) => roles.includes(rol)),
         ...roles.filter((rol) => !ROLE_ORDER.includes(rol)),
@@ -71,8 +72,7 @@ function rolesParaCarrusel(vendedor) {
 }
 
 function cuentaEnMatriz(vendedor) {
-    const roles = vendedor?.roles || [];
-    return !(roles.length === 1 && roles[0] === 'Admin');
+    return getDisplayRoles(vendedor).length > 0;
 }
 
 function colorWithAlpha(hex, alpha) {
@@ -114,7 +114,8 @@ export default function Equipo() {
     };
     const axisProps = { tick: { fill: tk.txt2, fontSize: 11 } };
 
-    const esAdminGerencia = user?.is_superadmin || user?.roles?.some((r) => ['Admin', 'Gerencia'].includes(r));
+    const soloLecturaGerencia = isGerenciaOnly(user);
+    const esAdminGerencia = canViewAll(user);
 
     useEffect(() => {
         getVendedores().then((vs) => {
@@ -216,6 +217,7 @@ export default function Equipo() {
     }).filter((row) => vendedores.some((v) => row[v.nombre.split(' ')[0]] > 0));
 
     const handleSave = async (data) => {
+        if (soloLecturaGerencia) return;
         await createActividad(data);
     };
 
@@ -306,8 +308,8 @@ export default function Equipo() {
     ) : (() => {
         const yo = vendedores[0];
         const vActs = yo ? getVendorActs(yo.id) : [];
-        const rolesYo = (yo?.roles || []).filter(r => r !== 'Admin' && r !== 'Gerencia');
-        const esAdminYo = (yo?.roles || []).includes('Admin');
+        const rolesYo = getEffectiveRoles(yo).filter(r => r !== 'Admin');
+        const esAdminYo = getEffectiveRoles(yo).includes('Admin');
 
         const bloques = (esAdminYo || rolesYo.length <= 1)
             ? [{
@@ -449,7 +451,7 @@ export default function Equipo() {
                                             : rank === 1
                                                 ? { bg: tk.isDark ? 'rgba(148,163,184,0.18)' : '#eef2f7', fg: tk.isDark ? '#cbd5e1' : '#5f6f86', border: tk.isDark ? 'rgba(148,163,184,0.25)' : '#d8e1ec' }
                                                 : { bg: tk.card2, fg: tk.txt3, border: tk.bdr };
-                                        const roles = v.roles || [];
+                                        const roles = getDisplayRoles(v);
                                         return (
                                             <div
                                                 key={v.id}
@@ -635,8 +637,8 @@ export default function Equipo() {
                     ) : (() => {
                         const yo = vendedores[0];
                         const vActs = yo ? filtered.filter((a) => a.vendedor_id === yo.id) : [];
-                        const rolesYo = (yo?.roles || []).filter(r => r !== 'Admin' && r !== 'Gerencia');
-                        const esAdminYo = (yo?.roles || []).includes('Admin');
+                        const rolesYo = getEffectiveRoles(yo).filter(r => r !== 'Admin');
+                        const esAdminYo = getEffectiveRoles(yo).includes('Admin');
 
                         const bloques = (esAdminYo || rolesYo.length <= 1)
                             ? [{

@@ -148,12 +148,12 @@ function normalizeGastos(gastosOperativos, costoBase = 0) {
     return gastos;
 }
 
-export default function ComisionModal({ open, onClose, onSave, actividad, vendedor, moneda = 'USD' }) {
+export default function ComisionModal({ open, onClose, onSave, actividad, vendedor, moneda = 'USD', readOnly = false }) {
     const tk = useTheme();
     const fmt$ = n => fmtUSD(n, moneda);
     const { config, setConfig } = useActividadesContext();
     const { user } = useAuth();
-    const canManageProducts = user?.is_superadmin || user?.roles?.includes('Admin');
+    const canManageProducts = !readOnly && (user?.is_superadmin || user?.roles?.includes('Admin'));
 
     const facturacion = parseFloat(actividad?.precio_venta) || parseFloat(actividad?.monto) || 0;
     const cuota = parseFloat(vendedor?.meta_mensual) || 0;
@@ -227,7 +227,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
     }, [facturacion, gastosTotal, sunatPct, cuota, pctBase, pctBajo, pctAlto]);
 
     const handleSave = async () => {
-        if (!actividad?.id) return;
+        if (readOnly || !actividad?.id) return;
         setSaving(true);
         setSaveMsg(null);
         try {
@@ -769,7 +769,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                         setNewProduct(null);
                                     }}
                                 />
-                                {canManageProducts && (
+                                {!readOnly && canManageProducts && (
                                     <button type="button" className="cm-new-product" onClick={() => setNewProduct({ marca:'', modelo:productQuery, descripcion:'', costo:'', unidad:1 })}>
                                         Nuevo
                                     </button>
@@ -788,7 +788,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                             No hay productos con ese texto.
                                         </div>
                                     )}
-                                    {canManageProducts && (
+                                    {!readOnly && canManageProducts && (
                                         <button type="button" onClick={() => setNewProduct({ marca:'', modelo:productQuery, descripcion:'', costo:'', unidad:1 })}>
                                             + Crear producto nuevo
                                         </button>
@@ -811,19 +811,19 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                 <div className="cm-product-main">
                                     <div className="cm-product-name">{g.nombre || [g.marca, g.modelo].filter(Boolean).join(' ') || 'Producto'}</div>
                                 </div>
-                                <input className="cm-input amount" type="number" min="0" step="0.01" placeholder="Costo unit." value={g.costo}
+                                <input className="cm-input amount" type="number" min="0" step="0.01" placeholder="Costo unit." value={g.costo} disabled={readOnly}
                                     onChange={e => setGasto(i, 'costo', e.target.value)} />
-                                <input className="cm-input amount" type="number" min="1" step="1" placeholder="Unid." value={productUnits(g.unidad)}
+                                <input className="cm-input amount" type="number" min="1" step="1" placeholder="Unid." value={productUnits(g.unidad)} disabled={readOnly}
                                     onChange={e => setGasto(i, 'unidad', e.target.value)} />
                                 <label className="cm-import" title="P. Venta: trata el costo como precio de venta y resta 10% como costo">
-                                    <input type="checkbox" checked={!!g.precio_venta} onChange={e => setGasto(i, 'precio_venta', e.target.checked)} />
+                                    <input type="checkbox" checked={!!g.precio_venta} disabled={readOnly} onChange={e => setGasto(i, 'precio_venta', e.target.checked)} />
                                     P.V
                                 </label>
                                 <label className="cm-import" title="Importacion: suma 7% del costo calculado de esta linea">
-                                    <input type="checkbox" checked={!!g.importacion} onChange={e => setGasto(i, 'importacion', e.target.checked)} />
+                                    <input type="checkbox" checked={!!g.importacion} disabled={readOnly} onChange={e => setGasto(i, 'importacion', e.target.checked)} />
                                     Imp.
                                 </label>
-                                <button type="button" className="cm-remove" onClick={() => removeGasto(i)}>x</button>
+                                {!readOnly && <button type="button" className="cm-remove" onClick={() => removeGasto(i)}>x</button>}
                             </div>
                         ))}
                         {!gastos.length && (
@@ -832,9 +832,11 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             </div>
                         )}
 
-                        <button type="button" className="cm-save-gastos" onClick={handleSave} disabled={saving}>
-                            {saving ? 'Guardando...' : 'Guardar gastos'}
-                        </button>
+                        {!readOnly && (
+                            <button type="button" className="cm-save-gastos" onClick={handleSave} disabled={saving}>
+                                {saving ? 'Guardando...' : 'Guardar gastos'}
+                            </button>
+                        )}
                         {saveMsg && (
                             <span className={`cm-msg-inline ${saveMsg.type === 'ok' ? 'ok' : 'err'}`}>
                                 {saveMsg.text}

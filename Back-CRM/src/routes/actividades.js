@@ -11,6 +11,13 @@ function todayISODate() {
     return new Date().toISOString().slice(0, 10);
 }
 
+function canViewAll(user) {
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    const operationalRoles = roles.filter((role) => role !== 'Gerencia');
+    const gerenciaOnly = !user?.is_superadmin && !operationalRoles.length && roles.includes('Gerencia');
+    return user?.is_superadmin || roles.includes('Admin') || gerenciaOnly;
+}
+
 // GET /api/actividades
 router.get('/', async (req, res) => {
     try {
@@ -21,7 +28,13 @@ router.get('/', async (req, res) => {
         let params = [empresa_id];
         let i = 2;
 
-        if (vendedorId) { where.push(`a.vendedor_id = $${i++}`); params.push(vendedorId); }
+        if (!canViewAll(req.user)) {
+            where.push(`a.vendedor_id = $${i++}`);
+            params.push(req.user.id);
+        } else if (vendedorId) {
+            where.push(`a.vendedor_id = $${i++}`);
+            params.push(vendedorId);
+        }
         if (mes)        { where.push(`a.mes = $${i++}`);          params.push(mes); }
         if (tipo)       { where.push(`a.tipo = $${i++}`);         params.push(tipo); }
         if (estado)     { where.push(`a.estado = $${i++}`);       params.push(estado); }
@@ -75,7 +88,13 @@ function tsForEstado(estado) {
 
 // Helper: true si el usuario puede gestionar actividades de cualquier vendedor
 function canManageAll(user) {
-    return user.is_superadmin || user.roles?.some(r => ['Admin','Gerencia'].includes(r));
+    return user.is_superadmin || user.roles?.includes('Admin');
+}
+
+function isGerenciaOnly(user) {
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    const operationalRoles = roles.filter((role) => role !== 'Gerencia');
+    return !user?.is_superadmin && !operationalRoles.length && roles.includes('Gerencia');
 }
 
 // POST /api/actividades
@@ -89,7 +108,10 @@ router.post('/', async (req, res) => {
         const fechaInicio = fecha || todayISODate();
         const mesActividad = mes || MESES[new Date(`${fechaInicio}T12:00:00`).getMonth()];
 
-        // Solo Admin/Gerencia/Superadmin pueden asignar actividades a otros vendedores
+        if (isGerenciaOnly(req.user))
+            return res.status(403).json({ error: 'Gerencia solo tiene permiso de visualizacion' });
+
+        // Solo Admin/Superadmin pueden asignar actividades a otros vendedores
         if (!canManageAll(req.user) && vendedor_id !== req.user.id)
             return res.status(403).json({ error: 'No puedes crear actividades para otro vendedor' });
         const ts = tsForEstado(estado);
@@ -127,7 +149,10 @@ router.put('/:id', async (req, res) => {
     try {
         const empresa_id = req.user.empresa_id;
 
-        // Verificar ownership si no es Admin/Gerencia
+        if (isGerenciaOnly(req.user))
+            return res.status(403).json({ error: 'Gerencia solo tiene permiso de visualizacion' });
+
+        // Verificar ownership si no es Admin
         // Colaboradores pueden editar SOLO el campo `checklist`
         let soloChecklist = false;
         let esOwner = canManageAll(req.user);
@@ -216,7 +241,7 @@ router.delete('/:id', async (req, res) => {
     try {
         const empresa_id = req.user.empresa_id;
 
-        // Solo Admin/Gerencia pueden eliminar actividades
+        // Solo Admin/Superadmin pueden eliminar actividades
         if (!canManageAll(req.user))
             return res.status(403).json({ error: 'No tienes permiso para eliminar actividades' });
 

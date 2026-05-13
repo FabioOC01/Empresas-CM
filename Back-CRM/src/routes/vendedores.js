@@ -287,8 +287,8 @@ router.post('/:id/foto', uploadAvatar.single('foto'), async (req, res) => {
 
 // PUT /api/vendedores/:id/metas
 router.put('/:id/metas', async (req, res) => {
-    const canEdit = req.user?.roles?.some((rol) => ['Admin', 'Gerencia'].includes(rol)) || req.user?.is_superadmin;
-    if (!canEdit) return res.status(403).json({ error: 'Se requiere rol Admin o Gerencia' });
+    const canEdit = req.user?.roles?.includes('Admin') || req.user?.is_superadmin;
+    if (!canEdit) return res.status(403).json({ error: 'Se requiere rol Admin' });
 
     const {
         meta_mensual,

@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import useRolFilter from '../hooks/useRolFilter';
 import { filterActs, fmtUSD, totalGastosOperacion, TIPOS, ESTADOS, TODOS_ESTADOS, PRIORIDADES, TIPOS_CON_RESULTADO, MESES, getTypeColor } from '../utils/crm';
+import { canViewAll, isAdminUser, isGerenciaOnly } from '../utils/roles';
 import Avatar from '../components/Avatar';
 import { TipoBadge, PrioBadge, EstadoBadge } from '../components/Badge';
 import ActividadModal from '../components/ActividadModal';
@@ -102,8 +103,10 @@ function SortMenu({ col, sort, onPick, onClose, align = 'left' }) {
 export default function Planificador() {
     const { actividades, setActividades, config } = useActividades();
     const { user } = useAuth();
-    const puedeEliminar = user?.is_superadmin || user?.roles?.some(r => ['Admin','Gerencia'].includes(r));
-    const puedeFiltrar  = puedeEliminar;
+    const soloLecturaGerencia = isGerenciaOnly(user);
+    const puedeEditar = !soloLecturaGerencia;
+    const puedeEliminar = isAdminUser(user);
+    const puedeFiltrar  = canViewAll(user);
     const tk = useTheme();
     const moneda     = config?.moneda || 'USD';
     const tipos      = config?.tipos_actividad || TIPOS;
@@ -150,12 +153,12 @@ export default function Planificador() {
     }, []);
     useEffect(() => {
         const handler = (e) => {
-            if (e.key === 'n' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))
+            if (puedeEditar && e.key === 'n' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))
                 setModal({ open: true, actividad: null });
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, []);
+    }, [puedeEditar]);
 
     const norm = (value) => String(value || '').toLowerCase();
     const vendedorNombre = (a) => vendedores.find(v => v.id === a.vendedor_id)?.nombre || '';
@@ -212,6 +215,7 @@ export default function Planificador() {
     const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
     const handleSave = async (data) => {
+        if (!puedeEditar) return null;
         if (data.id && actividades.find(a => a.id === data.id)) {
             const updated = await updateActividad(data.id, data);
             setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
@@ -224,11 +228,13 @@ export default function Planificador() {
     };
 
     const handleDelete = async (id) => {
+        if (!puedeEliminar) return;
         await deleteActividad(id);
         setConfirmId(null);
     };
 
     const changeEstado = async (id, estado) => {
+        if (!puedeEditar) return;
         const updated = await updateActividad(id, { estado });
         setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
     };
@@ -237,6 +243,7 @@ export default function Planificador() {
         const id = dragId;
         setDragId(null);
         setDragOverCol(null);
+        if (!puedeEditar) return;
         if (!id) return;
         const act = actividades.find(a => a.id === id);
         if (!act || act.estado === col) return;
@@ -244,7 +251,10 @@ export default function Planificador() {
         setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
     };
 
-    const newWithEstado = (estado) => setModal({ open:true, actividad: { estado } });
+    const newWithEstado = (estado) => {
+        if (!puedeEditar) return;
+        setModal({ open:true, actividad: { estado } });
+    };
 
     const totalMonto = filtered.reduce((s,a) => s + Number(a.monto || 0), 0);
     const completedCount = filtered.filter(a => a.estado === 'Completado' || a.estado === 'Ganada').length;
@@ -1174,11 +1184,13 @@ export default function Planificador() {
                     ))}
                 </div>
 
-                <button type="button" onClick={() => setModal({ open:true, actividad:null })} className="pln-primary">
-                    <span className="pln-pico"><IcoPlus /></span>
-                    <span>Nueva actividad</span>
-                    <span className="pln-kbd">N</span>
-                </button>
+                {puedeEditar && (
+                    <button type="button" onClick={() => setModal({ open:true, actividad:null })} className="pln-primary">
+                        <span className="pln-pico"><IcoPlus /></span>
+                        <span>Nueva actividad</span>
+                        <span className="pln-kbd">N</span>
+                    </button>
+                )}
             </div>
 
             <div className="pln-filters">
@@ -1308,8 +1320,8 @@ export default function Planificador() {
                                         key={a.id}
                                         className="pln-r"
                                         data-pr={a.prioridad}
-                                        onClick={() => setModal({ open:true, actividad:a })}
-                                        title="Click para editar"
+                                        onClick={() => puedeEditar && setModal({ open:true, actividad:a })}
+                                        title={puedeEditar ? 'Click para editar' : 'Solo lectura'}
                                     >
                                         <td className="pln-c first">
                                             <div className="pln-act">
@@ -1352,7 +1364,7 @@ export default function Planificador() {
                                         <td className="pln-c">
                                             <span className="pln-estado-wrap" style={{ background: estTone.bg, color: estTone.fg }} onClick={e => e.stopPropagation()}>
                                                 <span className="pln-estado-dot" style={{ background: estTone.dot }} />
-                                                <select value={a.estado} onChange={e => changeEstado(a.id, e.target.value)}>
+                                                <select value={a.estado} disabled={!puedeEditar} onChange={e => changeEstado(a.id, e.target.value)}>
                                                     {estadoOpts.map(s => <option key={s} value={s}>{s}</option>)}
                                                 </select>
                                             </span>
@@ -1377,7 +1389,7 @@ export default function Planificador() {
                                         </td>
                                         <td className="pln-c" style={{ textAlign:'right' }}>
                                             <div className="pln-acts" onClick={e => e.stopPropagation()}>
-                                                <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>
+                                                {puedeEditar && <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>}
                                                 {puedeEliminar && <button className="pln-ra danger" onClick={() => setConfirmId(a.id)} title="Eliminar"><IcoTrash /></button>}
                                             </div>
                                         </td>
@@ -1425,7 +1437,7 @@ export default function Planificador() {
                                         {!isCollapsed && (<>
                                             <span className="pln-kcol-count">{colActs.length}</span>
                                             {colSum > 0 && <span className="pln-kcol-sum"><b>{fmtUSD(colSum, moneda)}</b></span>}
-                                            <button className="pln-kcol-add" title="Nueva actividad" onClick={(e) => { e.stopPropagation(); newWithEstado(col); }}><IcoPlus /></button>
+                                            {puedeEditar && <button className="pln-kcol-add" title="Nueva actividad" onClick={(e) => { e.stopPropagation(); newWithEstado(col); }}><IcoPlus /></button>}
                                         </>)}
                                         {isCollapsed && <span className="pln-kcol-count">{colActs.length}</span>}
                                     </div>
@@ -1445,9 +1457,9 @@ export default function Planificador() {
                                                     <div key={a.id} className={`pln-kcard ${dragId === a.id ? 'dragging' : ''}`}
                                                          data-pr={a.prioridad}
                                                          style={{ '--type-color': typeColor.color }}
-                                                         draggable
-                                                         onClick={() => setModal({ open:true, actividad:a })}
-                                                        onDragStart={e => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
+                                                         draggable={puedeEditar}
+                                                         onClick={() => puedeEditar && setModal({ open:true, actividad:a })}
+                                                        onDragStart={e => { if (!puedeEditar) return; setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
                                                         onDragEnd={() => { setDragId(null); setDragOverCol(null); }}>
                                                         <div className="pln-kcard-top">
                                                             {ganadaCalc && (
@@ -1461,7 +1473,7 @@ export default function Planificador() {
                                                             )}
                                                             <TipoBadge tipo={a.tipo} />
                                                             <div className="pln-kcard-acts" onClick={e => e.stopPropagation()}>
-                                                                <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>
+                                                                {puedeEditar && <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>}
                                                                 {puedeEliminar && <button className="pln-ra danger" onClick={() => setConfirmId(a.id)} title="Eliminar"><IcoTrash /></button>}
                                                             </div>
                                                         </div>
@@ -1515,9 +1527,11 @@ export default function Planificador() {
                 vendedor={vendedores.find(v => v.id === calcModal.actividad?.vendedor_id)}
                 moneda={moneda}
                 onClose={() => setCalcModal({ open:false, actividad:null })}
+                readOnly={soloLecturaGerencia}
                 onSave={async data => {
+                    if (soloLecturaGerencia) return null;
                     const updated = await handleSave(data);
-                    setCalcModal(prev => ({ ...prev, actividad: { ...prev.actividad, ...updated } }));
+                    if (updated) setCalcModal(prev => ({ ...prev, actividad: { ...prev.actividad, ...updated } }));
                     return updated;
                 }}
             />

@@ -5,6 +5,7 @@ import { getClientes, createCliente, lookupRuc, lookupDni, uploadArchivoActivida
 import { TIPOS, ESTADOS, PRIORIDADES, MESES, ROL_TIPOS, ROLES, TIPOS_CON_RESULTADO, getTypeColor, fmt as fmtDur } from '../utils/crm';
 import { useTheme } from '../context/ThemeContext';
 import { FileIcon, ImageIcon, PaperclipIcon } from './Icons';
+import { getEffectiveRoles, isAdminUser } from '../utils/roles';
 
 
 function fmtTS(ts) {
@@ -85,14 +86,15 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const esMarketing = MARKETING_TIPOS.has(form.tipo);
     const vendedoresFiltrados = esMarketing
-        ? vendedores.filter(v => v.roles?.some(r => ['Admin','Marketing'].includes(r)))
+        ? vendedores.filter(v => getEffectiveRoles(v).some(r => ['Admin','Marketing'].includes(r)))
         : vendedores;
 
-    const esAdmin = user?.is_superadmin || user?.roles?.includes('Admin');
+    const esAdmin = isAdminUser(user);
+    const userRoles = getEffectiveRoles(user);
     const puedeEditarFechaInicio = !actividad || esAdmin || actividad.vendedor_id === user?.id;
-    const puedeElegirVendedor = esAdmin || user?.roles?.includes('Gerencia');
-    const puedeAjuste = esAdmin || user?.roles?.includes('Gerencia');
-    const tiposPermitidos = esAdmin ? todosLosTipos : (user?.roles?.reduce((acc, rol) => {
+    const puedeElegirVendedor = esAdmin;
+    const puedeAjuste = esAdmin;
+    const tiposPermitidos = esAdmin ? todosLosTipos : (userRoles.reduce((acc, rol) => {
         (rolTipos[rol] || []).forEach(t => { if (!acc.includes(t)) acc.push(t); });
         return acc;
     }, []) || todosLosTipos);
@@ -252,7 +254,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         setForm(f => ({ ...f, fecha: val, mes }));
     };
 
-    const soloChecklist = !!actividad && !esAdmin && !user?.roles?.includes('Gerencia')
+    const soloChecklist = !!actividad && !esAdmin
         && actividad.vendedor_id !== user?.id
         && (parseArr(actividad.colaboradores).includes(user?.id));
 

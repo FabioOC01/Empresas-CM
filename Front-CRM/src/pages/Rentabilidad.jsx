@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useActividadesContext } from '../context/ActividadesContext';
 import { getVendedores, updateVendedorMetas } from '../api/actividades';
 import { EditIcon } from '../components/Icons';
+import { isAdminUser } from '../utils/roles';
 
 // ── Configuración ──────────────────────────────────────────────────────────────
 const COMISION_BASE  = 'rentabilidad'; // 'facturacion' | 'rentabilidad'
@@ -111,7 +112,7 @@ export default function Rentabilidad() {
     const vendedorForzado = useRolFilter();
     const { user } = useAuth();
 
-    const esAdminGerencia = user?.is_superadmin || user?.roles?.some(r => ['Admin','Gerencia'].includes(r));
+    const puedeEditarMetas = isAdminUser(user);
     const { config } = useActividadesContext();
     const tasa_sunat = parseFloat(config?.tasa_sunat) || 0;
 
@@ -259,7 +260,7 @@ export default function Rentabilidad() {
                                 <div style={{ fontSize:16, fontWeight:800, color:tk.txt }}>{v.nombre}</div>
                                 <div style={{ fontSize:11, color:tk.txt3 }}>{ventas.filter(a => a.vendedor_id === v.id).length} venta(s) en el período</div>
                             </div>
-                            {esAdminGerencia && (
+                            {puedeEditarMetas && (
                                 <button
                                     onClick={() => { setEditingId(isEditing ? null : v.id); setMetaEdit({
                                         meta_mensual: vData?.meta_mensual ?? 0,
@@ -277,7 +278,7 @@ export default function Rentabilidad() {
                         </div>
 
                         {/* Edit cuota inline */}
-                        {isEditing && esAdminGerencia && (
+                        {isEditing && puedeEditarMetas && (
                             <div className="commission-edit-grid" style={{ background:tk.card2, borderRadius:10, padding:14, marginBottom:12, display:'grid', gridTemplateColumns:`repeat(${esAnual ? 2 : 4}, minmax(140px, 1fr)) auto`, gap:12, alignItems:'end' }}>
                                 {esAnual ? (
                                     <>
