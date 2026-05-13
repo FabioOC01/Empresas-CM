@@ -95,7 +95,7 @@ const cleanProduct = (p = {}) => ({
 
 function effectiveProductCost(line) {
     const unitCost = productUnitCost(line);
-    const base = line?.precio_venta ? unitCost * 0.1 : unitCost;
+    const base = line?.precio_venta ? unitCost * 0.9 : unitCost;
     return base * productUnits(line?.unidad);
 }
 
@@ -815,7 +815,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                     onChange={e => setGasto(i, 'costo', e.target.value)} />
                                 <input className="cm-input amount" type="number" min="1" step="1" placeholder="Unid." value={productUnits(g.unidad)}
                                     onChange={e => setGasto(i, 'unidad', e.target.value)} />
-                                <label className="cm-import" title="P. Venta: trata el costo como precio de venta y toma 10% como costo">
+                                <label className="cm-import" title="P. Venta: trata el costo como precio de venta y resta 10% como costo">
                                     <input type="checkbox" checked={!!g.precio_venta} onChange={e => setGasto(i, 'precio_venta', e.target.checked)} />
                                     P.V
                                 </label>
@@ -853,7 +853,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             <CalcRow label="Facturacion real" value={USD2(facturacion)} />
                             <CalcRow label="- Gastos adicionales" value={USD2(calc.gastosTotal)} tone="red" />
                             {productosPrecioVentaTotal > 0 && (
-                                <CalcRow label="  P. Venta (10%)" value={USD2(productosPrecioVentaTotal)} tone="red" />
+                                <CalcRow label="  P. Venta (-10%)" value={USD2(productosPrecioVentaTotal)} tone="red" />
                             )}
                             {hasImportacion && (
                                 <CalcRow label="  Importacion 7%" value={USD2(importacionTotal)} tone={importacionTotal > 0 ? 'red' : undefined} />
