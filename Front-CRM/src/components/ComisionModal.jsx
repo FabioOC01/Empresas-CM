@@ -192,6 +192,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
         return next;
     }));
     const addProductLine = (product, origen = 'catalogo') => {
+        if (readOnly) return;
         const line = productToLine(product, origen);
         setGastos(g => [...g, line]);
         setProductQuery('');
@@ -764,6 +765,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                                     className="cm-input"
                                     placeholder="Buscar producto por marca, modelo o descripcion..."
                                     value={productQuery}
+                                    disabled={readOnly}
                                     onChange={e => {
                                         setProductQuery(e.target.value);
                                         setNewProduct(null);
@@ -778,7 +780,7 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                             {productQuery.trim() && (
                                 <div className="cm-suggest">
                                     {productMatches.map(p => (
-                                        <button key={p.id} type="button" onClick={() => addProductLine(p, 'catalogo')}>
+                                        <button key={p.id} type="button" disabled={readOnly} onClick={() => addProductLine(p, 'catalogo')}>
                                             <div style={{ fontWeight:700 }}>{productName(p)}</div>
                                             <div style={{ fontSize:11, color:'var(--cm-muted)' }}>{p.descripcion || 'Sin descripcion'} - {USD2(p.costo)} x {productUnits(p.unidad)}</div>
                                         </button>
@@ -891,12 +893,14 @@ export default function ComisionModal({ open, onClose, onSave, actividad, vended
                 </div>
 
                 <div className="cm-foot">
-                    <div className="cm-esc">Usa <kbd>x</kbd> o guardar para cerrar</div>
+                    <div className="cm-esc">{readOnly ? 'Solo lectura' : <>Usa <kbd>x</kbd> o guardar para cerrar</>}</div>
                     <div className="cm-actions">
                         <button type="button" className="cm-close-foot" onClick={onClose}>Cerrar</button>
-                        <button type="button" className="cm-save-main" onClick={handleSave} disabled={saving}>
-                            {saving ? 'Guardando...' : 'Guardar calculo'}
-                        </button>
+                        {!readOnly && (
+                            <button type="button" className="cm-save-main" onClick={handleSave} disabled={saving}>
+                                {saving ? 'Guardando...' : 'Guardar calculo'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

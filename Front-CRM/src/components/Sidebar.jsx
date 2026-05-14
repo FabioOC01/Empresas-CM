@@ -11,7 +11,7 @@ const DEFAULT_LOGO_FULL = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-
 const DEFAULT_LOGO_ISO  = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO-SHORT.png';
 
 const RETAIL_URL = `http://192.168.1.51:5173/`;
-const GLPI_URL   = 'http://192.168.1.50';
+const GLPI_URL   = 'https://comutelperu.us1.glpi-network.cloud/';
 const ODOO_URL   = 'https://store.comutelperu.com/web#cids=1&action=menu';
 
 const VANTIO_LEADS_ICON = 'https://comutelperu.com/correo-cm/Vantio/LOGO/VANTIO-BLANCO-SHORT.png';

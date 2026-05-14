@@ -152,18 +152,23 @@ router.put('/:id', async (req, res) => {
         if (isGerenciaOnly(req.user))
             return res.status(403).json({ error: 'Gerencia solo tiene permiso de visualizacion' });
 
+        const { rows: currentRows } = await pool.query(
+            'SELECT vendedor_id, colaboradores, estado FROM actividades WHERE id=$1 AND empresa_id=$2',
+            [req.params.id, empresa_id]
+        );
+        if (!currentRows.length) return res.status(404).json({ error: 'No encontrado' });
+        const current = currentRows[0];
+
+        if (current.estado === 'Ganada' && !canManageAll(req.user))
+            return res.status(403).json({ error: 'La actividad ganada solo puede ser editada por Admin' });
+
         // Verificar ownership si no es Admin
         // Colaboradores pueden editar SOLO el campo `checklist`
         let soloChecklist = false;
         let esOwner = canManageAll(req.user);
         if (!canManageAll(req.user)) {
-            const { rows } = await pool.query(
-                'SELECT vendedor_id, colaboradores FROM actividades WHERE id=$1 AND empresa_id=$2',
-                [req.params.id, empresa_id]
-            );
-            if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
-            esOwner = rows[0].vendedor_id === req.user.id;
-            const cols = Array.isArray(rows[0].colaboradores) ? rows[0].colaboradores : [];
+            esOwner = current.vendedor_id === req.user.id;
+            const cols = Array.isArray(current.colaboradores) ? current.colaboradores : [];
             const esColab = cols.includes(req.user.id);
             if (!esOwner && !esColab)
                 return res.status(403).json({ error: 'No puedes editar actividades de otro vendedor' });
@@ -225,6 +230,13 @@ router.put('/:id/elapsed', async (req, res) => {
     try {
         const { elapsed } = req.body;
         const empresa_id = req.user.empresa_id;
+        const { rows } = await pool.query(
+            'SELECT estado FROM actividades WHERE id = $1 AND empresa_id = $2',
+            [req.params.id, empresa_id]
+        );
+        if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
+        if (rows[0].estado === 'Ganada' && !canManageAll(req.user))
+            return res.status(403).json({ error: 'La actividad ganada solo puede ser editada por Admin' });
         await pool.query(
             'UPDATE actividades SET elapsed = $1 WHERE id = $2 AND empresa_id = $3',
             [elapsed, req.params.id, empresa_id]
@@ -265,6 +277,14 @@ router.post('/:id/archivos', uploadDoc.single('archivo'), async (req, res) => {
     const empresa_id = req.user.empresa_id;
 
     try {
+        const { rows: activityRows } = await pool.query(
+            'SELECT estado FROM actividades WHERE id = $1 AND empresa_id = $2',
+            [req.params.id, empresa_id]
+        );
+        if (!activityRows.length) return res.status(404).json({ error: 'Actividad no encontrada' });
+        if (activityRows[0].estado === 'Ganada' && !canManageAll(req.user))
+            return res.status(403).json({ error: 'La actividad ganada solo puede ser editada por Admin' });
+
         const nuevo = {
             url:    req.file.path,
             nombre: req.file.originalname,
@@ -293,6 +313,14 @@ router.delete('/:id/archivos', async (req, res) => {
     const empresa_id = req.user.empresa_id;
 
     try {
+        const { rows: activityRows } = await pool.query(
+            'SELECT estado FROM actividades WHERE id = $1 AND empresa_id = $2',
+            [req.params.id, empresa_id]
+        );
+        if (!activityRows.length) return res.status(404).json({ error: 'Actividad no encontrada' });
+        if (activityRows[0].estado === 'Ganada' && !canManageAll(req.user))
+            return res.status(403).json({ error: 'La actividad ganada solo puede ser editada por Admin' });
+
         const { rows } = await pool.query(
             `UPDATE actividades
              SET archivos = COALESCE(

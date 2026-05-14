@@ -107,6 +107,7 @@ export default function Planificador() {
     const puedeEditar = !soloLecturaGerencia;
     const puedeEliminar = isAdminUser(user);
     const puedeFiltrar  = canViewAll(user);
+    const esActividadBloqueada = (actividad) => actividad?.estado === 'Ganada' && !isAdminUser(user);
     const tk = useTheme();
     const moneda     = config?.moneda || 'USD';
     const tipos      = config?.tipos_actividad || TIPOS;
@@ -216,6 +217,8 @@ export default function Planificador() {
 
     const handleSave = async (data) => {
         if (!puedeEditar) return null;
+        const current = data.id ? actividades.find(a => a.id === data.id) : null;
+        if (esActividadBloqueada(current)) return null;
         if (data.id && actividades.find(a => a.id === data.id)) {
             const updated = await updateActividad(data.id, data);
             setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
@@ -235,6 +238,8 @@ export default function Planificador() {
 
     const changeEstado = async (id, estado) => {
         if (!puedeEditar) return;
+        const act = actividades.find(a => a.id === id);
+        if (esActividadBloqueada(act)) return;
         const updated = await updateActividad(id, { estado });
         setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
     };
@@ -246,7 +251,7 @@ export default function Planificador() {
         if (!puedeEditar) return;
         if (!id) return;
         const act = actividades.find(a => a.id === id);
-        if (!act || act.estado === col) return;
+        if (!act || esActividadBloqueada(act) || act.estado === col) return;
         const updated = await updateActividad(id, { estado: col });
         setActividades(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
     };
@@ -263,6 +268,7 @@ export default function Planificador() {
     const highPriorityCount = filtered.filter(a => a.prioridad === 'Alta' && a.estado !== 'Completado' && a.estado !== 'Ganada').length;
     const hasActiveFilters = filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre !== Q_ACTUAL || filters.mes;
     const sortedColLabel = sort.key ? (COL_DEFS.find(c => c.key === sort.key)?.label || sort.key) : '';
+    const calcActividadActual = actividades.find(a => a.id === calcModal.actividad?.id) || calcModal.actividad;
 
     return (
         <div className="pln-root">
@@ -1315,13 +1321,14 @@ export default function Planificador() {
                                 const estadoOpts = TIPOS_CON_RESULTADO.includes(a.tipo)
                                     ? ['Pendiente','En Progreso','Completado','Ganada','Perdida']
                                     : ESTADOS;
+                                const bloqueada = esActividadBloqueada(a);
                                 return (
                                     <tr
                                         key={a.id}
                                         className="pln-r"
                                         data-pr={a.prioridad}
-                                        onClick={() => puedeEditar && setModal({ open:true, actividad:a })}
-                                        title={puedeEditar ? 'Click para editar' : 'Solo lectura'}
+                                        onClick={() => puedeEditar && !bloqueada && setModal({ open:true, actividad:a })}
+                                        title={puedeEditar && !bloqueada ? 'Click para editar' : 'Solo lectura'}
                                     >
                                         <td className="pln-c first">
                                             <div className="pln-act">
@@ -1364,7 +1371,7 @@ export default function Planificador() {
                                         <td className="pln-c">
                                             <span className="pln-estado-wrap" style={{ background: estTone.bg, color: estTone.fg }} onClick={e => e.stopPropagation()}>
                                                 <span className="pln-estado-dot" style={{ background: estTone.dot }} />
-                                                <select value={a.estado} disabled={!puedeEditar} onChange={e => changeEstado(a.id, e.target.value)}>
+                                                <select value={a.estado} disabled={!puedeEditar || bloqueada} onChange={e => changeEstado(a.id, e.target.value)}>
                                                     {estadoOpts.map(s => <option key={s} value={s}>{s}</option>)}
                                                 </select>
                                             </span>
@@ -1389,7 +1396,7 @@ export default function Planificador() {
                                         </td>
                                         <td className="pln-c" style={{ textAlign:'right' }}>
                                             <div className="pln-acts" onClick={e => e.stopPropagation()}>
-                                                {puedeEditar && <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>}
+                                                {puedeEditar && !bloqueada && <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>}
                                                 {puedeEliminar && <button className="pln-ra danger" onClick={() => setConfirmId(a.id)} title="Eliminar"><IcoTrash /></button>}
                                             </div>
                                         </td>
@@ -1453,13 +1460,14 @@ export default function Planificador() {
                                                 const ganadaCalc = a.estado === 'Ganada' ? miniCalc(a) : null;
                                                 const montoNum = Number(a.monto) || 0;
                                                 const typeColor = getTypeColor(a.tipo);
+                                                const bloqueada = esActividadBloqueada(a);
                                                 return (
                                                     <div key={a.id} className={`pln-kcard ${dragId === a.id ? 'dragging' : ''}`}
                                                          data-pr={a.prioridad}
                                                          style={{ '--type-color': typeColor.color }}
-                                                         draggable={puedeEditar}
-                                                         onClick={() => puedeEditar && setModal({ open:true, actividad:a })}
-                                                        onDragStart={e => { if (!puedeEditar) return; setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
+                                                         draggable={puedeEditar && !bloqueada}
+                                                         onClick={() => puedeEditar && !bloqueada && setModal({ open:true, actividad:a })}
+                                                        onDragStart={e => { if (!puedeEditar || bloqueada) return; setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
                                                         onDragEnd={() => { setDragId(null); setDragOverCol(null); }}>
                                                         <div className="pln-kcard-top">
                                                             {ganadaCalc && (
@@ -1473,7 +1481,7 @@ export default function Planificador() {
                                                             )}
                                                             <TipoBadge tipo={a.tipo} />
                                                             <div className="pln-kcard-acts" onClick={e => e.stopPropagation()}>
-                                                                {puedeEditar && <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>}
+                                                                {puedeEditar && !bloqueada && <button className="pln-ra" onClick={() => setModal({ open:true, actividad:a })} title="Editar"><IcoEdit /></button>}
                                                                 {puedeEliminar && <button className="pln-ra danger" onClick={() => setConfirmId(a.id)} title="Eliminar"><IcoTrash /></button>}
                                                             </div>
                                                         </div>
@@ -1523,13 +1531,13 @@ export default function Planificador() {
 
             <ComisionModal
                 open={calcModal.open}
-                actividad={actividades.find(a => a.id === calcModal.actividad?.id) || calcModal.actividad}
+                actividad={calcActividadActual}
                 vendedor={vendedores.find(v => v.id === calcModal.actividad?.vendedor_id)}
                 moneda={moneda}
                 onClose={() => setCalcModal({ open:false, actividad:null })}
-                readOnly={soloLecturaGerencia}
+                readOnly={soloLecturaGerencia || esActividadBloqueada(calcActividadActual)}
                 onSave={async data => {
-                    if (soloLecturaGerencia) return null;
+                    if (soloLecturaGerencia || esActividadBloqueada(calcActividadActual)) return null;
                     const updated = await handleSave(data);
                     if (updated) setCalcModal(prev => ({ ...prev, actividad: { ...prev.actividad, ...updated } }));
                     return updated;
