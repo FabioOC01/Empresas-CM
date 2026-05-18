@@ -30,7 +30,25 @@ const EMPTY = {
     colaboradores: [], checklist: [],
 };
 
-const docLabel = (doc) => String(doc || '').replace(/\D/g, '').length === 8 ? 'DNI' : 'RUC';
+const DOC_TYPES = ['', 'DNI', 'RUC', 'CE', 'Pasaporte'];
+
+const inferDocType = (doc) => {
+    const digits = String(doc || '').replace(/\D/g, '');
+    if (digits.length === 8) return 'DNI';
+    if (digits.length === 11) return 'RUC';
+    return '';
+};
+
+const docLabel = (doc, tipo) => tipo || inferDocType(doc) || 'Doc';
+const cleanDocByType = (value, tipo) => {
+    if (tipo === 'DNI') return value.replace(/\D/g, '').slice(0, 8);
+    if (tipo === 'RUC') return value.replace(/\D/g, '').slice(0, 11);
+    return value.replace(/\s/g, '').toUpperCase().slice(0, 20);
+};
+const canLookupDoc = (tipo, doc) => (
+    (tipo === 'DNI' && /^\d{8}$/.test(String(doc || '').replace(/\D/g, ''))) ||
+    (tipo === 'RUC' && /^\d{11}$/.test(String(doc || '').replace(/\D/g, '')))
+);
 
 const normalizeTipo = (tipo = '') => String(tipo)
     .normalize('NFD')
@@ -40,6 +58,7 @@ const normalizeTipo = (tipo = '') => String(tipo)
 
 const MARKETING_TIPOS = new Set(['publicidad','redes','video','p. graficas externas','p. graficas internas','actividad','evento','piezas graficas']);
 const CLIENTE_MARKETING_TIPOS = new Set(['p. graficas externas']);
+const CLIENTE_O_AREA_TIPOS = new Set(['administrativa','seguimiento']);
 
 function parseArr(val) {
     if (Array.isArray(val)) return val;
@@ -85,7 +104,8 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const [clientes,  setClientes]  = useState([]);
     const [nuevoC,    setNuevoC]    = useState(false);
     const [clienteQuery,setClienteQuery]= useState('');
-    const [formC,     setFormC]     = useState({ nombre:'', ruc:'', email:'', telefono:'' });
+    const [clienteModo,setClienteModo]= useState('cliente');
+    const [formC,     setFormC]     = useState({ nombre:'', ruc:'', documento_tipo:'', email:'', telefono:'' });
     const [savingC,   setSavingC]   = useState(false);
     const [lookingDocC,setLookingDocC]= useState(false);
     const [sunatInfoC,setSunatInfoC]= useState(null);
@@ -93,14 +113,16 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const tipoNormalizado = normalizeTipo(form.tipo);
     const esMarketing = MARKETING_TIPOS.has(tipoNormalizado);
-    const usaArea = esMarketing && !CLIENTE_MARKETING_TIPOS.has(tipoNormalizado);
+    const permiteClienteOArea = CLIENTE_O_AREA_TIPOS.has(tipoNormalizado);
+    const usaAreaForzada = esMarketing && !CLIENTE_MARKETING_TIPOS.has(tipoNormalizado);
+    const usaArea = usaAreaForzada || (permiteClienteOArea && clienteModo === 'area');
     const vendedoresFiltrados = esMarketing
         ? vendedores.filter(v => getEffectiveRoles(v).some(r => ['Admin','Marketing'].includes(r)))
         : vendedores;
 
     const esAdmin = isAdminUser(user);
     const userRoles = getEffectiveRoles(user);
-    const puedeEditarFechaInicio = !actividad || esAdmin || actividad.vendedor_id === user?.id;
+    const puedeEditarFechas = !actividad || esAdmin;
     const puedeElegirVendedor = esAdmin;
     const puedeAjuste = esAdmin;
     const tiposPermitidos = esAdmin ? todosLosTipos : (userRoles.reduce((acc, rol) => {
@@ -112,7 +134,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         .filter(c => {
             const q = clienteQuery.trim().toLowerCase();
             if (!q) return false;
-            return c.nombre.toLowerCase().includes(q) || String(c.ruc || '').includes(q);
+            return c.nombre.toLowerCase().includes(q) || String(c.ruc || '').toLowerCase().includes(q);
         })
         .slice(0, 8);
     const clienteQueryRuc = clienteQuery.replace(/\D/g, '');
@@ -157,12 +179,22 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 checklist:         parseArr(actividad.checklist),
             });
             setClienteQuery(actividad.cliente || '');
+            setClienteModo(
+                CLIENTE_O_AREA_TIPOS.has(normalizeTipo(actividad.tipo)) &&
+                ROLES.includes(actividad.cliente) &&
+                !actividad.cliente_ruc &&
+                !actividad.cliente_email &&
+                !actividad.cliente_telefono
+                    ? 'area'
+                    : 'cliente'
+            );
             setExpanded(true);
         } else {
             const primerTipo = tiposDisponibles[0] || 'Venta';
             const fechaInicio = todayInputDate();
             setForm({ ...EMPTY, fecha: fechaInicio, mes: MESES[new Date(`${fechaInicio}T12:00:00`).getMonth()], tipo: primerTipo, vendedor_id: user?.id || vendedores[0]?.id || '' });
             setClienteQuery('');
+            setClienteModo('cliente');
             setExpanded(MARKETING_TIPOS.has(normalizeTipo(primerTipo)));
         }
     }, [open, actividad]);
@@ -172,31 +204,38 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
     const resetNuevoCliente = () => {
-        setFormC({ nombre:'', ruc:'', email:'', telefono:'' });
+        setFormC({ nombre:'', ruc:'', documento_tipo:'', email:'', telefono:'' });
         setClienteQuery('');
         setSunatInfoC(null);
         setClienteMsg(null);
     };
 
+    const setClienteDocTipo = (tipo) => {
+        setFormC(f => ({ ...f, documento_tipo: tipo, ruc: cleanDocByType(f.ruc, tipo) }));
+        setSunatInfoC(null);
+        setClienteMsg(null);
+    };
+
     const setClienteRuc = (value) => {
-        setFormC(f => ({ ...f, ruc: value.replace(/\D/g, '').slice(0, 11) }));
+        setFormC(f => ({ ...f, ruc: cleanDocByType(value, f.documento_tipo) }));
         setSunatInfoC(null);
         setClienteMsg(null);
     };
 
     const handleLookupClienteDoc = async () => {
         const doc = String(formC.ruc || clienteQuery || '').replace(/\D/g, '');
-        if (!/^\d{8}$/.test(doc) && !/^\d{11}$/.test(doc)) {
-            setClienteMsg({ type:'err', text:'Ingresa un DNI de 8 digitos o RUC de 11 digitos.' });
+        const tipoDoc = formC.documento_tipo || inferDocType(doc);
+        if (!canLookupDoc(tipoDoc, doc)) {
+            setClienteMsg({ type:'err', text:'Selecciona DNI o RUC e ingresa un documento valido para consultar.' });
             return;
         }
 
         setLookingDocC(true);
         setClienteMsg(null);
         try {
-            const data = doc.length === 8 ? await lookupDni(doc) : await lookupRuc(doc);
+            const data = tipoDoc === 'DNI' ? await lookupDni(doc) : await lookupRuc(doc);
             const documento = data.ruc || data.dni || doc;
-            setFormC(f => ({ ...f, ruc: documento, nombre: data.nombre || f.nombre }));
+            setFormC(f => ({ ...f, ruc: documento, documento_tipo: tipoDoc, nombre: data.nombre || f.nombre }));
             setClienteQuery(data.nombre || documento);
             setForm(f => ({
                 ...f,
@@ -232,7 +271,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const handleClienteSearchChange = (val) => {
         setClienteQuery(val);
         const ruc = val.replace(/\D/g, '').slice(0, 11);
-        if (ruc) setFormC(f => ({ ...f, ruc }));
+        if (ruc) setFormC(f => ({ ...f, ruc, documento_tipo: f.documento_tipo || inferDocType(ruc) }));
         setForm(f => ({
             ...f,
             cliente: val,
@@ -257,6 +296,19 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         set('tipo', tipo);
         if (!actividad && form.cliente) set('nombre', `${tipo} - ${form.cliente}`);
         if (MARKETING_TIPOS.has(normalizeTipo(tipo))) setExpanded(true);
+        if (!CLIENTE_O_AREA_TIPOS.has(normalizeTipo(tipo))) setClienteModo('cliente');
+    };
+    const handleAreaChange = (val) => {
+        setClienteQuery('');
+        setNuevoC(false);
+        setForm(f => ({
+            ...f,
+            cliente: val,
+            cliente_ruc: '',
+            cliente_email: '',
+            cliente_telefono: '',
+            ...(!actividad ? { nombre: `${f.tipo} - ${val}` } : {}),
+        }));
     };
     const handleFechaChange = (val) => {
         const mes = MESES[new Date(val + 'T12:00:00').getMonth()];
@@ -565,7 +617,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                             {/* Cliente o Area */}
                             <div>
                                 <div style={{ ...lbl, flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-                                    <span>{usaArea ? 'Area *' : 'Cliente *'}</span>
+                                    <span>{usaArea ? 'Area *' : permiteClienteOArea ? 'Cliente o area *' : 'Cliente *'}</span>
                                     {!usaArea && (
                                         <button type="button" onClick={() => { setNuevoC(x => !x); resetNuevoCliente(); }}
                                             style={{ fontSize:11, fontWeight:700, padding:'2px 10px', borderRadius:6, border:`1px solid ${'#10b981'}`, background: nuevoC ? '#10b981' : '#10b98118', color: nuevoC ? '#fff' : '#10b981', cursor:'pointer' }}>
@@ -573,8 +625,20 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                         </button>
                                     )}
                                 </div>
+                                {permiteClienteOArea && !usaAreaForzada && (
+                                    <div className="am-seg" style={{ marginBottom:8 }}>
+                                        <button type="button" className={clienteModo === 'cliente' ? 'on' : ''} onClick={() => {
+                                            setClienteModo('cliente');
+                                            if (ROLES.includes(form.cliente)) handleClienteSearchChange('');
+                                        }}>Cliente</button>
+                                        <button type="button" className={clienteModo === 'area' ? 'on' : ''} onClick={() => {
+                                            setClienteModo('area');
+                                            handleAreaChange(ROLES.includes(form.cliente) ? form.cliente : '');
+                                        }}>Area</button>
+                                    </div>
+                                )}
                                 {usaArea ? (
-                                    <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
+                                    <select style={inp} required value={form.cliente} onChange={e => handleAreaChange(e.target.value)}>
                                         <option value="">- Seleccionar area -</option>
                                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
@@ -585,7 +649,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                             <input
                                                 style={inp}
                                                 required
-                                                placeholder="Buscar por nombre, DNI o RUC..."
+                                                placeholder="Buscar por nombre o documento..."
                                                 value={clienteQuery}
                                                 onChange={e => handleClienteSearchChange(e.target.value)}
                                                 onKeyDown={handleClienteSearchKeyDown}
@@ -603,7 +667,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                     <button key={c.id} type="button" onMouseDown={e => e.preventDefault()} onClick={() => handleClienteChange(c.nombre)}
                                                         style={{ width:'100%', border:'none', background:'transparent', color:tk.txt, textAlign:'left', padding:'9px 11px', cursor:'pointer', display:'block' }}>
                                                         <div style={{ fontSize:12, fontWeight:700 }}>{c.nombre}</div>
-                                                        <div style={{ fontSize:10, color:tk.txt3 }}>{c.ruc ? `${docLabel(c.ruc)}: ${c.ruc}` : c.email || 'Sin contacto'}</div>
+                                                        <div style={{ fontSize:10, color:tk.txt3 }}>{c.ruc ? `${docLabel(c.ruc, c.documento_tipo)}: ${c.ruc}` : c.email || 'Sin contacto'}</div>
                                                     </button>
                                                 ))}
                                             </div>
@@ -622,7 +686,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     {false && <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
                                         <option value="">Seleccionar cliente</option>
                                         {clientes.map(c => (
-                                            <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` - ${docLabel(c.ruc)} ${c.ruc}` : ''}</option>
+                                            <option key={c.id} value={c.nombre}>{c.nombre}{c.ruc ? ` - ${docLabel(c.ruc, c.documento_tipo)} ${c.ruc}` : ''}</option>
                                         ))}
                                     </select>}
                                     </>
@@ -632,14 +696,17 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                         <div style={{ fontSize:11, fontWeight:700, color:tk.txt2, marginBottom:2 }}>Nuevo cliente</div>
                                         <input style={inp} placeholder="Nombre *" required value={formC.nombre}
                                             onChange={e => setFormC(f => ({ ...f, nombre: e.target.value }))} />
-                                        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8 }}>
-                                            <input style={inp} inputMode="numeric" maxLength={11} placeholder="DNI o RUC" value={formC.ruc}
+                                        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '120px 1fr auto', gap:8 }}>
+                                            <select style={inp} value={formC.documento_tipo} onChange={e => setClienteDocTipo(e.target.value)}>
+                                                {DOC_TYPES.map(t => <option key={t || 'empty'} value={t}>{t || 'Tipo'}</option>)}
+                                            </select>
+                                            <input style={inp} inputMode={['DNI','RUC'].includes(formC.documento_tipo) ? 'numeric' : 'text'} maxLength={20} placeholder="Numero" value={formC.ruc}
                                                 onChange={e => setClienteRuc(e.target.value)} />
-                                            <button type="button" disabled={lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length)} onClick={handleLookupClienteDoc}
-                                                style={{ padding:'8px 12px', borderRadius:8, border:'none', background: lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length) ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingDocC || ![8, 11].includes(String(formC.ruc || '').replace(/\D/g, '').length) ? 'default' : 'pointer' }}>
+                                            <button type="button" disabled={lookingDocC || !canLookupDoc(formC.documento_tipo, formC.ruc)} onClick={handleLookupClienteDoc}
+                                                style={{ padding:'8px 12px', borderRadius:8, border:'none', background: lookingDocC || !canLookupDoc(formC.documento_tipo, formC.ruc) ? '#a0b8e8' : '#1e88e5', color:'#fff', fontWeight:700, fontSize:12, cursor: lookingDocC || !canLookupDoc(formC.documento_tipo, formC.ruc) ? 'default' : 'pointer' }}>
                                                 {lookingDocC ? 'Buscando...' : 'Buscar'}
                                             </button>
-                                            <input style={inp} placeholder="Telefono" value={formC.telefono}
+                                            <input style={{ ...inp, gridColumn: isMobile ? 'auto' : '1 / -1' }} placeholder="Telefono" value={formC.telefono}
                                                 onChange={e => setFormC(f => ({ ...f, telefono: e.target.value }))} />
                                         </div>
                                         {sunatInfoC && (
@@ -657,6 +724,10 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                         <button type="button" disabled={savingC || !formC.nombre.trim()}
                                             onClick={async () => {
                                                 if (!formC.nombre.trim()) return;
+                                                if (formC.ruc && !formC.documento_tipo) {
+                                                    setClienteMsg({ type:'err', text:'Selecciona el tipo de documento.' });
+                                                    return;
+                                                }
                                                 setSavingC(true);
                                                 try {
                                                     const nuevo = await createCliente(formC);
@@ -673,7 +744,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                                         cliente_email: nuevo.email || '',
                                                         cliente_telefono: nuevo.telefono || '',
                                                     }));
-                                                    if (nuevo.reused) setClienteMsg({ type:'ok', text:'El DNI o RUC ya existia. Se selecciono el cliente registrado.' });
+                                                    if (nuevo.reused) setClienteMsg({ type:'ok', text:'Ya existe un cliente con ese nombre o documento. Se selecciono el cliente registrado.' });
                                                     setNuevoC(false);
                                                 } catch (err) {
                                                     setClienteMsg({ type:'err', text: err.response?.data?.error || 'Error al crear cliente.' });
@@ -771,15 +842,16 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 {/* Fechas */}
                                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                     <label style={lbl}>Fecha de inicio
-                                        <input style={(!actividad || puedeEditarFechaInicio) ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
+                                        <input style={puedeEditarFechas ? inp : { ...inp, background: tk.card2, color: tk.txt2 }}
                                             type="date" value={form.fecha}
-                                            readOnly={!!actividad && !puedeEditarFechaInicio}
-                                            onChange={e => (!actividad || puedeEditarFechaInicio) && handleFechaChange(e.target.value)} />
+                                            readOnly={!puedeEditarFechas}
+                                            onChange={e => puedeEditarFechas && handleFechaChange(e.target.value)} />
                                     </label>
                                     <label style={lbl}>Fin estimado
-                                        <input style={inp} type="date" value={form.fecha_fin || ''}
+                                        <input style={puedeEditarFechas ? inp : { ...inp, background: tk.card2, color: tk.txt2 }} type="date" value={form.fecha_fin || ''}
                                             min={form.fecha}
-                                            onChange={e => set('fecha_fin', e.target.value)} />
+                                            readOnly={!puedeEditarFechas}
+                                            onChange={e => puedeEditarFechas && set('fecha_fin', e.target.value)} />
                                     </label>
                                 </div>
 

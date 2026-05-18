@@ -220,12 +220,12 @@ router.put('/:id', async (req, res) => {
 
         req.body = applyBusinessCaseFinancials(req.body, current);
 
-        const puedeEditarFechaInicio = req.user?.is_superadmin || req.user?.roles?.includes('Admin') || esOwner;
-        const allowedFull = ['nombre','tipo','vendedor_id','cliente','monto','prioridad','estado','mes','notas','fecha_fin',
+        const puedeEditarFechas = req.user?.is_superadmin || req.user?.roles?.includes('Admin');
+        const allowedFull = ['nombre','tipo','vendedor_id','cliente','monto','prioridad','estado','notas',
                          'precio_venta','costo_base','gastos_operativos','ajuste_interno','business_case',
                          'cliente_ruc','cliente_email','cliente_telefono',
                          'colaboradores','checklist'];
-        if (puedeEditarFechaInicio) allowedFull.push('fecha');
+        if (puedeEditarFechas) allowedFull.push('fecha', 'fecha_fin', 'mes');
         const allowed = soloChecklist ? ['checklist'] : allowedFull;
         const fields = Object.keys(req.body).filter(k => allowed.includes(k));
 

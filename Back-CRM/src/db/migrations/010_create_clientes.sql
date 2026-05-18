@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     id            SERIAL PRIMARY KEY,
     nombre        TEXT        NOT NULL,
     ruc           TEXT        NOT NULL DEFAULT '',
+    documento_tipo TEXT       NOT NULL DEFAULT '',
     email         TEXT        NOT NULL DEFAULT '',
     telefono      TEXT        NOT NULL DEFAULT '',
     registrado_por TEXT       REFERENCES vendedores(id) ON DELETE SET NULL,

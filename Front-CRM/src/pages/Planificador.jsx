@@ -74,6 +74,39 @@ function dateOrderValue(value, fallback) {
     return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
+function isoDateOnly(value) {
+    return value ? String(value).slice(0, 10) : '';
+}
+
+function parseLocalDate(value) {
+    if (!value) return null;
+    const d = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function addDays(date, days) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+}
+
+function toInputDate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function weekRange(value) {
+    const d = parseLocalDate(value);
+    if (!d) return null;
+    const day = d.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const start = addDays(d, diffToMonday);
+    const end = addDays(start, 6);
+    return { start: toInputDate(start), end: toInputDate(end) };
+}
+
 function SortMenu({ col, sort, onPick, onClose, align = 'left' }) {
     const ref = useRef(null);
     useEffect(() => {
@@ -143,7 +176,7 @@ export default function Planificador() {
     const [bcModal, setBcModal] = useState({ open:false, actividad:null });
     const MES_ACTUAL = MESES[new Date().getMonth()];
     const Q_ACTUAL = String(Math.floor(new Date().getMonth() / 3) + 1);
-    const DEFAULT_FILTERS = { vendedorId:'', trimestre: Q_ACTUAL, mes:'', tipo:'', estado:'', prioridad:'', buscar:'' };
+    const DEFAULT_FILTERS = { vendedorId:'', trimestre: Q_ACTUAL, mes:'', dia:'', semana:'', tipo:'', estado:'', prioridad:'', buscar:'' };
     const [filters, setFilters] = usePersistentState('crm_planificador_filters', DEFAULT_FILTERS);
     const [sort, setSort] = usePersistentState('crm_planificador_sort', { key:'fecha', dir:'desc' });
     const [dragId, setDragId] = useState(null);
@@ -172,17 +205,29 @@ export default function Planificador() {
     const vendedorNombre = (a) => vendedores.find(v => v.id === a.vendedor_id)?.nombre || '';
     const matchText = (value, query) => norm(value).includes(norm(query));
 
+    const dateFilterActive = !!(filters.dia || filters.semana);
     const baseFiltered = filterActs(actividades, {
         vendedorId: vendedorForzado || filters.vendedorId || undefined,
-        trimestre:  filters.trimestre  || undefined,
-        mes:        filters.mes        || undefined,
+        trimestre:  dateFilterActive ? undefined : filters.trimestre  || undefined,
+        mes:        dateFilterActive ? undefined : filters.mes        || undefined,
         tipo:       filters.tipo       || undefined,
         estado:     filters.estado     || undefined,
         prioridad:  filters.prioridad  || undefined,
     });
 
     let filtered = baseFiltered;
-    if (filters.mes === MES_ACTUAL) {
+    if (filters.dia) {
+        filtered = filtered.filter(a => isoDateOnly(a.fecha) === filters.dia);
+    } else if (filters.semana) {
+        const range = weekRange(filters.semana);
+        if (range) {
+            filtered = filtered.filter(a => {
+                const fecha = isoDateOnly(a.fecha);
+                return fecha && fecha >= range.start && fecha <= range.end;
+            });
+        }
+    }
+    if (!dateFilterActive && filters.mes === MES_ACTUAL) {
         const idxActual = MESES.indexOf(MES_ACTUAL);
         const arrastradas = filterActs(actividades, {
             vendedorId: vendedorForzado || filters.vendedorId || undefined,
@@ -220,7 +265,20 @@ export default function Planificador() {
             : String(av).localeCompare(String(bv), 'es', { sensitivity:'base' });
         return sort.dir === 'asc' ? cmp : -cmp;
     });
-    const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
+    const setF = (k, v) => setFilters(f => {
+        const next = { ...f, [k]: v };
+        if ((k === 'dia' || k === 'semana') && v) {
+            next.mes = '';
+            next.trimestre = '';
+            if (k === 'dia') next.semana = '';
+            if (k === 'semana') next.dia = '';
+        }
+        if ((k === 'mes' || k === 'trimestre') && v) {
+            next.dia = '';
+            next.semana = '';
+        }
+        return next;
+    });
     const toggleSort = (col) => {
         setSort((current) => {
             if (current.key === col.key) {
@@ -281,7 +339,7 @@ export default function Planificador() {
     const progressCount  = filtered.filter(a => a.estado === 'En Progreso').length;
     const pendingCount   = filtered.filter(a => a.estado === 'Pendiente').length;
     const highPriorityCount = filtered.filter(a => a.prioridad === 'Alta' && a.estado !== 'Completado' && a.estado !== 'Ganada').length;
-    const hasActiveFilters = filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre !== Q_ACTUAL || filters.mes;
+    const hasActiveFilters = filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre !== Q_ACTUAL || filters.mes || filters.dia || filters.semana;
     const sortedColLabel = sort.key ? (COL_DEFS.find(c => c.key === sort.key)?.label || sort.key) : '';
     const calcActividadActual = actividades.find(a => a.id === calcModal.actividad?.id) || calcModal.actividad;
     const bcActividadActual = actividades.find(a => a.id === bcModal.actividad?.id) || bcModal.actividad;
@@ -663,7 +721,8 @@ export default function Planificador() {
                     flex-wrap: wrap;
                 }
                 .pln-sel { position: relative; }
-                .pln-sel select {
+                .pln-sel select,
+                .pln-sel input {
                     appearance: none;
                     height: 36px; padding: 0 30px 0 12px;
                     font: inherit; font-size: 13px; font-weight: 700;
@@ -674,36 +733,44 @@ export default function Planificador() {
                     cursor: pointer; outline: none;
                     box-shadow: 0 1px 2px rgba(15,23,42,.04);
                 }
-                .pln-sel select:hover { border-color: var(--pln-line-3); }
-                .pln-sel.has-val select {
+                .pln-sel input { min-width: 140px; padding-right: 10px; }
+                .pln-sel select:hover,
+                .pln-sel input:hover { border-color: var(--pln-line-3); }
+                .pln-sel.has-val select,
+                .pln-sel.has-val input {
                     color: var(--pln-ink);
                     background: #f7fffb;
                     border-color: rgba(7,150,105,.45);
                     box-shadow: 0 0 0 1px rgba(7,150,105,.12), 0 2px 8px rgba(7,150,105,.10);
                 }
-                .pln-sel select:focus { border-color: var(--pln-green); box-shadow: 0 0 0 3px rgba(7,150,105,.12); }
+                .pln-sel select:focus,
+                .pln-sel input:focus { border-color: var(--pln-green); box-shadow: 0 0 0 3px rgba(7,150,105,.12); }
                 .pln-sel .pln-car {
                     position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
                     color: var(--pln-ink-3); pointer-events: none;
                 }
-                [data-theme="dark"] .pln-sel select {
+                [data-theme="dark"] .pln-sel select,
+                [data-theme="dark"] .pln-sel input {
                     background: #0b1628;
                     border-color: rgba(148, 163, 184, .38);
                     color: #d4e0ef;
                     box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 2px 8px rgba(0,0,0,.16);
                 }
-                [data-theme="dark"] .pln-sel select:hover {
+                [data-theme="dark"] .pln-sel select:hover,
+                [data-theme="dark"] .pln-sel input:hover {
                     background: #10203a;
                     border-color: rgba(181, 198, 221, .56);
                     color: #f3f8ff;
                 }
-                [data-theme="dark"] .pln-sel.has-val select {
+                [data-theme="dark"] .pln-sel.has-val select,
+                [data-theme="dark"] .pln-sel.has-val input {
                     background: rgba(16, 185, 129, .13);
                     border-color: rgba(52, 211, 153, .62);
                     color: #eafff7;
                     box-shadow: 0 0 0 1px rgba(52,211,153,.16), 0 4px 12px rgba(16,185,129,.10);
                 }
-                [data-theme="dark"] .pln-sel select:focus {
+                [data-theme="dark"] .pln-sel select:focus,
+                [data-theme="dark"] .pln-sel input:focus {
                     border-color: rgba(52, 211, 153, .62);
                     box-shadow: 0 0 0 3px rgba(16, 185, 129, .16);
                 }
@@ -1303,6 +1370,12 @@ export default function Planificador() {
                             {[['','Mes'], ...MESES.map(m => [m, m])].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
                         </select>
                         <span className="pln-car"><IcoCaret /></span>
+                    </div>
+                    <div className={`pln-sel ${filters.dia ? 'has-val' : ''}`}>
+                        <input type="date" aria-label="Dia" title="Dia" value={filters.dia || ''} onChange={e => setF('dia', e.target.value)} />
+                    </div>
+                    <div className={`pln-sel ${filters.semana ? 'has-val' : ''}`}>
+                        <input type="date" aria-label="Semana" title="Semana" value={filters.semana || ''} onChange={e => setF('semana', e.target.value)} />
                     </div>
                     {puedeFiltrar && (<>
                         {!vendedorForzado && (

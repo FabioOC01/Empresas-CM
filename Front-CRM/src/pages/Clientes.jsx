@@ -3,9 +3,28 @@ import { getClientes, createCliente, updateCliente, lookupRuc, lookupDni } from 
 import { useTheme } from '../context/ThemeContext';
 import usePersistentState from '../hooks/usePersistentState';
 
-const EMPTY = { nombre: '', ruc: '', email: '', telefono: '', contacto: '' };
+const EMPTY = { nombre: '', ruc: '', documento_tipo: '', email: '', telefono: '', contacto: '' };
 
-const docLabel = (doc) => String(doc || '').replace(/\D/g, '').length === 8 ? 'DNI' : 'RUC';
+const DOC_TYPES = ['', 'DNI', 'RUC', 'CE', 'Pasaporte'];
+
+const inferDocType = (doc) => {
+    const digits = String(doc || '').replace(/\D/g, '');
+    if (digits.length === 8) return 'DNI';
+    if (digits.length === 11) return 'RUC';
+    return '';
+};
+
+const docLabel = (doc, tipo) => tipo || inferDocType(doc) || 'Doc';
+const cleanDocByType = (value, tipo) => {
+    if (tipo === 'DNI') return value.replace(/\D/g, '').slice(0, 8);
+    if (tipo === 'RUC') return value.replace(/\D/g, '').slice(0, 11);
+    return value.replace(/\s/g, '').toUpperCase().slice(0, 20);
+};
+const canLookupDoc = (tipo, doc) => (
+    (tipo === 'DNI' && /^\d{8}$/.test(doc)) ||
+    (tipo === 'RUC' && /^\d{11}$/.test(doc))
+);
+const clienteDocText = (c) => c.ruc ? `${docLabel(c.ruc, c.documento_tipo)}: ${c.ruc}` : c.email || 'Sin contacto';
 
 export default function Clientes() {
     const tk = useTheme();
@@ -39,33 +58,38 @@ export default function Clientes() {
         const q = buscar.toLowerCase();
         const matchesSearch =
             c.nombre.toLowerCase().includes(q) ||
-            String(c.ruc || '').includes(buscar) ||
+            String(c.ruc || '').toLowerCase().includes(q) ||
             c.email.toLowerCase().includes(q);
         const matchesVendedor = !vendedorFiltro || c.registrado_por === vendedorFiltro;
         return matchesSearch && matchesVendedor;
     });
 
-    const openEdit = (c) => { setEditing(c); setForm({ nombre: c.nombre, ruc: c.ruc, email: c.email, telefono: c.telefono, contacto: c.contacto || '' }); setMsg(null); setSunatInfo(null); };
+    const openEdit = (c) => { setEditing(c); setForm({ nombre: c.nombre, ruc: c.ruc || '', documento_tipo: c.documento_tipo || inferDocType(c.ruc), email: c.email, telefono: c.telefono, contacto: c.contacto || '' }); setMsg(null); setSunatInfo(null); };
     const openNew  = ()  => { setEditing('new'); setForm(EMPTY); setMsg(null); setSunatInfo(null); };
     const set      = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-    const handleRucChange = (value) => {
-        set('ruc', value.replace(/\D/g, '').slice(0, 11));
+    const handleDocTypeChange = (tipo) => {
+        setForm(f => ({ ...f, documento_tipo: tipo, ruc: cleanDocByType(f.ruc, tipo) }));
+        setSunatInfo(null);
+    };
+
+    const handleDocChange = (value) => {
+        set('ruc', cleanDocByType(value, form.documento_tipo));
         setSunatInfo(null);
     };
 
     const handleLookupDoc = async () => {
         const doc = String(form.ruc || '').replace(/\D/g, '');
-        if (!/^\d{8}$/.test(doc) && !/^\d{11}$/.test(doc)) {
-            setMsg({ type: 'err', text: 'Ingresa un DNI de 8 digitos o RUC de 11 digitos.' });
+        if (!canLookupDoc(form.documento_tipo, doc)) {
+            setMsg({ type: 'err', text: 'Selecciona DNI o RUC e ingresa un documento valido para consultar.' });
             return;
         }
 
         setLookingDoc(true);
         setMsg(null);
         try {
-            const data = doc.length === 8 ? await lookupDni(doc) : await lookupRuc(doc);
-            setForm(f => ({ ...f, ruc: data.ruc || data.dni || doc, nombre: data.nombre || f.nombre }));
+            const data = form.documento_tipo === 'DNI' ? await lookupDni(doc) : await lookupRuc(doc);
+            setForm(f => ({ ...f, ruc: data.ruc || data.dni || doc, documento_tipo: form.documento_tipo, nombre: data.nombre || f.nombre }));
             setSunatInfo(data);
         } catch (err) {
             setSunatInfo(null);
@@ -78,6 +102,7 @@ export default function Clientes() {
     const handleSave = async (e) => {
         e.preventDefault();
         if (!form.nombre.trim()) return setMsg({ type: 'err', text: 'El nombre es obligatorio.' });
+        if (form.ruc && !form.documento_tipo) return setMsg({ type: 'err', text: 'Selecciona el tipo de documento.' });
         setSaving(true); setMsg(null);
         try {
             if (editing === 'new') {
@@ -86,7 +111,7 @@ export default function Clientes() {
                     const exists = cs.some(c => c.id === created.id);
                     return exists ? cs.map(c => c.id === created.id ? { ...c, ...created } : c) : [created, ...cs];
                 });
-                setMsg({ type: 'ok', text: created.reused ? 'El DNI o RUC ya existia. Se abrio el cliente registrado.' : 'Cliente creado.' });
+                setMsg({ type: 'ok', text: created.reused ? 'Ya existe un cliente con ese nombre o documento. Se abrio el cliente registrado.' : 'Cliente creado.' });
                 setEditing(created);
             } else {
                 const updated = await updateCliente(editing.id, form);
@@ -119,7 +144,7 @@ export default function Clientes() {
                 <div style={{ padding: '10px 14px', borderBottom: `1px solid ${tk.bdr}` }}>
                     <input
                         style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: `1px solid ${tk.bdr}`, fontSize: 12, outline: 'none', boxSizing: 'border-box', background: tk.inp, color: tk.txt }}
-                        placeholder="Buscar por nombre, DNI, RUC o email..."
+                        placeholder="Buscar por nombre, documento o email..."
                         value={buscar}
                         onChange={e => setBuscar(e.target.value)}
                     />
@@ -156,7 +181,7 @@ export default function Clientes() {
                             <div style={{ minWidth: 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: tk.txt, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nombre}</div>
                                 <div style={{ fontSize: 11, color: tk.txt2 }}>
-                                    {c.ruc ? `${docLabel(c.ruc)}: ${c.ruc}` : c.email || 'Sin contacto'}
+                                    {clienteDocText(c)}
                                 </div>
                             </div>
                         </button>
@@ -186,10 +211,13 @@ export default function Clientes() {
                         <label style={lbl}>Nombre *
                             <input style={inp} required value={form.nombre} onChange={e => set('nombre', e.target.value)} />
                         </label>
-                        <label style={lbl}>DNI o RUC
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                                <input style={inp} inputMode="numeric" maxLength={11} placeholder="DNI 8 digitos o RUC 11 digitos" value={form.ruc} onChange={e => handleRucChange(e.target.value)} />
-                                <button type="button" disabled={lookingDoc || ![8, 11].includes(String(form.ruc || '').replace(/\D/g, '').length)} onClick={handleLookupDoc} style={{ padding: '9px 14px', background: lookingDoc || ![8, 11].includes(String(form.ruc || '').replace(/\D/g, '').length) ? '#a0b8e8' : '#1e88e5', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: lookingDoc || ![8, 11].includes(String(form.ruc || '').replace(/\D/g, '').length) ? 'default' : 'pointer' }}>
+                        <label style={lbl}>Documento
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '130px 1fr auto', gap: 8 }}>
+                                <select style={inp} value={form.documento_tipo} onChange={e => handleDocTypeChange(e.target.value)}>
+                                    {DOC_TYPES.map(t => <option key={t || 'empty'} value={t}>{t || 'Tipo'}</option>)}
+                                </select>
+                                <input style={inp} inputMode={['DNI','RUC'].includes(form.documento_tipo) ? 'numeric' : 'text'} maxLength={20} placeholder="Numero" value={form.ruc} onChange={e => handleDocChange(e.target.value)} />
+                                <button type="button" disabled={lookingDoc || !canLookupDoc(form.documento_tipo, form.ruc)} onClick={handleLookupDoc} style={{ padding: '9px 14px', background: lookingDoc || !canLookupDoc(form.documento_tipo, form.ruc) ? '#a0b8e8' : '#1e88e5', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: lookingDoc || !canLookupDoc(form.documento_tipo, form.ruc) ? 'default' : 'pointer' }}>
                                     {lookingDoc ? 'Buscando...' : 'Buscar'}
                                 </button>
                             </div>
