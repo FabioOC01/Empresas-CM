@@ -734,6 +734,46 @@ export default function Planificador() {
                     box-shadow: 0 1px 2px rgba(15,23,42,.04);
                 }
                 .pln-sel input { min-width: 140px; padding-right: 10px; }
+                .pln-date {
+                    height: 36px;
+                    min-width: 168px;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 0 9px 0 11px;
+                    background: #ffffff;
+                    border: 1px solid #cfd7cd;
+                    border-radius: 9px;
+                    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+                }
+                .pln-date .pln-date-lbl {
+                    font-size: 11px;
+                    line-height: 1;
+                    font-weight: 800;
+                    color: var(--pln-ink-3);
+                    text-transform: uppercase;
+                }
+                .pln-date input {
+                    min-width: 0;
+                    width: 118px;
+                    height: 32px;
+                    padding: 0;
+                    border: none;
+                    background: transparent;
+                    box-shadow: none;
+                }
+                .pln-date:hover { border-color: var(--pln-line-3); }
+                .pln-date.has-val {
+                    background: #f7fffb;
+                    border-color: rgba(7,150,105,.45);
+                    box-shadow: 0 0 0 1px rgba(7,150,105,.12), 0 2px 8px rgba(7,150,105,.10);
+                }
+                .pln-date.has-val .pln-date-lbl { color: var(--pln-green-2); }
+                .pln-date:focus-within {
+                    border-color: var(--pln-green);
+                    box-shadow: 0 0 0 3px rgba(7,150,105,.12);
+                }
+                .pln-date input:focus { box-shadow: none; }
                 .pln-sel select:hover,
                 .pln-sel input:hover { border-color: var(--pln-line-3); }
                 .pln-sel.has-val select,
@@ -773,6 +813,27 @@ export default function Planificador() {
                 [data-theme="dark"] .pln-sel input:focus {
                     border-color: rgba(52, 211, 153, .62);
                     box-shadow: 0 0 0 3px rgba(16, 185, 129, .16);
+                }
+                [data-theme="dark"] .pln-date {
+                    background: #0b1628;
+                    border-color: rgba(148, 163, 184, .38);
+                    box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 2px 8px rgba(0,0,0,.16);
+                }
+                [data-theme="dark"] .pln-date:hover {
+                    background: #10203a;
+                    border-color: rgba(181, 198, 221, .56);
+                }
+                [data-theme="dark"] .pln-date.has-val {
+                    background: rgba(16, 185, 129, .13);
+                    border-color: rgba(52, 211, 153, .62);
+                    box-shadow: 0 0 0 1px rgba(52,211,153,.16), 0 4px 12px rgba(16,185,129,.10);
+                }
+                [data-theme="dark"] .pln-date:focus-within {
+                    border-color: rgba(52, 211, 153, .62);
+                    box-shadow: 0 0 0 3px rgba(16, 185, 129, .16);
+                }
+                [data-theme="dark"] .pln-date input {
+                    color: #d4e0ef;
                 }
                 [data-theme="dark"] .pln-sel .pln-car {
                     color: #8296b0;
@@ -1371,12 +1432,14 @@ export default function Planificador() {
                         </select>
                         <span className="pln-car"><IcoCaret /></span>
                     </div>
-                    <div className={`pln-sel ${filters.dia ? 'has-val' : ''}`}>
-                        <input type="date" aria-label="Dia" title="Dia" value={filters.dia || ''} onChange={e => setF('dia', e.target.value)} />
-                    </div>
-                    <div className={`pln-sel ${filters.semana ? 'has-val' : ''}`}>
-                        <input type="date" aria-label="Semana" title="Semana" value={filters.semana || ''} onChange={e => setF('semana', e.target.value)} />
-                    </div>
+                    <label className={`pln-date ${filters.dia ? 'has-val' : ''}`} title="Filtrar por dia exacto">
+                        <span className="pln-date-lbl">Dia</span>
+                        <input type="date" aria-label="Dia" value={filters.dia || ''} onChange={e => setF('dia', e.target.value)} />
+                    </label>
+                    <label className={`pln-date ${filters.semana ? 'has-val' : ''}`} title="Filtrar por semana">
+                        <span className="pln-date-lbl">Semana</span>
+                        <input type="date" aria-label="Semana" value={filters.semana || ''} onChange={e => setF('semana', e.target.value)} />
+                    </label>
                     {puedeFiltrar && (<>
                         {!vendedorForzado && (
                             <div className={`pln-sel ${filters.vendedorId ? 'has-val' : ''}`}>
