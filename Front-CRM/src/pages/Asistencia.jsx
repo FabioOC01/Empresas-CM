@@ -7,6 +7,7 @@ import PageHeader from '../components/PageHeader';
 import KpiCard from '../components/KpiCard';
 import Avatar from '../components/Avatar';
 import { ClockIcon } from '../components/Icons';
+import usePersistentState from '../hooks/usePersistentState';
 
 const STATUS_STYLES = {
     'A tiempo': { bg: '#dcfce7', color: '#166534' },
@@ -108,10 +109,10 @@ export default function Asistencia() {
         ? 'minmax(220px, 1.2fr) 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.8fr 0.6fr'
         : 'minmax(220px, 1.2fr) 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.8fr';
 
-    const [fecha, setFecha] = useState(todayIso());
-    const [estado, setEstado] = useState('');
-    const [sede, setSede] = useState('');
-    const [vendedorId, setVendedorId] = useState('');
+    const [fecha, setFecha] = usePersistentState('crm_asistencia_fecha', todayIso());
+    const [estado, setEstado] = usePersistentState('crm_asistencia_estado', '');
+    const [sede, setSede] = usePersistentState('crm_asistencia_sede', '');
+    const [vendedorId, setVendedorId] = usePersistentState('crm_asistencia_vendedor', '');
     const [rows, setRows] = useState([]);
     const [vendedores, setVendedores] = useState([]);
     const [config, setConfig] = useState(null);
@@ -254,7 +255,7 @@ export default function Asistencia() {
             <div style={{ display: 'grid', gap: 18 }}>
                 <PageHeader
                     title="Próximamente"
-                    subtitle="El módulo de asistencia estará disponible pronto para vendedores."
+                    subtitle="El módulo de asistencia estará disponible pronto."
                 />
 
                 <div className="card" style={{ padding: 28, textAlign: 'center' }}>

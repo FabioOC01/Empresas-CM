@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getClientes, createCliente, updateCliente, lookupRuc, lookupDni } from '../api/actividades';
 import { useTheme } from '../context/ThemeContext';
+import usePersistentState from '../hooks/usePersistentState';
 
 const EMPTY = { nombre: '', ruc: '', email: '', telefono: '', contacto: '' };
 
@@ -12,8 +13,8 @@ export default function Clientes() {
     const lbl = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: tk.txt2, fontWeight: 600 };
     const inp = { padding: '9px 11px', borderRadius: 7, border: `1px solid ${tk.bdr}`, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', background: tk.inp, color: tk.txt };
     const [clientes,  setClientes]  = useState([]);
-    const [buscar,    setBuscar]    = useState('');
-    const [vendedorFiltro, setVendedorFiltro] = useState('');
+    const [buscar,    setBuscar]    = usePersistentState('crm_clientes_buscar', '');
+    const [vendedorFiltro, setVendedorFiltro] = usePersistentState('crm_clientes_vendedor', '');
     const [editing,   setEditing]   = useState(null); // cliente | 'new' | null
     const [form,      setForm]      = useState(EMPTY);
     const [saving,    setSaving]    = useState(false);
@@ -228,7 +229,7 @@ export default function Clientes() {
                 </div>
             ) : (
                 <div style={{ background: tk.card, borderRadius: 10, boxShadow: tk.shadow, padding: 40, textAlign: 'center', color: tk.txt2, fontSize: 13 }}>
-                    Seleccioná un cliente para ver su detalle, o presioná <strong>+ Nuevo</strong> para agregar uno.
+                    Selecciona un cliente para ver su detalle, o presiona <strong>+ Nuevo</strong> para agregar uno.
                 </div>
             )}
         </div>

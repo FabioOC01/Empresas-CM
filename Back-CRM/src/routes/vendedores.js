@@ -36,6 +36,11 @@ function pctBaseExpr(columns) {
     return '0.02::numeric AS pct_comision_base';
 }
 
+function metaActividadesExpr(columns) {
+    if (columns.has('meta_actividades_semanal')) return 'v.meta_actividades_semanal';
+    return '0::integer AS meta_actividades_semanal';
+}
+
 // GET /api/vendedores
 router.get('/', async (req, res) => {
     try {
@@ -45,7 +50,7 @@ router.get('/', async (req, res) => {
             SELECT v.id, v.nombre, v.iniciales, v.color, ${usernameExpr(columns)} AS username, v.email, v.cargo,
                    v.meta_mensual, v.umbral_comision,
                    v.meta_facturacion_mensual, v.meta_rentabilidad_trimestral, v.meta_facturacion_trimestral,
-                   v.meta_rentabilidad_anual, v.meta_facturacion_anual,
+                   v.meta_rentabilidad_anual, v.meta_facturacion_anual, ${metaActividadesExpr(columns)},
                    ${pctBaseExpr(columns)},
                    v.pct_comision_bajo, v.pct_comision_alto, v.foto_url,
                    v.zkbio_employee_code, v.zkbio_device_name, v.asistencia_activa, v.horario_dias,
@@ -297,6 +302,7 @@ router.put('/:id/metas', async (req, res) => {
         meta_facturacion_trimestral,
         meta_rentabilidad_anual,
         meta_facturacion_anual,
+        meta_actividades_semanal,
         umbral_comision,
         pct_comision_base,
         pct_comision_bajo,
@@ -310,6 +316,32 @@ router.put('/:id/metas', async (req, res) => {
             return res.status(400).json({ error: 'Falta la columna pct_comision_base en vendedores. Ejecuta la migracion 021_vendedor_username_comision_base.sql.' });
         }
 
+        const hasMetaActividades = columns.has('meta_actividades_semanal');
+        const setMetaActividades = hasMetaActividades
+            ? ', meta_actividades_semanal = $11'
+            : '';
+        const returningMetaActividades = hasMetaActividades
+            ? ', meta_actividades_semanal'
+            : ', 0::integer AS meta_actividades_semanal';
+        const idParam = hasMetaActividades ? 12 : 11;
+        const empresaParam = hasMetaActividades ? 13 : 12;
+        const params = [
+            meta_mensual,
+            umbral_comision,
+            pct_comision_base ?? 0.02,
+            pct_comision_bajo ?? 0.07,
+            pct_comision_alto ?? 0.08,
+            meta_facturacion_mensual ?? 0,
+            meta_rentabilidad_trimestral ?? 0,
+            meta_facturacion_trimestral ?? 0,
+            meta_rentabilidad_anual ?? 0,
+            meta_facturacion_anual  ?? 0,
+        ];
+        if (hasMetaActividades) {
+            params.push(Math.max(0, parseInt(meta_actividades_semanal, 10) || 0));
+        }
+        params.push(req.params.id, empresa_id);
+
         const { rows } = await pool.query(`
             UPDATE vendedores
             SET meta_mensual = $1,
@@ -322,24 +354,12 @@ router.put('/:id/metas', async (req, res) => {
                 meta_facturacion_trimestral = $8,
                 meta_rentabilidad_anual = $9,
                 meta_facturacion_anual  = $10
-            WHERE id = $11 AND empresa_id = $12
+                ${setMetaActividades}
+            WHERE id = $${idParam} AND empresa_id = $${empresaParam}
             RETURNING id, meta_mensual, umbral_comision, pct_comision_base, pct_comision_bajo, pct_comision_alto,
                       meta_facturacion_mensual, meta_rentabilidad_trimestral, meta_facturacion_trimestral,
-                      meta_rentabilidad_anual, meta_facturacion_anual
-        `, [
-            meta_mensual,
-            umbral_comision,
-            pct_comision_base ?? 0.02,
-            pct_comision_bajo ?? 0.07,
-            pct_comision_alto ?? 0.08,
-            meta_facturacion_mensual ?? 0,
-            meta_rentabilidad_trimestral ?? 0,
-            meta_facturacion_trimestral ?? 0,
-            meta_rentabilidad_anual ?? 0,
-            meta_facturacion_anual  ?? 0,
-            req.params.id,
-            empresa_id,
-        ]);
+                      meta_rentabilidad_anual, meta_facturacion_anual${returningMetaActividades}
+        `, params);
 
         if (!rows.length) return res.status(404).json({ error: 'Vendedor no encontrado' });
         res.json(rows[0]);

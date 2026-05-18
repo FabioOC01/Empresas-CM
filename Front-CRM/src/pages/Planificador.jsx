@@ -11,6 +11,9 @@ import Avatar from '../components/Avatar';
 import { TipoBadge, PrioBadge, EstadoBadge } from '../components/Badge';
 import ActividadModal from '../components/ActividadModal';
 import ComisionModal from '../components/ComisionModal';
+import BusinessCaseModal from '../components/BusinessCaseModal';
+import usePersistentState from '../hooks/usePersistentState';
+import { isBusinessCaseTipo } from '../utils/businessCase';
 
 const KANBAN_COLS = ['Pendiente','En Progreso','Completado','Ganada','Perdida'];
 const COL_PIP    = { 'Pendiente':'#8a93a3','En Progreso':'#2862c8','Completado':'#079669','Ganada':'#036b4c','Perdida':'#c0392b' };
@@ -127,7 +130,7 @@ export default function Planificador() {
     const [searchParams] = useSearchParams();
     const [vendedores, setVendedores] = useState([]);
     const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 760);
-    const [view, setView] = useState(searchParams.get('view') === 'kanban' ? 'kanban' : 'tabla');
+    const [view, setView] = usePersistentState('crm_planificador_view', searchParams.get('view') === 'kanban' ? 'kanban' : 'tabla');
     const [collapsedCols, setCollapsedCols] = useState(new Set(['Ganada','Perdida']));
     const toggleCol = (col) => setCollapsedCols(s => {
         const n = new Set(s);
@@ -137,16 +140,20 @@ export default function Planificador() {
     const [modal, setModal] = useState({ open: false, actividad: null });
     const [confirmId, setConfirmId] = useState(null);
     const [calcModal, setCalcModal] = useState({ open:false, actividad:null });
+    const [bcModal, setBcModal] = useState({ open:false, actividad:null });
     const MES_ACTUAL = MESES[new Date().getMonth()];
     const Q_ACTUAL = String(Math.floor(new Date().getMonth() / 3) + 1);
     const DEFAULT_FILTERS = { vendedorId:'', trimestre: Q_ACTUAL, mes:'', tipo:'', estado:'', prioridad:'', buscar:'' };
-    const [filters, setFilters] = useState(DEFAULT_FILTERS);
-    const [sort, setSort] = useState({ key:'fecha', dir:'desc' });
-    const [openMenu, setOpenMenu] = useState(null);
+    const [filters, setFilters] = usePersistentState('crm_planificador_filters', DEFAULT_FILTERS);
+    const [sort, setSort] = usePersistentState('crm_planificador_sort', { key:'fecha', dir:'desc' });
     const [dragId, setDragId] = useState(null);
     const [dragOverCol, setDragOverCol] = useState(null);
 
     useEffect(() => { getVendedores().then(setVendedores); }, []);
+    useEffect(() => {
+        const viewParam = searchParams.get('view');
+        if (viewParam === 'kanban' || viewParam === 'tabla') setView(viewParam);
+    }, [searchParams, setView]);
     useEffect(() => {
         const onResize = () => setIsMobile(window.innerWidth <= 760);
         window.addEventListener('resize', onResize);
@@ -214,6 +221,14 @@ export default function Planificador() {
         return sort.dir === 'asc' ? cmp : -cmp;
     });
     const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
+    const toggleSort = (col) => {
+        setSort((current) => {
+            if (current.key === col.key) {
+                return { key: col.key, dir: current.dir === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key: col.key, dir: col.type === 'text' ? 'asc' : 'desc' };
+        });
+    };
 
     const handleSave = async (data) => {
         if (!puedeEditar) return null;
@@ -269,6 +284,7 @@ export default function Planificador() {
     const hasActiveFilters = filters.vendedorId || filters.tipo || filters.estado || filters.prioridad || filters.buscar || filters.trimestre !== Q_ACTUAL || filters.mes;
     const sortedColLabel = sort.key ? (COL_DEFS.find(c => c.key === sort.key)?.label || sort.key) : '';
     const calcActividadActual = actividades.find(a => a.id === calcModal.actividad?.id) || calcModal.actividad;
+    const bcActividadActual = actividades.find(a => a.id === bcModal.actividad?.id) || bcModal.actividad;
 
     return (
         <div className="pln-root">
@@ -353,6 +369,14 @@ export default function Planificador() {
                 .pln-tab.is-on { background: var(--pln-ink); color: #fff; }
                 .pln-tab.is-on .pln-tab-dot { background: var(--pln-green); }
                 .pln-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pln-ink-4); }
+                .pln-view-anim {
+                    animation: plnViewIn .24s cubic-bezier(.22,1,.36,1);
+                    transform-origin: top center;
+                }
+                @keyframes plnViewIn {
+                    from { opacity: 0; transform: translateY(8px) scale(.992); filter: blur(1px); }
+                    to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+                }
                 [data-theme="dark"] .pln-tabs {
                     background: rgba(15, 23, 42, .72);
                     border-color: rgba(92, 115, 146, .32);
@@ -382,40 +406,66 @@ export default function Planificador() {
                 .pln-kpis {
                     display: grid;
                     grid-template-columns: repeat(5, minmax(0, 1fr));
-                    gap: 0;
-                    background: var(--pln-surface);
-                    border: 1px solid var(--pln-line);
-                    border-radius: var(--pln-radius);
-                    overflow: hidden;
+                    gap: 10px;
+                    background: transparent;
+                    border: none;
+                    border-radius: 0;
+                    overflow: visible;
                 }
                 .pln-kpi {
-                    padding: 10px 16px;
+                    --kpi-accent: var(--pln-green);
+                    --kpi-bg: rgba(7, 150, 105, .08);
+                    padding: 12px 14px 11px;
                     display: flex; flex-direction: column; gap: 2px;
                     position: relative; min-width: 0;
+                    background: linear-gradient(155deg, var(--kpi-bg) 0%, var(--pln-surface) 42%, var(--pln-surface) 100%);
+                    border: 1px solid color-mix(in srgb, var(--kpi-accent) 24%, var(--pln-line));
+                    border-radius: 9px;
+                    box-shadow: 0 10px 24px -20px rgba(15, 23, 42, .6), 0 1px 0 rgba(255,255,255,.8) inset;
+                    overflow: hidden;
                 }
-                .pln-kpi + .pln-kpi::before {
-                    content: "";
-                    position: absolute; left: 0; top: 14px; bottom: 14px;
-                    width: 1px; background: var(--pln-line);
-                }
+                .pln-kpi[data-tone="green"] { --kpi-accent: var(--pln-green); --kpi-bg: rgba(7,150,105,.10); }
+                .pln-kpi[data-tone="blue"]  { --kpi-accent: var(--pln-blue);  --kpi-bg: rgba(40,98,200,.10); }
+                .pln-kpi[data-tone="red"]   { --kpi-accent: var(--pln-red);   --kpi-bg: rgba(192,57,43,.10); }
+                .pln-kpi[data-tone="amber"] { --kpi-accent: var(--pln-amber); --kpi-bg: rgba(184,120,0,.12); }
                 .pln-kpi-label {
-                    font-size: 11px; font-weight: 500;
-                    color: var(--pln-ink-3);
-                    text-transform: uppercase; letter-spacing: .04em;
-                    display: flex; align-items: center; gap: 6px;
+                    font-size: 10.5px; font-weight: 800;
+                    color: var(--pln-ink-2);
+                    text-transform: uppercase; letter-spacing: .05em;
+                    display: flex; align-items: center; gap: 9px;
+                    padding-top: 2px;
                     white-space: nowrap;
                     overflow: hidden; text-overflow: ellipsis;
                 }
                 .pln-kpi-label::before {
-                    content: ""; width: 6px; height: 6px; border-radius: 50%;
+                    content: ""; width: 7px; height: 7px; border-radius: 50%;
                     background: var(--pln-ink-4); flex: none;
+                    margin-left: 4px;
+                    box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-accent) 16%, transparent);
+                    animation: plnDotPulse 2.4s ease-in-out infinite;
+                }
+                @keyframes plnDotPulse {
+                    0%, 100% {
+                        transform: scale(1);
+                        box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-accent) 16%, transparent);
+                    }
+                    50% {
+                        transform: scale(1.18);
+                        box-shadow: 0 0 0 5px color-mix(in srgb, var(--kpi-accent) 8%, transparent);
+                    }
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    .pln-kpi-label::before,
+                    .pln-view-anim,
+                    .pln-qpill.is-on { animation: none; }
+                    .pln-qpill { transition: none; }
                 }
                 .pln-kpi[data-tone="green"] .pln-kpi-label::before { background: var(--pln-green); }
                 .pln-kpi[data-tone="blue"]  .pln-kpi-label::before { background: var(--pln-blue); }
                 .pln-kpi[data-tone="red"]   .pln-kpi-label::before { background: var(--pln-red); }
                 .pln-kpi[data-tone="amber"] .pln-kpi-label::before { background: var(--pln-amber); }
                 .pln-kpi-val {
-                    font-size: 19px; font-weight: 600;
+                    font-size: 21px; font-weight: 850;
                     color: var(--pln-ink); letter-spacing: -.01em;
                     font-variant-numeric: tabular-nums;
                     line-height: 1.2; white-space: nowrap;
@@ -426,7 +476,14 @@ export default function Planificador() {
                     color: var(--pln-ink-3); margin-right: 3px;
                     letter-spacing: .02em;
                 }
-                .pln-kpi-sub { font-size: 11.5px; color: var(--pln-ink-3); font-variant-numeric: tabular-nums; }
+                .pln-kpi-sub { font-size: 11.5px; color: var(--kpi-accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+                [data-theme="dark"] .pln-kpi {
+                    background: linear-gradient(155deg, color-mix(in srgb, var(--kpi-accent) 20%, transparent) 0%, #121f33 45%, #111c2d 100%);
+                    border-color: color-mix(in srgb, var(--kpi-accent) 36%, rgba(148,163,184,.28));
+                    box-shadow: 0 14px 30px -20px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.06) inset;
+                }
+                [data-theme="dark"] .pln-kpi-label { color: #d4e0ef; }
+                [data-theme="dark"] .pln-kpi-val { color: #f3f8ff; }
 
                 /* ============ PRIMARY ============ */
                 .pln-primary {
@@ -482,69 +539,87 @@ export default function Planificador() {
                 /* ============ FILTERS ============ */
                 .pln-filters {
                     display: flex; align-items: center; gap: 8px;
-                    padding: 8px;
-                    background: var(--pln-surface);
-                    border: 1px solid var(--pln-line);
-                    border-radius: var(--pln-radius) var(--pln-radius) 0 0;
-                    border-bottom: none;
+                    padding: 10px 12px;
+                    min-height: 56px;
+                    background: linear-gradient(180deg, #ffffff 0%, #f4f6f3 100%);
+                    border: 1px solid var(--pln-line-2);
+                    border-radius: 12px 12px 0 0;
+                    border-bottom-color: var(--pln-line-3);
+                    box-shadow: 0 10px 24px -20px rgba(15, 23, 42, .45), 0 1px 0 rgba(255,255,255,.8) inset;
                     flex-wrap: wrap;
+                    position: relative;
+                    z-index: 4;
                 }
                 .pln-qpills {
                     display: inline-flex;
-                    background: var(--pln-bg);
-                    border: 1px solid var(--pln-line);
-                    border-radius: 7px;
-                    padding: 2px;
+                    background: #eef1ed;
+                    border: 1px solid #d8ded6;
+                    border-radius: 9px;
+                    padding: 3px;
+                    box-shadow: inset 0 1px 2px rgba(15,23,42,.05);
                 }
                 .pln-qpill {
                     appearance: none; border: none; background: transparent;
                     font: inherit; font-size: 12px; font-weight: 500;
                     color: var(--pln-ink-3);
-                    height: 24px; min-width: 32px; padding: 0 8px;
-                    border-radius: 5px; cursor: pointer;
+                    height: 28px; min-width: 34px; padding: 0 9px;
+                    border-radius: 7px; cursor: pointer;
+                    transition: transform .16s ease, background .16s ease, color .16s ease, box-shadow .16s ease;
                 }
-                .pln-qpill:hover { color: var(--pln-ink); }
+                .pln-qpill:hover { color: var(--pln-ink); transform: translateY(-1px); }
                 .pln-qpill.is-on {
-                    background: var(--pln-surface);
+                    background: #ffffff;
                     color: var(--pln-green-2);
-                    box-shadow: 0 0 0 1px var(--pln-green-line), 0 1px 2px rgba(0,0,0,.04);
+                    box-shadow: 0 0 0 1px rgba(7,150,105,.35), 0 2px 6px rgba(7,150,105,.14);
+                    font-weight: 800;
+                    animation: plnQuarterPop .26s cubic-bezier(.22,1,.36,1);
+                }
+                @keyframes plnQuarterPop {
+                    0% { transform: scale(.94); }
+                    60% { transform: scale(1.06); }
+                    100% { transform: scale(1); }
                 }
                 [data-theme="dark"] .pln-filters {
-                    background: #111c2d;
-                    border-color: rgba(92, 115, 146, .32);
+                    background: linear-gradient(180deg, #1c2c46 0%, #132238 100%);
+                    border-color: rgba(148, 163, 184, .46);
+                    border-bottom-color: rgba(148, 163, 184, .58);
+                    box-shadow: 0 14px 32px -18px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.08) inset;
                 }
                 [data-theme="dark"] .pln-qpills {
-                    background: rgba(2, 6, 23, .38);
-                    border-color: rgba(92, 115, 146, .28);
+                    background: rgba(2, 8, 23, .72);
+                    border-color: rgba(148, 163, 184, .34);
+                    box-shadow: inset 0 1px 3px rgba(0,0,0,.32);
                 }
                 [data-theme="dark"] .pln-qpill {
-                    color: #8fa2bc;
+                    color: #b8c7dc;
+                    font-weight: 700;
                 }
                 [data-theme="dark"] .pln-qpill:hover {
-                    background: rgba(148, 163, 184, .10);
+                    background: rgba(148, 163, 184, .14);
                     color: #e5edf8;
                 }
                 [data-theme="dark"] .pln-qpill.is-on {
-                    background: rgba(16, 185, 129, .16);
-                    color: #6ee7b7;
-                    box-shadow: 0 0 0 1px rgba(52, 211, 153, .45);
+                    background: rgba(16, 185, 129, .24);
+                    color: #8ff4c9;
+                    box-shadow: 0 0 0 1px rgba(52, 211, 153, .62), 0 4px 12px rgba(16,185,129,.16);
                 }
                 .pln-search {
                     position: relative;
-                    flex: 1 1 240px;
-                    max-width: 320px;
-                    min-width: 200px;
+                    flex: 0 1 260px;
+                    max-width: 185px;
+                    min-width: 180px;
                 }
                 .pln-search input {
-                    width: 100%; height: 30px;
+                    width: 100%; height: 36px;
                     padding: 0 28px 0 30px;
-                    font: inherit; font-size: 12.5px;
+                    font: inherit; font-size: 13px;
                     color: var(--pln-ink);
-                    background: var(--pln-bg);
-                    border: 1px solid var(--pln-line);
-                    border-radius: 7px;
+                    background: #ffffff;
+                    border: 1px solid #d8ded6;
+                    border-radius: 9px;
                     outline: none;
                     transition: border-color .12s, box-shadow .12s, background .12s;
+                    box-shadow: 0 1px 2px rgba(15,23,42,.04);
                 }
                 .pln-search input::placeholder { color: var(--pln-ink-3); }
                 .pln-search input:focus {
@@ -553,18 +628,19 @@ export default function Planificador() {
                     box-shadow: 0 0 0 3px rgba(7,150,105,.12);
                 }
                 [data-theme="dark"] .pln-search input {
-                    background: #0b1322;
-                    border-color: rgba(92, 115, 146, .28);
-                    color: #dbe5f2;
+                    background: #0b1628;
+                    border-color: rgba(148, 163, 184, .38);
+                    color: #eef5ff;
+                    box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 2px 8px rgba(0,0,0,.16);
                 }
                 [data-theme="dark"] .pln-search input::placeholder {
-                    color: #8193ad;
+                    color: #a4b4ca;
                     opacity: 1;
                 }
                 [data-theme="dark"] .pln-search input:focus {
-                    background: #0f1a2b;
-                    border-color: rgba(52, 211, 153, .62);
-                    box-shadow: 0 0 0 3px rgba(16, 185, 129, .16);
+                    background: #10203a;
+                    border-color: rgba(52, 211, 153, .78);
+                    box-shadow: 0 0 0 3px rgba(16, 185, 129, .22), 0 4px 14px rgba(0,0,0,.24);
                 }
                 .pln-search .pln-si {
                     position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
@@ -589,19 +665,21 @@ export default function Planificador() {
                 .pln-sel { position: relative; }
                 .pln-sel select {
                     appearance: none;
-                    height: 30px; padding: 0 26px 0 11px;
-                    font: inherit; font-size: 12.5px; font-weight: 500;
-                    color: var(--pln-ink-3);
-                    background: var(--pln-bg);
-                    border: 1px solid var(--pln-line);
-                    border-radius: 7px;
+                    height: 36px; padding: 0 30px 0 12px;
+                    font: inherit; font-size: 13px; font-weight: 700;
+                    color: var(--pln-ink-2);
+                    background: #ffffff;
+                    border: 1px solid #cfd7cd;
+                    border-radius: 9px;
                     cursor: pointer; outline: none;
+                    box-shadow: 0 1px 2px rgba(15,23,42,.04);
                 }
                 .pln-sel select:hover { border-color: var(--pln-line-3); }
                 .pln-sel.has-val select {
                     color: var(--pln-ink);
-                    background: var(--pln-surface);
-                    border-color: var(--pln-ink-4);
+                    background: #f7fffb;
+                    border-color: rgba(7,150,105,.45);
+                    box-shadow: 0 0 0 1px rgba(7,150,105,.12), 0 2px 8px rgba(7,150,105,.10);
                 }
                 .pln-sel select:focus { border-color: var(--pln-green); box-shadow: 0 0 0 3px rgba(7,150,105,.12); }
                 .pln-sel .pln-car {
@@ -609,18 +687,21 @@ export default function Planificador() {
                     color: var(--pln-ink-3); pointer-events: none;
                 }
                 [data-theme="dark"] .pln-sel select {
-                    background: #0b1322;
-                    border-color: rgba(92, 115, 146, .28);
-                    color: #9fb0c7;
+                    background: #0b1628;
+                    border-color: rgba(148, 163, 184, .38);
+                    color: #d4e0ef;
+                    box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 2px 8px rgba(0,0,0,.16);
                 }
                 [data-theme="dark"] .pln-sel select:hover {
-                    border-color: rgba(124, 145, 172, .48);
-                    color: #dbe5f2;
+                    background: #10203a;
+                    border-color: rgba(181, 198, 221, .56);
+                    color: #f3f8ff;
                 }
                 [data-theme="dark"] .pln-sel.has-val select {
-                    background: #111c2d;
-                    border-color: rgba(52, 211, 153, .36);
-                    color: #e5edf8;
+                    background: rgba(16, 185, 129, .13);
+                    border-color: rgba(52, 211, 153, .62);
+                    color: #eafff7;
+                    box-shadow: 0 0 0 1px rgba(52,211,153,.16), 0 4px 12px rgba(16,185,129,.10);
                 }
                 [data-theme="dark"] .pln-sel select:focus {
                     border-color: rgba(52, 211, 153, .62);
@@ -631,24 +712,24 @@ export default function Planificador() {
                 }
                 .pln-clear {
                     appearance: none;
-                    height: 30px; padding: 0 10px;
-                    font: inherit; font-size: 12.5px; font-weight: 500;
-                    color: var(--pln-ink-3);
-                    background: transparent; border: 1px solid transparent;
-                    border-radius: 7px;
-                    cursor: not-allowed;
+                    width: 36px; height: 36px; padding: 0;
+                    display: inline-grid; place-items: center;
+                    color: var(--pln-ink-2);
+                    background: rgba(15,23,42,.035);
+                    border: 1px solid var(--pln-line-2);
+                    border-radius: 9px;
+                    cursor: pointer;
                 }
-                .pln-clear.on { cursor: pointer; color: var(--pln-ink-2); }
-                .pln-clear.on:hover { color: var(--pln-ink); background: var(--pln-hover); }
+                .pln-clear:hover { color: var(--pln-ink); background: #fff; border-color: var(--pln-line-3); }
                 [data-theme="dark"] .pln-clear {
-                    color: #7f91ab;
+                    color: #d8e4f4;
+                    background: rgba(148, 163, 184, .11);
+                    border-color: rgba(148, 163, 184, .22);
                 }
-                [data-theme="dark"] .pln-clear.on {
-                    color: #b9c8db;
-                }
-                [data-theme="dark"] .pln-clear.on:hover {
-                    background: rgba(148, 163, 184, .10);
+                [data-theme="dark"] .pln-clear:hover {
+                    background: rgba(148, 163, 184, .18);
                     color: #eef5ff;
+                    border-color: rgba(181, 198, 221, .36);
                 }
 
                 /* ============ TABLE ============ */
@@ -669,25 +750,25 @@ export default function Planificador() {
                 }
                 th.pln-h {
                     position: sticky; top: 0; z-index: 3;
-                    background: var(--pln-surface-2);
-                    border-bottom: 1px solid var(--pln-line);
+                    background: #f7f8f5;
+                    border-bottom: 1px solid #d7ded4;
                     text-align: left;
                     padding: 0;
-                    height: 34px;
-                    font-weight: 500;
+                    height: 38px;
+                    font-weight: 800;
                     font-size: 11.5px;
-                    letter-spacing: .04em;
-                    color: var(--pln-ink-3);
+                    letter-spacing: .035em;
+                    color: var(--pln-ink-2);
                     text-transform: uppercase;
                 }
                 th.pln-h + th.pln-h { border-left: 1px solid var(--pln-line-2); }
                 th.pln-h.sorted { background: var(--pln-green-bg); color: var(--pln-green-2); }
                 th.pln-h-right { text-align: right; }
                 [data-theme="dark"] th.pln-h {
-                    background: #162236;
-                    color: #9fb0c7;
-                    font-weight: 600;
-                    border-bottom-color: rgba(92, 115, 146, .34);
+                    background: #1a2a43;
+                    color: #d2deee;
+                    font-weight: 800;
+                    border-bottom-color: rgba(148, 163, 184, .46);
                 }
                 [data-theme="dark"] th.pln-h + th.pln-h {
                     border-left-color: rgba(92, 115, 146, .24);
@@ -705,7 +786,7 @@ export default function Planificador() {
                     font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
                     background: transparent; border: none; cursor: pointer;
                 }
-                .pln-hbtn:hover { background: var(--pln-hover); }
+                .pln-hbtn:hover { background: #eef2ed; color: var(--pln-ink); }
                 th.pln-h.sorted .pln-hbtn:hover { background: #def4e8; }
                 [data-theme="dark"] .pln-hbtn:hover {
                     background: rgba(148, 163, 184, .10);
@@ -1180,7 +1261,7 @@ export default function Planificador() {
                         { label: 'En progreso',   val: progressCount,          tone: 'blue'  },
                         { label: 'Pendientes',    val: pendingCount,           tone: 'amber' },
                         { label: 'Completadas',   val: completedCount,         tone: 'green' },
-                        { label: 'Alta prio',     val: highPriorityCount,      tone: 'red',  sub: hasActiveFilters ? 'filtros activos' : null },
+                        { label: 'Alta prio',     val: highPriorityCount,      tone: 'red'  },
                     ].map(k => (
                         <div key={k.label} className="pln-kpi" data-tone={k.tone}>
                             <div className="pln-kpi-label">{k.label}</div>
@@ -1209,11 +1290,11 @@ export default function Planificador() {
                 </div>
                 <div className="pln-search">
                     <span className="pln-si"><IcoSearch /></span>
-                    <input placeholder="Buscar actividad, cliente, vendedor…"
+                    <input placeholder="Buscar…"
                            value={filters.buscar}
                            onChange={e => setF('buscar', e.target.value)} />
                     {filters.buscar && (
-                        <button className="pln-sx" onClick={() => setF('buscar', '')} aria-label="Limpiar búsqueda"><IcoX /></button>
+                        <button className="pln-sx" onClick={() => setF('buscar', '')} aria-label="Limpiar"><IcoX /></button>
                     )}
                 </div>
                 <div className="pln-filt-group">
@@ -1255,16 +1336,19 @@ export default function Planificador() {
                             <span className="pln-car"><IcoCaret /></span>
                         </div>
                     </>)}
-                    <button type="button"
-                            className={`pln-clear ${hasActiveFilters ? 'on' : ''}`}
-                            onClick={() => hasActiveFilters && setFilters(DEFAULT_FILTERS)}
-                            disabled={!hasActiveFilters}>
-                        Limpiar
-                    </button>
+                    {hasActiveFilters && (
+                        <button type="button"
+                                className="pln-clear"
+                                onClick={() => setFilters(DEFAULT_FILTERS)}
+                                aria-label="Limpiar filtros"
+                                title="Limpiar filtros">
+                            <IcoX />
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {view === 'tabla' && (<>
+            {view === 'tabla' && (<div className="pln-view-anim">
                 <div className="pln-twrap has-meta" style={{ height: isMobile ? 'calc(100vh - 300px)' : 'calc(100vh - 260px)', minHeight: 438, overflowY: 'auto' }}>
                     <table className="pln-t">
                         <colgroup>
@@ -1278,16 +1362,10 @@ export default function Planificador() {
                                     const align = col.align === 'right';
                                     return (
                                         <th key={col.key} className={`pln-h ${isSorted ? 'sorted' : ''} ${align ? 'pln-h-right' : ''}`}>
-                                            <button className="pln-hbtn" onClick={() => setOpenMenu(openMenu === col.key ? null : col.key)}>
+                                            <button className="pln-hbtn" onClick={() => toggleSort(col)} title={`Ordenar por ${col.label}`}>
                                                 <span className="lbl">{col.label}</span>
                                                 <span className="ind">{isSorted ? (sort.dir === 'asc' ? <IcoUp /> : <IcoDown />) : <IcoCaret />}</span>
                                             </button>
-                                            {openMenu === col.key && (
-                                                <SortMenu col={col} sort={sort}
-                                                          align={align ? 'right' : 'left'}
-                                                          onPick={(d) => setSort(d ? { key: col.key, dir: d } : { key: null, dir: null })}
-                                                          onClose={() => setOpenMenu(null)} />
-                                            )}
                                         </th>
                                     );
                                 })}
@@ -1341,6 +1419,15 @@ export default function Planificador() {
                                                             onClick={e => { e.stopPropagation(); setCalcModal({ open:true, actividad:a }); }}
                                                             title="Ver comisión">
                                                             <IcoCash />
+                                                        </button>
+                                                    )}
+                                                    {isBusinessCaseTipo(a.tipo) && (
+                                                        <button
+                                                            type="button"
+                                                            className="pln-calc-left"
+                                                            onClick={e => { e.stopPropagation(); setBcModal({ open:true, actividad:a }); }}
+                                                            title="Business Case">
+                                                            BC
                                                         </button>
                                                     )}
                                                 </span>
@@ -1421,10 +1508,10 @@ export default function Planificador() {
                         </span>
                     </>)}
                 </div>
-            </>)}
+            </div>)}
 
             {view === 'kanban' && (
-                <div className="pln-kbn-wrap">
+                <div className="pln-kbn-wrap pln-view-anim">
                     <div className="pln-kbn" style={isMobile ? { gridAutoColumns: '240px' } : undefined}>
                         {KANBAN_COLS.map(col => {
                             const colActs = filtered.filter(a => a.estado === col);
@@ -1477,6 +1564,15 @@ export default function Planificador() {
                                                                     onClick={e => { e.stopPropagation(); setCalcModal({ open:true, actividad:a }); }}
                                                                     title="Ver comisión">
                                                                        <IcoCash/>
+                                                                </button>
+                                                            )}
+                                                            {isBusinessCaseTipo(a.tipo) && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="pln-calc-left"
+                                                                    onClick={e => { e.stopPropagation(); setBcModal({ open:true, actividad:a }); }}
+                                                                    title="Business Case">
+                                                                    BC
                                                                 </button>
                                                             )}
                                                             <TipoBadge tipo={a.tipo} />
@@ -1540,6 +1636,21 @@ export default function Planificador() {
                     if (soloLecturaGerencia || esActividadBloqueada(calcActividadActual)) return null;
                     const updated = await handleSave(data);
                     if (updated) setCalcModal(prev => ({ ...prev, actividad: { ...prev.actividad, ...updated } }));
+                    return updated;
+                }}
+            />
+
+            <BusinessCaseModal
+                open={bcModal.open}
+                actividad={bcActividadActual}
+                vendedor={vendedores.find(v => v.id === bcModal.actividad?.vendedor_id)}
+                moneda={moneda}
+                onClose={() => setBcModal({ open:false, actividad:null })}
+                readOnly={soloLecturaGerencia || esActividadBloqueada(bcActividadActual)}
+                onSave={async data => {
+                    if (soloLecturaGerencia || esActividadBloqueada(bcActividadActual)) return null;
+                    const updated = await handleSave(data);
+                    if (updated) setBcModal(prev => ({ ...prev, actividad: { ...prev.actividad, ...updated } }));
                     return updated;
                 }}
             />

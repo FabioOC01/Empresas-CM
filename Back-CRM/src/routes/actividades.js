@@ -97,13 +97,56 @@ function isGerenciaOnly(user) {
     return !user?.is_superadmin && !operationalRoles.length && roles.includes('Gerencia');
 }
 
+function normalizeText(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+function businessCaseFinancials(tipo, estado, businessCase) {
+    if (normalizeText(tipo) !== 'propuesta' || estado !== 'Ganada') return null;
+    const bc = businessCase && typeof businessCase === 'object' && !Array.isArray(businessCase)
+        ? businessCase
+        : {};
+    const snapshot = bc.snapshot && typeof bc.snapshot === 'object' ? bc.snapshot : {};
+    const precioTotal = parseFloat(snapshot.precioTotal);
+    const costoTotal = parseFloat(snapshot.costoTotal);
+    const profit = parseFloat(snapshot.profit);
+    if (!Number.isFinite(precioTotal) || precioTotal <= 0 || !Number.isFinite(costoTotal)) return null;
+    return {
+        monto: precioTotal,
+        precio_venta: precioTotal,
+        costo_base: 0,
+        gastos_operativos: [{
+            tipo_linea: 'business_case',
+            nombre: 'Costo total BC',
+            monto: costoTotal,
+            costo: costoTotal,
+            unidad: 1,
+            notas: Number.isFinite(profit) ? `Profit BC: ${profit.toFixed(2)}` : 'Costo generado desde Business Case',
+            origen: 'business_case',
+        }],
+    };
+}
+
+function applyBusinessCaseFinancials(data, current = {}) {
+    const tipo = data.tipo ?? current.tipo;
+    const estado = data.estado ?? current.estado;
+    const businessCase = data.business_case ?? current.business_case;
+    const financials = businessCaseFinancials(tipo, estado, businessCase);
+    return financials ? { ...data, ...financials } : data;
+}
+
 // POST /api/actividades
 router.post('/', async (req, res) => {
     try {
+        const body = applyBusinessCaseFinancials(req.body);
         const { id, nombre, tipo, vendedor_id, cliente, monto, prioridad, estado, mes, fecha, fecha_fin, elapsed, notas,
-                precio_venta, costo_base, gastos_operativos, ajuste_interno,
+                precio_venta, costo_base, gastos_operativos, ajuste_interno, business_case,
                 cliente_ruc, cliente_email, cliente_telefono,
-                colaboradores, checklist } = req.body;
+                colaboradores, checklist } = body;
         const empresa_id = req.user.empresa_id;
         const fechaInicio = fecha || todayISODate();
         const mesActividad = mes || MESES[new Date(`${fechaInicio}T12:00:00`).getMonth()];
@@ -120,16 +163,16 @@ router.post('/', async (req, res) => {
             `INSERT INTO actividades
                (id, nombre, tipo, vendedor_id, cliente, monto, prioridad, estado, mes, fecha, fecha_fin, elapsed, notas,
                 ts_pendiente, ts_en_progreso, ts_completado,
-                precio_venta, costo_base, gastos_operativos, ajuste_interno,
+                precio_venta, costo_base, gastos_operativos, ajuste_interno, business_case,
                 cliente_ruc, cliente_email, cliente_telefono,
                 colaboradores, checklist, empresa_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
              RETURNING *`,
             [id || Date.now(), nombre, tipo, vendedor_id, cliente, monto || 0,
              prioridad, estado, mesActividad, fechaInicio, fecha_fin || null, elapsed || 0, notas || '',
              ts.ts_pendiente, ts.ts_en_progreso, ts.ts_completado,
              precio_venta || 0, costo_base || 0,
-             JSON.stringify(gastos_operativos || []), ajuste_interno || 0,
+             JSON.stringify(gastos_operativos || []), ajuste_interno || 0, JSON.stringify(business_case || {}),
              cliente_ruc || '', cliente_email || '', cliente_telefono || '',
              JSON.stringify(colaboradores || []), JSON.stringify(checklist || []),
              empresa_id]
@@ -153,7 +196,7 @@ router.put('/:id', async (req, res) => {
             return res.status(403).json({ error: 'Gerencia solo tiene permiso de visualizacion' });
 
         const { rows: currentRows } = await pool.query(
-            'SELECT vendedor_id, colaboradores, estado FROM actividades WHERE id=$1 AND empresa_id=$2',
+            'SELECT vendedor_id, colaboradores, estado, tipo, business_case FROM actividades WHERE id=$1 AND empresa_id=$2',
             [req.params.id, empresa_id]
         );
         if (!currentRows.length) return res.status(404).json({ error: 'No encontrado' });
@@ -175,9 +218,11 @@ router.put('/:id', async (req, res) => {
             if (!esOwner) soloChecklist = true;
         }
 
+        req.body = applyBusinessCaseFinancials(req.body, current);
+
         const puedeEditarFechaInicio = req.user?.is_superadmin || req.user?.roles?.includes('Admin') || esOwner;
         const allowedFull = ['nombre','tipo','vendedor_id','cliente','monto','prioridad','estado','mes','notas','fecha_fin',
-                         'precio_venta','costo_base','gastos_operativos','ajuste_interno',
+                         'precio_venta','costo_base','gastos_operativos','ajuste_interno','business_case',
                          'cliente_ruc','cliente_email','cliente_telefono',
                          'colaboradores','checklist'];
         if (puedeEditarFechaInicio) allowedFull.push('fecha');
@@ -202,7 +247,7 @@ router.put('/:id', async (req, res) => {
             ...fields.map((f, i) => `${f} = $${i + 1}`),
             ...extraSets,
         ].join(', ');
-        const JSON_FIELDS = new Set(['gastos_operativos','colaboradores','checklist']);
+        const JSON_FIELDS = new Set(['gastos_operativos','colaboradores','checklist','business_case']);
         const values = [
             ...fields.map(f => JSON_FIELDS.has(f) ? JSON.stringify(req.body[f] ?? []) : req.body[f]),
             req.params.id, empresa_id,

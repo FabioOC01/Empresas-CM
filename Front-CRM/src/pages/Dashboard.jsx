@@ -10,7 +10,9 @@ import { filterActs, fmtUSD, fmt, calcDuration, totalGastosOperacion, MESES } fr
 import PeriodoPicker from '../components/PeriodoPicker';
 import Avatar from '../components/Avatar';
 import { useTheme } from '../context/ThemeContext';
-import { getDisplayRoles } from '../utils/roles';
+import { getDisplayRoles, isMarketingPure } from '../utils/roles';
+import { countActivityGoalWeeks, filterActivitiesForGoal } from '../utils/metas';
+import usePersistentState from '../hooks/usePersistentState';
 
 export default function Dashboard() {
     const { actividades, config } = useActividades();
@@ -18,11 +20,11 @@ export default function Dashboard() {
     const { sel, card, ct, td } = useDashStyles();
     const moneda = config?.moneda || 'USD';
     const [vendedores, setVendedores] = useState([]);
-    const [trim, setTrim] = useState('');
-    const [mes, setMes]   = useState(MESES[new Date().getMonth()]);
-    const [anio, setAnio] = useState('');
-    const [vend, setVend] = useState('');
-    const [rol, setRol] = useState('');
+    const [trim, setTrim] = usePersistentState('crm_dashboard_trim', '');
+    const [mes, setMes]   = usePersistentState('crm_dashboard_mes', MESES[new Date().getMonth()]);
+    const [anio, setAnio] = usePersistentState('crm_dashboard_anio', '');
+    const [vend, setVend] = usePersistentState('crm_dashboard_vend', '');
+    const [rol, setRol] = usePersistentState('crm_dashboard_rol', '');
     const [activePieIdx, setActivePieIdx] = useState(null);
     const [activeVendorSlide, setActiveVendorSlide] = useState(0);
     const [fsvend, setFsvend] = useState(null);
@@ -64,7 +66,7 @@ export default function Dashboard() {
     });
     const data = baseData.filter(a => vendedorIdsVisibles.has(a.vendedor_id));
 
-    const periodo = mes ? 'mensual' : trim ? 'trimestral' : anio ? 'anual' : 'mensual';
+    const periodo = mes ? 'mensual' : trim ? 'trimestral' : anio ? 'anual' : 'semanal';
 
     const ttStyle = {
         contentStyle: { background: tk.card, border: `1px solid ${tk.bdr}`, borderRadius: 8, fontSize: 12, color: tk.txt },
@@ -130,6 +132,11 @@ export default function Dashboard() {
 
     // Avance por vendedor según el periodo seleccionado
     const avanceMensual = vendedoresFiltrados.map(v => {
+        const marketingMeta = isMarketingPure(v);
+        const vActs = data.filter(a => a.vendedor_id === v.id);
+        const vActsMeta = filterActivitiesForGoal(vActs, { mes, trimestre: trim, anio });
+        const metaActivityWeeks = countActivityGoalWeeks({ mes, trimestre: trim, anio });
+        const metaAct = (parseInt(v.meta_actividades_semanal, 10) || 0) * metaActivityWeeks;
         const vVentas = ventasGanadas.filter(a => a.vendedor_id === v.id);
         const fact = vVentas.reduce((s,a) => s + (parseFloat(a.precio_venta) || parseFloat(a.monto) || 0), 0);
         const rent = vVentas.reduce((s,a) => {
@@ -149,9 +156,12 @@ export default function Dashboard() {
         ) || 0;
         return {
             ...v,
-            fact, rent, metaFact, metaRent,
+            fact, rent, metaFact, metaRent, marketingMeta,
+            actDone: vActsMeta.length,
+            metaAct,
             pctFact: metaFact > 0 ? Math.min((fact / metaFact) * 100, 100) : 0,
             pctRent: metaRent > 0 ? Math.min((rent / metaRent) * 100, 100) : 0,
+            pctAct: metaAct > 0 ? Math.min((vActsMeta.length / metaAct) * 100, 100) : 0,
         };
     });
     const vendorSlideSize = 4;
@@ -264,10 +274,17 @@ export default function Dashboard() {
                                 <div key={slideIdx} style={{ flex:'0 0 100%', minWidth:0 }}>
                                     <div className="dashboard-vendor-row" style={{ display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:14 }}>
                                         {slide.map(v => {
-                                            const vAv = avanceMensual.find(x => x.id === v.id) || { fact:0, rent:0, metaFact:0, metaRent:0, pctFact:0, pctRent:0 };
+                                            const vAv = avanceMensual.find(x => x.id === v.id) || { fact:0, rent:0, metaFact:0, metaRent:0, pctFact:0, pctRent:0, actDone:0, metaAct:0, pctAct:0, marketingMeta:false };
                                             const vActsCount = data.filter(a => a.vendedor_id === v.id).length;
                                             const factColor = vAv.pctFact >= 100 ? '#10b981' : '#5b8dee';
                                             const rentColor = vAv.pctRent >= 100 ? '#10b981' : '#27ae60';
+                                            const actColor = vAv.pctAct >= 100 ? '#10b981' : '#e91e63';
+                                            const goalRows = vAv.marketingMeta
+                                                ? [['Actividades', vAv.actDone, vAv.metaAct, vAv.pctAct, actColor, false]]
+                                                : [
+                                                    ['FacturaciÃ³n', vAv.fact, vAv.metaFact, vAv.pctFact, factColor, true],
+                                                    ['Rentabilidad', vAv.rent, vAv.metaRent, vAv.pctRent, rentColor, true],
+                                                ];
                                             return (
                                                 <div key={v.id} className="card dashboard-vendor-card" style={{ padding:'15px 14px', position:'relative', minWidth:0 }}>
                                                     <button onClick={() => setFsvend(v)} title="Pantalla completa"
@@ -284,10 +301,7 @@ export default function Dashboard() {
                                                             <div style={{ fontSize:11, color:tk.txt3, marginTop:2 }}>{vActsCount} actividades</div>
                                                         </div>
                                                     </div>
-                                                    {[
-                                                        ['Facturación', vAv.fact, vAv.metaFact, vAv.pctFact, factColor],
-                                                        ['Rentabilidad', vAv.rent, vAv.metaRent, vAv.pctRent, rentColor],
-                                                    ].map(([label, logrado, meta, pct, color]) => (
+                                                    {goalRows.map(([label, logrado, meta, pct, color, money]) => (
                                                         <div key={label} style={{ marginBottom: label === 'Facturación' ? 10 : 0, minWidth:0 }}>
                                                             <div style={{ display:'flex', justifyContent:'space-between', gap:8, fontSize:10, marginBottom:4 }}>
                                                                 <span style={{ color:tk.txt2, fontWeight:700 }}>{label}</span>
@@ -297,7 +311,7 @@ export default function Dashboard() {
                                                                 <div style={{ height:'100%', borderRadius:999, width:`${pct}%`, background:color, transition:'width 0.5s ease' }} />
                                                             </div>
                                                             <div style={{ fontSize:11, color:tk.txt3, marginTop:4, fontFamily:'monospace', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                                                                {fmtUSD(logrado, moneda)}{meta > 0 && <span> / {fmtUSD(meta, moneda)}</span>}
+                                                                {money ? fmtUSD(logrado, moneda) : logrado}{meta > 0 && <span> / {money ? fmtUSD(meta, moneda) : meta}</span>}
                                                             </div>
                                                         </div>
                                                     ))}
@@ -451,8 +465,17 @@ export default function Dashboard() {
                                     <Avatar vendedor={v} size="sm" />
                                     <div style={{ fontSize:13, fontWeight:700, color:tk.txt, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{v.nombre}</div>
                                 </div>
-                                <AvanceBar tk={tk} label="Facturación" logrado={v.fact} meta={v.metaFact} pct={v.pctFact} moneda={moneda} color="#5b8dee" />
-                                <AvanceBar tk={tk} label="Rentabilidad Bruta" logrado={v.rent} meta={v.metaRent} pct={v.pctRent} moneda={moneda} color="#10b981" />
+                                {v.marketingMeta ? (
+                                    <>
+                                        <AvanceBar tk={tk} label="Actividades completadas" logrado={v.actDone} meta={v.metaAct} pct={v.pctAct} moneda={moneda} color="#e91e63" money={false} />
+                                        <div style={{ color:tk.txt3, fontSize:12, fontWeight:700 }}>Meta semanal: {parseInt(v.meta_actividades_semanal, 10) || 0}</div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <AvanceBar tk={tk} label="Facturación" logrado={v.fact} meta={v.metaFact} pct={v.pctFact} moneda={moneda} color="#5b8dee" />
+                                        <AvanceBar tk={tk} label="Rentabilidad Bruta" logrado={v.rent} meta={v.metaRent} pct={v.pctRent} moneda={moneda} color="#10b981" />
+                                    </>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -502,7 +525,7 @@ export default function Dashboard() {
             {/* Fullscreen vendor overlay */}
             {fsvend && (() => {
                 const fsActs   = data.filter(a => a.vendedor_id === fsvend.id);
-                const fsAv     = avanceMensual.find(x => x.id === fsvend.id) || { fact:0, rent:0, metaFact:0, metaRent:0, pctFact:0, pctRent:0 };
+                const fsAv     = avanceMensual.find(x => x.id === fsvend.id) || { fact:0, rent:0, metaFact:0, metaRent:0, pctFact:0, pctRent:0, actDone:0, metaAct:0, pctAct:0, marketingMeta:false };
                 const fsByTipo = TIPOS_ALL.map(t => ({ name:t, value:fsActs.filter(a => a.tipo===t).length })).filter(x => x.value>0);
                 const fsByEst  = [
                     { name:'Ganada',     value:fsActs.filter(a=>a.estado==='Ganada').length,     fill:'#1e8449' },
@@ -531,9 +554,13 @@ export default function Dashboard() {
                             <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
                                 {[
                                     { label:'Actividades', value:fsActs.length,                        color:'#5b8dee' },
-                                    { label:'Facturación', value:fmtUSD(fsAv.fact, moneda),            color:'#5b8dee' },
-                                    { label:'Rentabilidad',value:fmtUSD(fsAv.rent, moneda),            color:'#27ae60' },
-                                    { label:`Avance ${periodo}`, value:`${fsAv.pctFact.toFixed(0)}% / ${fsAv.pctRent.toFixed(0)}%`, color:'#10b981' },
+                                    fsAv.marketingMeta
+                                        ? { label:'Completadas', value:fsAv.actDone, color:'#e91e63' }
+                                        : { label:'Facturación', value:fmtUSD(fsAv.fact, moneda), color:'#5b8dee' },
+                                    fsAv.marketingMeta
+                                        ? { label:'Meta actividades', value:fsAv.metaAct, color:'#e91e63' }
+                                        : { label:'Rentabilidad', value:fmtUSD(fsAv.rent, moneda), color:'#27ae60' },
+                                    { label:`Avance ${periodo}`, value: fsAv.marketingMeta ? `${fsAv.pctAct.toFixed(0)}%` : `${fsAv.pctFact.toFixed(0)}% / ${fsAv.pctRent.toFixed(0)}%`, color:'#10b981' },
                                 ].map(k => (
                                     <div key={k.label} style={{ background:tk.card2, borderRadius:10, padding:'12px 14px', borderTop:`3px solid ${k.color}` }}>
                                         <div style={{ fontSize:10, color:tk.txt3, textTransform:'uppercase', letterSpacing:0.6, marginBottom:4 }}>{k.label}</div>
@@ -544,8 +571,14 @@ export default function Dashboard() {
 
                             {/* Avance metas */}
                             <div style={{ display:'grid', gap:10, marginBottom:22 }}>
-                                <AvanceBar tk={tk} label={`Facturación (${periodo})`} logrado={fsAv.fact} meta={fsAv.metaFact} pct={fsAv.pctFact} moneda={moneda} color="#5b8dee" />
-                                <AvanceBar tk={tk} label={`Rentabilidad Bruta (${periodo})`} logrado={fsAv.rent} meta={fsAv.metaRent} pct={fsAv.pctRent} moneda={moneda} color="#27ae60" />
+                                {fsAv.marketingMeta ? (
+                                    <AvanceBar tk={tk} label={`Actividades completadas (${periodo})`} logrado={fsAv.actDone} meta={fsAv.metaAct} pct={fsAv.pctAct} moneda={moneda} color="#e91e63" money={false} />
+                                ) : (
+                                    <>
+                                        <AvanceBar tk={tk} label={`Facturación (${periodo})`} logrado={fsAv.fact} meta={fsAv.metaFact} pct={fsAv.pctFact} moneda={moneda} color="#5b8dee" />
+                                        <AvanceBar tk={tk} label={`Rentabilidad Bruta (${periodo})`} logrado={fsAv.rent} meta={fsAv.metaRent} pct={fsAv.pctRent} moneda={moneda} color="#27ae60" />
+                                    </>
+                                )}
                             </div>
                             {/* Charts */}
                             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:22 }}>
@@ -602,7 +635,7 @@ export default function Dashboard() {
     );
 }
 
-function AvanceBar({ tk, label, logrado, meta, pct, moneda, color }) {
+function AvanceBar({ tk, label, logrado, meta, pct, moneda, color, money = true }) {
     const hit = meta > 0 && logrado >= meta;
     const barColor = hit ? '#10b981' : color;
     return (
@@ -610,8 +643,8 @@ function AvanceBar({ tk, label, logrado, meta, pct, moneda, color }) {
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:4 }}>
                 <span style={{ color:tk.txt2, fontWeight:600 }}>{label}</span>
                 <span style={{ color:tk.txt2, fontFamily:'monospace' }}>
-                    <strong style={{ color:tk.txt }}>{fmtUSD(logrado, moneda)}</strong>
-                    {meta > 0 && <span style={{ color:tk.txt3 }}> / {fmtUSD(meta, moneda)}</span>}
+                    <strong style={{ color:tk.txt }}>{money ? fmtUSD(logrado, moneda) : logrado}</strong>
+                    {meta > 0 && <span style={{ color:tk.txt3 }}> / {money ? fmtUSD(meta, moneda) : meta}</span>}
                     <span style={{ marginLeft:6, color: hit ? '#10b981' : tk.txt3, fontWeight:700 }}>{pct.toFixed(0)}%</span>
                 </span>
             </div>

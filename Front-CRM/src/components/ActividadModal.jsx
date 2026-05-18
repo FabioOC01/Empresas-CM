@@ -32,7 +32,14 @@ const EMPTY = {
 
 const docLabel = (doc) => String(doc || '').replace(/\D/g, '').length === 8 ? 'DNI' : 'RUC';
 
-const MARKETING_TIPOS = new Set(['Publicidad','Redes','Video','P. Graficas Externas','P. Graficas Internas','Actividad','Evento','Piezas graficas']);
+const normalizeTipo = (tipo = '') => String(tipo)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const MARKETING_TIPOS = new Set(['publicidad','redes','video','p. graficas externas','p. graficas internas','actividad','evento','piezas graficas']);
+const CLIENTE_MARKETING_TIPOS = new Set(['p. graficas externas']);
 
 function parseArr(val) {
     if (Array.isArray(val)) return val;
@@ -84,7 +91,9 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const [sunatInfoC,setSunatInfoC]= useState(null);
     const [clienteMsg,setClienteMsg]= useState(null);
 
-    const esMarketing = MARKETING_TIPOS.has(form.tipo);
+    const tipoNormalizado = normalizeTipo(form.tipo);
+    const esMarketing = MARKETING_TIPOS.has(tipoNormalizado);
+    const usaArea = esMarketing && !CLIENTE_MARKETING_TIPOS.has(tipoNormalizado);
     const vendedoresFiltrados = esMarketing
         ? vendedores.filter(v => getEffectiveRoles(v).some(r => ['Admin','Marketing'].includes(r)))
         : vendedores;
@@ -154,7 +163,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
             const fechaInicio = todayInputDate();
             setForm({ ...EMPTY, fecha: fechaInicio, mes: MESES[new Date(`${fechaInicio}T12:00:00`).getMonth()], tipo: primerTipo, vendedor_id: user?.id || vendedores[0]?.id || '' });
             setClienteQuery('');
-            setExpanded(MARKETING_TIPOS.has(primerTipo));
+            setExpanded(MARKETING_TIPOS.has(normalizeTipo(primerTipo)));
         }
     }, [open, actividad]);
 
@@ -247,7 +256,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const handleTipoChange = (tipo) => {
         set('tipo', tipo);
         if (!actividad && form.cliente) set('nombre', `${tipo} - ${form.cliente}`);
-        if (MARKETING_TIPOS.has(tipo)) setExpanded(true);
+        if (MARKETING_TIPOS.has(normalizeTipo(tipo))) setExpanded(true);
     };
     const handleFechaChange = (val) => {
         const mes = MESES[new Date(val + 'T12:00:00').getMonth()];
@@ -553,18 +562,18 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 </div>
                             </div>
 
-                            {/* Cliente o Area (si Marketing) */}
+                            {/* Cliente o Area */}
                             <div>
                                 <div style={{ ...lbl, flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-                                    <span>{esMarketing ? 'Area *' : 'Cliente *'}</span>
-                                    {!esMarketing && (
+                                    <span>{usaArea ? 'Area *' : 'Cliente *'}</span>
+                                    {!usaArea && (
                                         <button type="button" onClick={() => { setNuevoC(x => !x); resetNuevoCliente(); }}
                                             style={{ fontSize:11, fontWeight:700, padding:'2px 10px', borderRadius:6, border:`1px solid ${'#10b981'}`, background: nuevoC ? '#10b981' : '#10b98118', color: nuevoC ? '#fff' : '#10b981', cursor:'pointer' }}>
                                             {nuevoC ? 'Cancelar' : '+ Nuevo'}
                                         </button>
                                     )}
                                 </div>
-                                {esMarketing ? (
+                                {usaArea ? (
                                     <select style={inp} required value={form.cliente} onChange={e => handleClienteChange(e.target.value)}>
                                         <option value="">- Seleccionar area -</option>
                                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -618,7 +627,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                     </select>}
                                     </>
                                 )}
-                                {!esMarketing && nuevoC && (
+                                {!usaArea && nuevoC && (
                                     <div style={{ marginTop:10, padding:'14px', background:tk.card2, borderRadius:10, border:`1px solid ${tk.bdr}`, display:'grid', gap:8 }}>
                                         <div style={{ fontSize:11, fontWeight:700, color:tk.txt2, marginBottom:2 }}>Nuevo cliente</div>
                                         <input style={inp} placeholder="Nombre *" required value={formC.nombre}

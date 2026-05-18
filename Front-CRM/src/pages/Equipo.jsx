@@ -8,13 +8,14 @@ import { getVendedores, createActividad } from '../api/actividades';
 import { useAuth } from '../context/AuthContext';
 import useActividades from '../hooks/useActividades';
 import { filterActs, fmtUSD, fmt, calcDuration, TIPOS, MESES, getTypeColor, ROL_TIPOS, totalGastosOperacion } from '../utils/crm';
-import { canViewAll, getDisplayRoles, getEffectiveRoles, hasEffectiveRole, isGerenciaOnly } from '../utils/roles';
+import { canViewAll, getDisplayRoles, getEffectiveRoles, isGerenciaOnly, isMarketingPure } from '../utils/roles';
+import { countActivityGoalWeeks, filterActivitiesForGoal } from '../utils/metas';
 import ActividadModal from '../components/ActividadModal';
 import Avatar from '../components/Avatar';
 import { RolBadge } from '../components/Badge';
-import PeriodoPicker from '../components/PeriodoPicker';
 import { useTheme } from '../context/ThemeContext';
 import { AlertIcon } from '../components/Icons';
+import usePersistentState from '../hooks/usePersistentState';
 
 const ESTADO_COLOR = { 'Pendiente': '#e67e22', 'En Progreso': '#10b981', 'Completado': '#27ae60', 'Ganada': '#2e7d32', 'Perdida': '#e74c3c' };
 const TIPO_COLORS = ['#10b981', '#27ae60', '#e67e22', '#8e44ad', '#e74c3c', '#1abc9c', '#e91e63', '#4caf50', '#ff9800', '#9c27b0'];
@@ -48,7 +49,7 @@ function tiposPermitidos(vendedor, rolTipos = ROL_TIPOS) {
     return set;
 }
 
-const isMarketing = (v) => hasEffectiveRole(v, 'Marketing') && !getEffectiveRoles(v).some((r) => ['Ventas', 'Retail'].includes(r));
+const isMarketing = isMarketingPure;
 const esCompletado = (actividad) => actividad?.estado === 'Completado';
 const esGanada = (actividad) => actividad?.estado === 'Ganada';
 const esPerdida = (actividad) => actividad?.estado === 'Perdida';
@@ -98,10 +99,10 @@ export default function Equipo() {
     const [vendedores, setVendedores] = useState([]);
     const [now, setNow] = useState(() => Date.now());
     useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
-    const [trim, setTrim] = useState('');
-    const [mes, setMes] = useState('');
-    const [fEstado, setFEstado] = useState('');
-    const [fTipo, setFTipo] = useState('');
+    const trim = '';
+    const [mes, setMes] = usePersistentState('crm_equipo_mes', MESES[new Date().getMonth()]);
+    const [fEstado, setFEstado] = usePersistentState('crm_equipo_estado', '');
+    const [fTipo, setFTipo] = usePersistentState('crm_equipo_tipo', '');
     const [modal, setModal] = useState({ open: false, actividad: null });
     const [activePieIdx, setActivePieIdx] = useState(null);
     const [activeRoleIdx, setActiveRoleIdx] = useState(0);
@@ -379,18 +380,8 @@ export default function Equipo() {
         <div>
             <div style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginBottom: 10, minWidth: 0 }}>
-                    <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: tk.txt }}>
-                            Ranking por rol
-                        </div>
-                        <div style={{ fontSize: 11, color: tk.txt3, marginTop: 3 }}>
-                            {activeRoleGroup
-                                ? `${activeRoleGroup.rol} · ${activeRoleGroup.entries.length} ${activeRoleGroup.entries.length === 1 ? 'vendedor' : 'vendedores'}`
-                                : 'Sin vendedores'}
-                        </div>
-                    </div>
                     {roleGroups.length > 1 && (
-                        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, flexShrink: 0, maxWidth: '68%' }}>
+                        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, flexShrink: 0, maxWidth: '68%', marginLeft: 'auto', justifyContent: 'flex-end' }}>
                             {roleGroups.map((g, idx) => {
                                 const active = idx === visibleRoleIdx;
                                 return (
@@ -437,11 +428,15 @@ export default function Equipo() {
                                 <div style={{ display: 'grid', gridAutoFlow: 'column', gridAutoColumns: 'minmax(188px, 214px)', gap: 14, overflowX: 'auto', overflowY: 'hidden', padding: '2px 2px 6px' }}>
                                     {g.entries.map(({ v, rank }) => {
                                         const vActs = filtered.filter((a) => a.vendedor_id === v.id);
+                                        const marketingMeta = isMarketing(v);
+                                        const metaActs = (parseInt(v.meta_actividades_semanal, 10) || 0) * countActivityGoalWeeks({ mes, trimestre: trim, anio: '' });
+                                        const doneMetaActs = filterActivitiesForGoal(vActs, { mes, trimestre: trim, anio: '' }).length;
+                                        const pctMetaActs = metaActs > 0 ? Math.min(Math.round((doneMetaActs / metaActs) * 100), 100) : 0;
                                         const cerr = vActs.filter(esCompletado);
                                         const ganadas = vActs.filter(esGanada);
                                         const perdidas = vActs.filter(esPerdida);
                                         const avanceCount = cerr.length + ganadas.length + perdidas.length;
-                                        const pct = vActs.length ? Math.round(avanceCount / vActs.length * 100) : 0;
+                                        const pct = marketingMeta && metaActs > 0 ? pctMetaActs : vActs.length ? Math.round(avanceCount / vActs.length * 100) : 0;
                                         const enProgreso = vActs.filter(a => a.estado === 'En Progreso').length;
                                         const rentabilidadBrutaCerrada = ganadas.reduce((s, a) => s + rentabilidadBrutaActividad(a), 0);
                                         const isTop = rank < 2;
@@ -517,13 +512,13 @@ export default function Equipo() {
                                                         {v.nombre}
                                                     </div>
                                                     <div style={{ fontSize: 11, color: tk.txt3, marginTop: 4, fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {fmt$(rentabilidadBrutaCerrada)} rent. bruta
+                                                        {marketingMeta ? `${doneMetaActs}${metaActs > 0 ? ` / ${metaActs}` : ''} completadas` : `${fmt$(rentabilidadBrutaCerrada)} rent. bruta`}
                                                     </div>
                                                 </div>
 
                                                 <div style={{ marginTop: 12 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: tk.txt3, marginBottom: 6 }}>
-                                                        <span>Avance</span>
+                                                        <span>{marketingMeta ? 'Meta act.' : 'Avance'}</span>
                                                         <span style={{ color: tk.txt2, fontWeight: 800 }}>{pct}%</span>
                                                     </div>
                                                     <div style={{ height: 6, borderRadius: 999, background: tk.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)', overflow: 'hidden' }}>
@@ -563,7 +558,7 @@ export default function Equipo() {
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
                         <div>
                             <div style={ct}>{esAdminGerencia ? 'Matriz operativa' : 'Tu matriz operativa'}</div>
-                            <div style={{ fontSize: 11, color: tk.txt3, marginTop: 3 }}>{matrixFiltered.length} actividades filtradas</div>
+                            
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             {gruposVisibles.slice(0, 4).map((g) => {
@@ -779,7 +774,9 @@ export default function Equipo() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <div style={ct}>{esAdminGerencia ? 'Actividades del Equipo' : 'Tus actividades'}</div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                        <PeriodoPicker trim={trim} mes={mes} onTrim={setTrim} onMes={setMes} />
+                        <select style={sel} value={mes} onChange={(e) => setMes(e.target.value)}>
+                            {MESES.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
                         <select style={sel} value={fEstado} onChange={(e) => setFEstado(e.target.value)}>
                             <option value="">Todos los estados</option>
                             {['Pendiente', 'En Progreso', 'Completado', 'Ganada', 'Perdida'].map((e) => <option key={e}>{e}</option>)}

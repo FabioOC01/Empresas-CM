@@ -5,6 +5,7 @@ import Avatar from '../components/Avatar';
 import { useActividadesContext, CONFIG_DEFAULT } from '../context/ActividadesContext';
 import { useAuth } from '../context/AuthContext';
 import { ROLES, getTypeColor } from '../utils/crm';
+import { isMarketingPure } from '../utils/roles';
 import { useTheme } from '../context/ThemeContext';
 import { CalendarIcon, ChartIcon, ClockIcon, CurrencyIcon, PaletteIcon, PipelineIcon, LockIcon, TagIcon, UserIcon } from '../components/Icons';
 
@@ -138,6 +139,7 @@ export default function Admin() {
 
     const num = (v) => parseFloat(v) || 0;
     const metasGlobalesVendedores = vendedores.reduce((acc, v) => {
+        if (isMarketingPure(v)) return acc;
         const edit = editingTasas[v.id] || {};
         acc.rentMes += num(edit.meta_mensual ?? v.meta_mensual);
         acc.factMes += num(edit.meta_facturacion_mensual ?? v.meta_facturacion_mensual);
@@ -428,6 +430,7 @@ export default function Admin() {
                 meta_facturacion_trimestral: parseFloat(edit.meta_facturacion_trimestral) || 0,
                 meta_rentabilidad_anual: parseFloat(edit.meta_rentabilidad_anual) || 0,
                 meta_facturacion_anual:  parseFloat(edit.meta_facturacion_anual)  || 0,
+                meta_actividades_semanal: Math.max(0, parseInt(edit.meta_actividades_semanal, 10) || 0),
                 umbral_comision:   0,
                 pct_comision_base: (parseFloat(edit.pct_comision_base) || 2)  / 100,
                 pct_comision_bajo: (parseFloat(edit.pct_comision_bajo) || 7)  / 100,
@@ -605,7 +608,7 @@ export default function Admin() {
                             </div>
                         ) : (
                             <div style={{ background:tk.card, borderRadius:10, boxShadow:tk.shadow, padding:40, textAlign:'center', color:tk.txt2, fontSize:13 }}>
-                                Seleccioná un vendedor o presioná <strong>+ Nuevo</strong>.
+                                Selecciona un vendedor o presiona <strong>+ Nuevo</strong>.
                             </div>
                         )}
                     </div>
@@ -698,9 +701,10 @@ export default function Admin() {
                             </div>
 
                             {/* Header */}
-                            <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(6,110px) repeat(3,100px) 100px', gap:10, padding:'9px 22px', borderBottom:`1px solid ${tk.bdr}`, background:tk.bg, minWidth:1290 }}>
+                            <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) 120px repeat(6,110px) repeat(3,100px) 100px', gap:10, padding:'9px 22px', borderBottom:`1px solid ${tk.bdr}`, background:tk.bg, minWidth:1410 }}>
                                 {[
                                     'Vendedor',
+                                    'Act. semanal',
                                     'Rent. Bruta Mes',
                                     'Facturación Mes',
                                     'Rent. Bruta Trim',
@@ -717,6 +721,7 @@ export default function Admin() {
                             </div>
 
                             {vendedores.map(v => {
+                                const marketingMeta = isMarketingPure(v);
                                 const defBase = parseFloat(v.pct_comision_base ?? 0.02) * 100;
                                 const defBajo = parseFloat(v.pct_comision_bajo ?? 0.07) * 100;
                                 const defAlto = parseFloat(v.pct_comision_alto ?? 0.08) * 100;
@@ -727,6 +732,7 @@ export default function Admin() {
                                     meta_facturacion_trimestral: v.meta_facturacion_trimestral ?? 0,
                                     meta_rentabilidad_anual: v.meta_rentabilidad_anual ?? 0,
                                     meta_facturacion_anual:  v.meta_facturacion_anual  ?? 0,
+                                    meta_actividades_semanal: v.meta_actividades_semanal ?? 0,
                                     pct_comision_base: defBase,
                                     pct_comision_bajo: defBajo,
                                     pct_comision_alto: defAlto,
@@ -739,6 +745,7 @@ export default function Admin() {
                                              || String(edit.meta_facturacion_trimestral) !== String(v.meta_facturacion_trimestral ?? 0)
                                              || String(edit.meta_rentabilidad_anual) !== String(v.meta_rentabilidad_anual ?? 0)
                                              || String(edit.meta_facturacion_anual)  !== String(v.meta_facturacion_anual  ?? 0)
+                                             || String(edit.meta_actividades_semanal) !== String(v.meta_actividades_semanal ?? 0)
                                              || String(edit.pct_comision_base)  !== String(defBase)
                                              || String(edit.pct_comision_bajo)  !== String(defBajo)
                                              || String(edit.pct_comision_alto)  !== String(defAlto);
@@ -757,7 +764,7 @@ export default function Admin() {
                                     return { ...prev, [v.id]: next };
                                 });
                                 return (
-                                    <div key={v.id} style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) repeat(6,110px) repeat(3,100px) 100px', gap:10, padding:'13px 22px', borderBottom:`1px solid ${tk.bdr}`, alignItems:'center', minWidth:1290 }}>
+                                    <div key={v.id} style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) 120px repeat(6,110px) repeat(3,100px) 100px', gap:10, padding:'13px 22px', borderBottom:`1px solid ${tk.bdr}`, alignItems:'center', minWidth:1410 }}>
                                         {/* Vendedor */}
                                         <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
                                             <Avatar vendedor={v} size="sm" />
@@ -767,7 +774,23 @@ export default function Admin() {
                                             </div>
                                         </div>
 
+                                        <input type="number" min="0" step="1" placeholder="0"
+                                            style={{ ...inp, width:'100%' }}
+                                            value={edit.meta_actividades_semanal}
+                                            onChange={e => setEdit('meta_actividades_semanal', e.target.value)} />
+
                                         {/* Metas */}
+                                        {marketingMeta ? (
+                                            <>
+                                                <div style={{ gridColumn:'span 6', color:tk.txt3, fontSize:12, fontWeight:700 }}>
+                                                    Marketing mide actividades completadas, no metas monetarias.
+                                                </div>
+                                                <div style={{ gridColumn:'span 3', color:tk.txt3, fontSize:12, fontWeight:700 }}>
+                                                    Sin comisiones por venta.
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
                                         <input type="number" min="0" step="0.01" placeholder="0.00"
                                             style={{ ...inp, width:'100%' }}
                                             value={edit.meta_mensual}
@@ -808,6 +831,9 @@ export default function Admin() {
                                         {/* Comisión ≥20% margen */}
                                         <PctInput value={edit.pct_comision_alto} inp={inp}
                                             onChange={val => setEdit('pct_comision_alto', val)} />
+
+                                            </>
+                                        )}
 
                                         {/* Acción */}
                                         <div style={{ display:'flex', flexDirection:'column', gap:4 }}>

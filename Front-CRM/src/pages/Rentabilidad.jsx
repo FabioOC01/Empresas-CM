@@ -11,6 +11,7 @@ import { useActividadesContext } from '../context/ActividadesContext';
 import { getVendedores, updateVendedorMetas } from '../api/actividades';
 import { EditIcon } from '../components/Icons';
 import { isAdminUser } from '../utils/roles';
+import usePersistentState from '../hooks/usePersistentState';
 
 // ── Configuración ──────────────────────────────────────────────────────────────
 const COMISION_BASE  = 'rentabilidad'; // 'facturacion' | 'rentabilidad'
@@ -120,10 +121,10 @@ export default function Rentabilidad() {
     const lbl = { display:'flex', flexDirection:'column', gap:5, fontSize:12, color:tk.txt2, fontWeight:600 };
     const inp = { padding:'8px 10px', borderRadius:7, border:`1px solid ${tk.bdr}`, fontSize:13, outline:'none', width:'100%', boxSizing:'border-box', fontFamily:'inherit', background:tk.inp, color:tk.txt };
 
-    const [mes,        setMes]        = useState('');
-    const [trimestre,  setTrimestre]  = useState('');
-    const [anio,       setAnio]       = useState('');
-    const [vendedorId, setVendedorId] = useState('');
+    const [mes,        setMes]        = usePersistentState('crm_rentabilidad_mes', '');
+    const [trimestre,  setTrimestre]  = usePersistentState('crm_rentabilidad_trimestre', '');
+    const [anio,       setAnio]       = usePersistentState('crm_rentabilidad_anio', '');
+    const [vendedorId, setVendedorId] = usePersistentState('crm_rentabilidad_vendedor', '');
     const [vendedoresData, setVendedoresData] = useState([]);
     const [editingId,  setEditingId]  = useState(null);
     const [metaEdit,   setMetaEdit]   = useState({

@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS actividades (
   costo_base        NUMERIC(12,2) DEFAULT 0,
   gastos_operativos JSONB         DEFAULT '[]',
   ajuste_interno    NUMERIC(12,2) DEFAULT 0,
-  fecha_fin         DATE
+  fecha_fin         DATE,
+  business_case     JSONB         NOT NULL DEFAULT '{}'::jsonb
 );
 
 ALTER TABLE empresas
@@ -60,6 +61,7 @@ ALTER TABLE vendedores
   ADD COLUMN IF NOT EXISTS pct_comision_base NUMERIC(5,4) DEFAULT 0.02,
   ADD COLUMN IF NOT EXISTS pct_comision_bajo NUMERIC(5,4) DEFAULT 0.07,
   ADD COLUMN IF NOT EXISTS pct_comision_alto NUMERIC(5,4) DEFAULT 0.08,
+  ADD COLUMN IF NOT EXISTS meta_actividades_semanal INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS foto_url TEXT,
   ADD COLUMN IF NOT EXISTS zkbio_employee_code TEXT,
   ADD COLUMN IF NOT EXISTS zkbio_device_name TEXT,
