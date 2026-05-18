@@ -19,6 +19,7 @@ Aplicar **en orden** solo las que aún no estén aplicadas. Si no sabes cuáles 
 cd Back-CRM
 psql -U postgres -d crm-b2b -f src/db/migrations/021_vendedor_username_comision_base.sql
 psql -U postgres -d crm-b2b -f src/db/migrations/022_colaboradores_checklist_contacto.sql
+psql -U postgres -d crm-b2b -f src/db/migrations/032_clientes_documento_tipo.sql
 ```
 
 La migración 022 agrega:
@@ -26,6 +27,9 @@ La migración 022 agrega:
 - `actividades.checklist` (JSONB)
 - `clientes.contacto` (TEXT)
 - Tipos Marketing nuevos en `empresas` (id='comutel'): Video, P. Gráficas Externas/Internas, Actividad, Evento.
+
+La migracion 032 agrega:
+- `clientes.documento_tipo` para DNI, RUC, CE y Pasaporte.
 
 ## 3. Variables de entorno
 

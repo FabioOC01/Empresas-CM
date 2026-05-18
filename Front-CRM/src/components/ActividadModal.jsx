@@ -122,7 +122,8 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const esAdmin = isAdminUser(user);
     const userRoles = getEffectiveRoles(user);
-    const puedeEditarFechas = !actividad || esAdmin;
+    const esEdicion = !!actividad?.id;
+    const puedeEditarFechas = !esEdicion || esAdmin;
     const puedeElegirVendedor = esAdmin;
     const puedeAjuste = esAdmin;
     const tiposPermitidos = esAdmin ? todosLosTipos : (userRoles.reduce((acc, rol) => {
@@ -241,7 +242,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 ...f,
                 cliente: data.nombre || documento,
                 cliente_ruc: documento,
-                ...(!actividad ? { nombre: `${f.tipo} - ${data.nombre || documento}` } : {}),
+                ...(!esEdicion ? { nombre: `${f.tipo} - ${data.nombre || documento}` } : {}),
             }));
             setNuevoC(true);
             setSunatInfoC(data);
@@ -266,7 +267,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 cliente_telefono: cliente.telefono || '',
             }));
         }
-        if (!actividad) set('nombre', `${form.tipo} - ${val}`);
+        if (!esEdicion) set('nombre', `${form.tipo} - ${val}`);
     };
     const handleClienteSearchChange = (val) => {
         setClienteQuery(val);
@@ -278,7 +279,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
             cliente_ruc: '',
             cliente_email: '',
             cliente_telefono: '',
-            ...(!actividad ? { nombre: `${f.tipo} - ${val}` } : {}),
+            ...(!esEdicion ? { nombre: `${f.tipo} - ${val}` } : {}),
         }));
     };
 
@@ -294,7 +295,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     const handleTipoChange = (tipo) => {
         set('tipo', tipo);
-        if (!actividad && form.cliente) set('nombre', `${tipo} - ${form.cliente}`);
+        if (!esEdicion && form.cliente) set('nombre', `${tipo} - ${form.cliente}`);
         if (MARKETING_TIPOS.has(normalizeTipo(tipo))) setExpanded(true);
         if (!CLIENTE_O_AREA_TIPOS.has(normalizeTipo(tipo))) setClienteModo('cliente');
     };
@@ -307,7 +308,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
             cliente_ruc: '',
             cliente_email: '',
             cliente_telefono: '',
-            ...(!actividad ? { nombre: `${f.tipo} - ${val}` } : {}),
+            ...(!esEdicion ? { nombre: `${f.tipo} - ${val}` } : {}),
         }));
     };
     const handleFechaChange = (val) => {
@@ -315,7 +316,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
         setForm(f => ({ ...f, fecha: val, mes }));
     };
 
-    const soloChecklist = !!actividad && !esAdmin
+    const soloChecklist = esEdicion && !esAdmin
         && actividad.vendedor_id !== user?.id
         && (parseArr(actividad.colaboradores).includes(user?.id));
 
@@ -561,7 +562,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                 <div className="am-h">
                     <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
                         <div className="am-eyebrow">
-                            {actividad ? 'Editar actividad' : 'Nueva actividad'}
+                            {esEdicion ? 'Editar actividad' : 'Nueva actividad'}
                         </div>
                         <div className="am-title">
                             {form.nombre || (form.cliente ? `${form.tipo} - ${form.cliente}` : form.tipo)}
@@ -781,12 +782,12 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                             {/* Botones - siempre en columna izquierda */}
                             <div className="am-foot" style={{ margin: '14px -24px -20px', borderRadius: '0 0 12px 12px' }}>
                                 <div className="am-hint">
-                                    <kbd>Ctrl</kbd>+<kbd>Enter</kbd> para {actividad ? 'guardar' : 'crear'}
+                                    <kbd>Ctrl</kbd>+<kbd>Enter</kbd> para {esEdicion ? 'guardar' : 'crear'}
                                 </div>
                                 <div style={{ display:'inline-flex', gap: 8 }}>
                                     <button type="submit" className="am-create">
                                         <svg viewBox="0 0 10 10" width="10" height="10"><path d="M5 1.5v7M1.5 5h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
-                                        {actividad ? 'Guardar cambios' : 'Crear actividad'}
+                                        {esEdicion ? 'Guardar cambios' : 'Crear actividad'}
                                     </button>
                                 </div>
                             </div>
@@ -925,7 +926,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 {/* Adjuntos - solo actividades existentes */}
                                 <div>
                                     <div style={{ ...lbl, marginBottom: 8 }}>Archivos adjuntos</div>
-                                    {actividad ? (
+                                    {esEdicion ? (
                                         <>
                                             {(form.archivos || []).map((a, i) => (
                                                 <div key={i} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5, padding:'6px 10px', background: tk.card2, borderRadius:7 }}>
@@ -966,7 +967,7 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                                 )}
 
                                 {/* Timestamps */}
-                                {actividad && (
+                                {esEdicion && (
                                     <div style={{ background: tk.card2, borderRadius: 8, padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                                         {[
                                             { label: 'Pendiente',   ts: actividad.ts_pendiente,   color: '#e67e22' },

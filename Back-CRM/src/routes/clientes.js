@@ -1,6 +1,36 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 
+let documentoSchemaReady = null;
+
+function ensureDocumentoSchema() {
+    if (!documentoSchemaReady) {
+        documentoSchemaReady = (async () => {
+            await pool.query(`
+                ALTER TABLE clientes
+                ADD COLUMN IF NOT EXISTS documento_tipo TEXT NOT NULL DEFAULT ''
+            `);
+            await pool.query(`
+                UPDATE clientes
+                SET documento_tipo = CASE
+                    WHEN ruc ~ '^[0-9]{8}$' THEN 'DNI'
+                    WHEN ruc ~ '^[0-9]{11}$' THEN 'RUC'
+                    ELSE ''
+                END
+                WHERE COALESCE(documento_tipo, '') = ''
+            `);
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_clientes_documento
+                ON clientes(empresa_id, documento_tipo, ruc)
+            `);
+        })().catch(err => {
+            documentoSchemaReady = null;
+            throw err;
+        });
+    }
+    return documentoSchemaReady;
+}
+
 async function fetchClienteById(id, empresa_id) {
     const { rows } = await pool.query(
         `SELECT c.*, v.nombre AS registrado_por_nombre, v.iniciales, v.color
@@ -191,6 +221,7 @@ router.post('/sunat/dni', async (req, res) => {
 // GET /api/clientes
 router.get('/', async (req, res) => {
     try {
+        await ensureDocumentoSchema();
         const empresa_id = req.user.empresa_id;
         const { q } = req.query;
         let sql = `
@@ -213,6 +244,7 @@ router.get('/', async (req, res) => {
 // POST /api/clientes
 router.post('/', async (req, res) => {
     try {
+        await ensureDocumentoSchema();
         const { nombre, ruc, documento_tipo, email, telefono, contacto } = req.body;
         const empresa_id     = req.user.empresa_id;
         const registrado_por = req.user.is_superadmin ? null : req.user.id;
@@ -258,6 +290,7 @@ router.post('/', async (req, res) => {
 // PUT /api/clientes/:id
 router.put('/:id', async (req, res) => {
     try {
+        await ensureDocumentoSchema();
         const { nombre, ruc, documento_tipo, email, telefono, contacto } = req.body;
         const empresa_id = req.user.empresa_id;
         const tipoDoc = normalizeDocType(documento_tipo, ruc);

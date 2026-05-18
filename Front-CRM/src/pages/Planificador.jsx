@@ -331,7 +331,9 @@ export default function Planificador() {
 
     const newWithEstado = (estado) => {
         if (!puedeEditar) return;
-        setModal({ open:true, actividad: { estado } });
+        const userEsVendedor = vendedores.some(v => v.id === user?.id);
+        const vendedor_id = vendedorForzado || filters.vendedorId || (userEsVendedor ? user.id : '') || vendedores[0]?.id || '';
+        setModal({ open:true, actividad: { estado, vendedor_id } });
     };
 
     const totalMonto = filtered.reduce((s,a) => s + Number(a.monto || 0), 0);
