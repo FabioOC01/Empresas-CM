@@ -7,6 +7,29 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const Q_MAP = { '1':[0,1,2], '2':[3,4,5], '3':[6,7,8], '4':[9,10,11] };
 
+let actividadSchemaReady = null;
+
+function ensureActividadSchema() {
+    if (!actividadSchemaReady) {
+        actividadSchemaReady = (async () => {
+            await pool.query(`
+                ALTER TABLE actividades
+                  ADD COLUMN IF NOT EXISTS fecha_fin DATE,
+                  ADD COLUMN IF NOT EXISTS business_case JSONB NOT NULL DEFAULT '{}'::jsonb,
+                  ADD COLUMN IF NOT EXISTS cliente_ruc TEXT NOT NULL DEFAULT '',
+                  ADD COLUMN IF NOT EXISTS cliente_email TEXT NOT NULL DEFAULT '',
+                  ADD COLUMN IF NOT EXISTS cliente_telefono TEXT NOT NULL DEFAULT '',
+                  ADD COLUMN IF NOT EXISTS colaboradores JSONB NOT NULL DEFAULT '[]'::jsonb,
+                  ADD COLUMN IF NOT EXISTS checklist JSONB NOT NULL DEFAULT '[]'::jsonb
+            `);
+        })().catch(err => {
+            actividadSchemaReady = null;
+            throw err;
+        });
+    }
+    return actividadSchemaReady;
+}
+
 function todayISODate() {
     return new Date().toISOString().slice(0, 10);
 }
@@ -21,6 +44,7 @@ function canViewAll(user) {
 // GET /api/actividades
 router.get('/', async (req, res) => {
     try {
+        await ensureActividadSchema();
         const { vendedorId, mes, trimestre, tipo, estado, cliente } = req.query;
         const empresa_id = req.user.empresa_id;
 
@@ -142,6 +166,7 @@ function applyBusinessCaseFinancials(data, current = {}) {
 // POST /api/actividades
 router.post('/', async (req, res) => {
     try {
+        await ensureActividadSchema();
         const body = applyBusinessCaseFinancials(req.body);
         const { id, nombre, tipo, vendedor_id, cliente, monto, prioridad, estado, mes, fecha, fecha_fin, elapsed, notas,
                 precio_venta, costo_base, gastos_operativos, ajuste_interno, business_case,
@@ -153,6 +178,13 @@ router.post('/', async (req, res) => {
 
         if (isGerenciaOnly(req.user))
             return res.status(403).json({ error: 'Gerencia solo tiene permiso de visualizacion' });
+
+        if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
+        if (!tipo?.trim()) return res.status(400).json({ error: 'El tipo de actividad es obligatorio' });
+        if (!vendedor_id) return res.status(400).json({ error: 'Selecciona un vendedor' });
+        if (!cliente?.trim()) return res.status(400).json({ error: 'Selecciona un cliente o area' });
+        if (!prioridad?.trim()) return res.status(400).json({ error: 'Selecciona una prioridad' });
+        if (!estado?.trim()) return res.status(400).json({ error: 'Selecciona un estado' });
 
         // Solo Admin/Superadmin pueden asignar actividades a otros vendedores
         if (!canManageAll(req.user) && vendedor_id !== req.user.id)
@@ -182,14 +214,15 @@ router.post('/', async (req, res) => {
         req.io.to(empresa_id).emit('actividad:creada', actividad);
         res.status(201).json(actividad);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        console.error('[actividad crear]', err);
+        res.status(500).json({ error: err.code === '23503' ? 'El vendedor seleccionado no existe o no pertenece a esta empresa' : 'Error interno del servidor' });
     }
 });
 
 // PUT /api/actividades/:id
 router.put('/:id', async (req, res) => {
     try {
+        await ensureActividadSchema();
         const empresa_id = req.user.empresa_id;
 
         if (isGerenciaOnly(req.user))
