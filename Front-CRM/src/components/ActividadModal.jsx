@@ -110,6 +110,8 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     const [lookingDocC,setLookingDocC]= useState(false);
     const [sunatInfoC,setSunatInfoC]= useState(null);
     const [clienteMsg,setClienteMsg]= useState(null);
+    const [savingActividad,setSavingActividad]= useState(false);
+    const [saveMsg,setSaveMsg]= useState(null);
 
     const tipoNormalizado = normalizeTipo(form.tipo);
     const esMarketing = MARKETING_TIPOS.has(tipoNormalizado);
@@ -160,6 +162,8 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
 
     useEffect(() => {
         if (!open) return;
+        setSaveMsg(null);
+        setSavingActividad(false);
         if (actividad) {
             const fechaInicio = actividad.fecha ? String(actividad.fecha).slice(0,10) : todayInputDate();
             setForm({
@@ -333,37 +337,47 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
     }));
     const removeChkItem = (id) => set('checklist', (form.checklist || []).filter(it => it.id !== id));
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        if (savingActividad) return;
+        setSaveMsg(null);
         const nowTs = Date.now();
         const checklistConTs = (form.checklist || []).map(it => ({
             ...it,
             created_at: it.created_at || (it.texto?.trim() ? nowTs : null),
         }));
-        if (soloChecklist) {
-            onSave({ id: actividad.id, checklist: checklistConTs });
+        setSavingActividad(true);
+        try {
+            const saved = soloChecklist
+                ? await onSave({ id: actividad.id, checklist: checklistConTs })
+                : await onSave({
+                    ...form,
+                    fecha_fin:        form.fecha_fin || null,
+                    nombre:           form.nombre || `${form.tipo} - ${form.cliente}`,
+                    monto:            parseFloat(form.monto)         || 0,
+                    precio_venta:     parseFloat(form.precio_venta)  || 0,
+                    costo_base:       0,
+                    ajuste_interno:   parseFloat(form.ajuste_interno) || 0,
+                    gastos_operativos: (form.gastos_operativos || [])
+                        .filter(g => g.nombre || g.notas || parseFloat(g.monto) > 0)
+                        .map(g => ({
+                            nombre: g.nombre, monto: parseFloat(g.monto) || 0, notas: g.notas || '',
+                        })),
+                    colaboradores: form.colaboradores || [],
+                    checklist:     checklistConTs.filter(it => it.texto?.trim()),
+                    id:      actividad?.id || Date.now(),
+                    elapsed: actividad?.elapsed || 0,
+                });
+            if (!saved) {
+                setSaveMsg({ type:'err', text:'No se pudo guardar la actividad. Revisa los permisos o los datos requeridos.' });
+                return;
+            }
             onClose();
-            return;
+        } catch (err) {
+            setSaveMsg({ type:'err', text: err.response?.data?.error || 'No se pudo guardar la actividad.' });
+        } finally {
+            setSavingActividad(false);
         }
-        onSave({
-            ...form,
-            fecha_fin:        form.fecha_fin || null,
-            nombre:           form.nombre || `${form.tipo} - ${form.cliente}`,
-            monto:            parseFloat(form.monto)         || 0,
-            precio_venta:     parseFloat(form.precio_venta)  || 0,
-            costo_base:       0,
-            ajuste_interno:   parseFloat(form.ajuste_interno) || 0,
-            gastos_operativos: (form.gastos_operativos || [])
-                .filter(g => g.nombre || g.notas || parseFloat(g.monto) > 0)
-                .map(g => ({
-                    nombre: g.nombre, monto: parseFloat(g.monto) || 0, notas: g.notas || '',
-                })),
-            colaboradores: form.colaboradores || [],
-            checklist:     checklistConTs.filter(it => it.texto?.trim()),
-            id:      actividad?.id || Date.now(),
-            elapsed: actividad?.elapsed || 0,
-        });
-        onClose();
     };
 
     const estadosDisponibles = TIPOS_CON_RESULTADO.includes(form.tipo)
@@ -780,14 +794,19 @@ export default function ActividadModal({ open, onClose, onSave, actividad, vende
                             </div>
 
                             {/* Botones - siempre en columna izquierda */}
+                            {saveMsg && (
+                                <div style={{ padding:'9px 12px', borderRadius:8, background:'#fff0f0', border:'1px solid #fcc', color:'#c0392b', fontSize:12 }}>
+                                    {saveMsg.text}
+                                </div>
+                            )}
                             <div className="am-foot" style={{ margin: '14px -24px -20px', borderRadius: '0 0 12px 12px' }}>
                                 <div className="am-hint">
                                     <kbd>Ctrl</kbd>+<kbd>Enter</kbd> para {esEdicion ? 'guardar' : 'crear'}
                                 </div>
                                 <div style={{ display:'inline-flex', gap: 8 }}>
-                                    <button type="submit" className="am-create">
+                                    <button type="submit" className="am-create" disabled={savingActividad} style={savingActividad ? { opacity: 0.65, cursor: 'default' } : undefined}>
                                         <svg viewBox="0 0 10 10" width="10" height="10"><path d="M5 1.5v7M1.5 5h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
-                                        {esEdicion ? 'Guardar cambios' : 'Crear actividad'}
+                                        {savingActividad ? 'Guardando...' : esEdicion ? 'Guardar cambios' : 'Crear actividad'}
                                     </button>
                                 </div>
                             </div>
