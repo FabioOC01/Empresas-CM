@@ -201,7 +201,8 @@ export default function Planificador() {
         return () => window.removeEventListener('keydown', handler);
     }, [puedeEditar]);
 
-    const norm = (value) => String(value || '').toLowerCase();
+    const norm = (value) => String(value || '').trim().toLowerCase();
+    const sameEstado = (a, b) => norm(a) === norm(b);
     const vendedorNombre = (a) => vendedores.find(v => v.id === a.vendedor_id)?.nombre || '';
     const matchText = (value, query) => norm(value).includes(norm(query));
 
@@ -233,9 +234,18 @@ export default function Planificador() {
             vendedorId: vendedorForzado || filters.vendedorId || undefined,
             tipo:       filters.tipo       || undefined,
             prioridad:  filters.prioridad  || undefined,
-        }).filter(a => a.estado === 'En Progreso' && MESES.indexOf(a.mes) < idxActual && MESES.indexOf(a.mes) >= 0);
+        }).filter(a => {
+            const idxMes = MESES.indexOf(a.mes);
+            return (!filters.estado || sameEstado(a.estado, filters.estado))
+                && sameEstado(a.estado, 'En Progreso')
+                && idxMes < idxActual
+                && idxMes >= 0;
+        });
         const ids = new Set(baseFiltered.map(a => a.id));
         filtered = [...baseFiltered, ...arrastradas.filter(a => !ids.has(a.id))];
+    }
+    if (filters.estado) {
+        filtered = filtered.filter(a => sameEstado(a.estado, filters.estado));
     }
     if (filters.buscar) {
         filtered = filtered.filter(a => {
@@ -797,6 +807,14 @@ export default function Planificador() {
                     border-color: rgba(148, 163, 184, .38);
                     color: #d4e0ef;
                     box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 2px 8px rgba(0,0,0,.16);
+                }
+                [data-theme="dark"] .pln-sel select option {
+                    background: #0b1628;
+                    color: #dbe7f6;
+                }
+                [data-theme="dark"] .pln-sel select option:checked {
+                    background: #145345;
+                    color: #f2fff9;
                 }
                 [data-theme="dark"] .pln-sel select:hover,
                 [data-theme="dark"] .pln-sel input:hover {
