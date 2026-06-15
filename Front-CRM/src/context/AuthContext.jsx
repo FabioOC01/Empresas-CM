@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
 import { switchEmpresa as apiSwitch } from '../api/actividades';
+import { getApiBaseUrl } from '../utils/apiBase';
 
 const AuthContext = createContext(null);
 
@@ -24,7 +25,7 @@ export function AuthProvider({ children }) {
 
     const login = useCallback(async (username, password) => {
         const { data } = await axios.post(
-            `${import.meta.env.VITE_API_URL}/api/auth/login`,
+            `${getApiBaseUrl()}/api/auth/login`,
             { username, password }
         );
         localStorage.setItem(TOKEN_KEY, data.token);
